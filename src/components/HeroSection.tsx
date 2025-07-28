@@ -18,7 +18,7 @@ const HeroSection = () => {
     <section className="relative text-[var(--color-text)] min-h-[80vh] flex items-center justify-center overflow-hidden">
       {/* Mobile Background (parallax) */}
       <div
-        className="absolute inset-0 bg-cover bg-center opacity-40 md:hidden"
+        className="absolute inset-0 bg-cover bg-center opacity-30 md:hidden blur-xs"
         style={{
           backgroundImage: `url(${heroImgMobile})`,
           transform: `translateY(${offset * 1}px)`,
@@ -28,7 +28,7 @@ const HeroSection = () => {
 
       {/* Desktop Background (parallax) */}
       <div
-        className="hidden md:block absolute inset-0 bg-cover bg-center opacity-40"
+        className="hidden md:block absolute inset-0 bg-cover bg-center opacity-30 blur-xs"
         style={{
           backgroundImage: `url(${heroImgDesktop})`,
           transform: `translateY(${offset * 2}px)`,
@@ -39,10 +39,10 @@ const HeroSection = () => {
       {/* Content */}
       <div className="relative z-10 text-center px-6">
         <img className="w-40 mx-auto" src={logo} alt="" />
-        <h1 className="font-light text-4xl md:text-4xl text-white mb-0">
+        <h1 className="font-light text-2xl md:text-4xl text-white mb-0">
           Welcome to Rancho de Paloma Blanca
         </h1>
-        <p className="text-md max-w-2xl mx-auto mb-6 ">
+        <p className="text-sm md:text-md max-w-2xl mx-auto mb-6 ">
           Experience premium guided hunts and the beauty of Texas outdoors.
         </p>
         <a

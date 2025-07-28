@@ -28,9 +28,12 @@
 
 body {
   background-color: var(--color-background);
-  color: var(--color-text);
   font-family: 'Inter', sans-serif; /* Or your preferred font */
 }
-h1, h2, h3 {
+h1, h2, h3, span {
   font-family: 'broadsheet', serif;
+}
+
+.font-acumin {
+  font-family: "Acumin Pro", sans-serif;
 }

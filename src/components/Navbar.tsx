@@ -54,7 +54,7 @@ const Navbar = () => {
             alt="Rancho Logo"
             className="h-10 w-10 rounded-full"
           />
-          <span className="text-xl font-semibold">Rancho de Paloma Blanca</span>
+          <span className="text-xl">Rancho de Paloma Blanca</span>
         </Link>
 
         {/* Desktop Nav */}
@@ -63,7 +63,7 @@ const Navbar = () => {
             <Link
               key={link.to}
               to={link.to}
-              className="hover:text-[var(--color-accent-gold)] transition"
+              className="hover:text-[var(--color-accent-gold)]"
             >
               {link.label}
             </Link>
