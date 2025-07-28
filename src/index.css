@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+:root {
+  /* Base */
+  --color-background: #201209;   /* Dark wood backdrop */
+  --color-card: #24150a;         /* Warm mid-brown for cards & navbar */
+
+  /* Text */
+  --color-text: #F6E7D2;         /* Cream text for readability */
+
+  /* Buttons */
+  --color-button: #C08A4D;       /* Golden-copper buttons */
+  --color-button-hover: #D7A15E; /* Brighter hover tone */
+
+  /* Footer */
+  --color-footer: #1A0D06;       /* Near-black footer */
+
+  /* Accents */
+  --color-accent-sage: #8FA27A;  /* Soft sage green */
+  --color-accent-gold: #D9B56A;  /* Warm gold for highlights */
+
+  /* Typography Sizing (for Tailwind overrides) */
+  --font-size-h1: 2.5rem;
+  --font-size-h2: 2rem;
+  --font-size-h3: 1.5rem;
+  --font-size-body: 1rem;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-text);
+  font-family: 'Inter', sans-serif; /* Or your preferred font */
+}
