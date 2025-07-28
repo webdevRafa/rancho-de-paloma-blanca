@@ -31,3 +31,6 @@ body {
   color: var(--color-text);
   font-family: 'Inter', sans-serif; /* Or your preferred font */
 }
+h1, h2, h3 {
+  font-family: 'broadsheet', serif;
+}

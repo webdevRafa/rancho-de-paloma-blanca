@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import heroImgDesktop from "../assets/hero-img.webp";
 import heroImgMobile from "../assets/heroImgTall.webp";
+import logo from "../assets/rdp-white.svg";
 
 const HeroSection = () => {
   const [offset, setOffset] = useState(0);
@@ -37,15 +38,16 @@ const HeroSection = () => {
 
       {/* Content */}
       <div className="relative z-10 text-center px-6">
-        <h1 className="text-4xl md:text-6xl font-bold mb-4">
+        <img className="w-40 mx-auto" src={logo} alt="" />
+        <h1 className="font-light text-4xl md:text-4xl text-white mb-0">
           Welcome to Rancho de Paloma Blanca
         </h1>
-        <p className="text-lg md:text-2xl max-w-2xl mx-auto mb-6">
+        <p className="text-md max-w-2xl mx-auto mb-6 ">
           Experience premium guided hunts and the beauty of Texas outdoors.
         </p>
         <a
           href="/book"
-          className="inline-block px-8 py-4 bg-[var(--color-button)] text-white text-lg font-medium rounded-lg hover:bg-[var(--color-button-hover)] transition"
+          className="inline-block px-5 py-3 bg-[var(--color-background)] hover:bg-[var(--color-card)] text-white text-lg font-medium rounded-md  transition"
         >
           Book Your Hunt
         </a>
