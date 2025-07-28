@@ -1,11 +1,15 @@
+import { Routes, Route } from "react-router-dom";
 import Navbar from "./components/Navbar";
+import HomePage from "./pages/HomePage";
 
 function App() {
   return (
     <>
       <div className="min-h-screen ">
         <Navbar />
-        {/* Routes and pages will go here */}
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+        </Routes>
       </div>
     </>
   );
