@@ -10,16 +10,13 @@ const Navbar = () => {
 
   const toggleMenu = () => setIsOpen(!isOpen);
 
-  // Handle scroll detection
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
 
-      if (currentScrollY > lastScrollY && currentScrollY > 80) {
-        // Scrolling down -> hide navbar
+      if (!isOpen && currentScrollY > lastScrollY && currentScrollY > 80) {
         setShowNav(false);
       } else {
-        // Scrolling up -> show navbar
         setShowNav(true);
       }
 
@@ -28,7 +25,7 @@ const Navbar = () => {
 
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [lastScrollY]);
+  }, [lastScrollY, isOpen]);
 
   const navLinks = [
     { to: "/", label: "Home" },
@@ -63,7 +60,7 @@ const Navbar = () => {
             <Link
               key={link.to}
               to={link.to}
-              className="hover:text-[var(--color-accent-gold)]"
+              className="hover:text-[var(--color-accent-gold)] transition"
             >
               {link.label}
             </Link>
@@ -83,21 +80,35 @@ const Navbar = () => {
       {/* Backdrop Blur */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-xs z-40"
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
           onClick={() => setIsOpen(false)}
         />
       )}
 
-      {/* Side Drawer */}
+      {/* Side Drawer (Full Height, Fixed Background, Close Button) */}
       <div
-        className={`fixed top-0 right-0 h-full w-64 bg-[var(--color-background)] shadow-xl z-50 transform transition-transform duration-300 ease-in-out 
-          ${isOpen ? "translate-x-0" : "translate-x-full"}`}
+        className={`fixed top-0 right-0 h-screen w-80 bg-[var(--color-card)] shadow-xl z-50 flex flex-col transform transition-transform duration-300 ease-in-out ${
+          isOpen ? "translate-x-0" : "translate-x-full"
+        }`}
       >
-        <div className="flex gap-2 items-center p-2">
-          <img className="w-10" src={logo} alt="Rancho logo" />
-          <p className="text-sm">Rancho de Paloma Blanca</p>
+        {/* Header with Logo + Close Button */}
+        <div className="flex items-center justify-between p-4 border-b border-[var(--color-background)]">
+          <div className="flex items-center gap-2">
+            <img className="w-10" src={logo} alt="Rancho logo" />
+            <p className="text-sm font-semibold">Rancho de Paloma Blanca</p>
+          </div>
+          {/* Close Button */}
+          <button
+            onClick={() => setIsOpen(false)}
+            className="p-1 text-[var(--color-text)] hover:text-[var(--color-accent-gold)]"
+            aria-label="Close Menu"
+          >
+            <X className="h-6 w-6" />
+          </button>
         </div>
-        <div className="flex flex-col px-6 py-6 space-y-6 text-lg">
+
+        {/* Nav Links */}
+        <div className="flex flex-col flex-grow px-6 py-6 space-y-6 text-lg">
           {navLinks.map((link) => (
             <Link
               key={link.to}

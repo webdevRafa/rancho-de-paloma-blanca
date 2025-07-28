@@ -1,4 +1,5 @@
 import HeroSection from "../components/HeroSection";
+import InfoCards from "../components/InfoCards";
 
 const HomePage = () => {
   return (
@@ -16,45 +17,7 @@ const HomePage = () => {
           ranch experience designed for hunters of all levels.
         </p>
 
-        {/* Placeholder buttons or cards (can expand into full section) */}
-        <div className="flex flex-col md:flex-row justify-center gap-8">
-          <div
-            data-aos="fade-up"
-            className="bg-[var(--color-card)] rounded-lg p-6 shadow-lg flex-1"
-          >
-            <h3 className="text-2xl  mb-4 text-[var(--color-accent-gold)]">
-              Guided Hunts
-            </h3>
-            <p className="text-neutral-400">
-              Join our experienced guides for unforgettable hunts on pristine
-              Texas land.
-            </p>
-          </div>
-          <div
-            data-aos="fade-up"
-            className="bg-[var(--color-card)] rounded-lg p-6 shadow-lg flex-1"
-          >
-            <h3 className="text-2xl  mb-4 text-[var(--color-accent-gold)]">
-              Scenic Property
-            </h3>
-            <p className="text-neutral-400">
-              Explore rolling landscapes and well-managed grounds perfect for
-              outdoor enthusiasts.
-            </p>
-          </div>
-          <div
-            data-aos="fade-up"
-            className="bg-[var(--color-card)] rounded-lg p-6 shadow-lg flex-1"
-          >
-            <h3 className="text-2xl  mb-4 text-[var(--color-accent-gold)]">
-              Book Online
-            </h3>
-            <p className="text-neutral-400">
-              Secure your spot with our easy online booking system in just a few
-              clicks.
-            </p>
-          </div>
-        </div>
+        <InfoCards />
       </section>
     </div>
   );

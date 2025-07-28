@@ -28,7 +28,7 @@ const HeroSection = () => {
 
       {/* Desktop Background (parallax) */}
       <div
-        className="hidden md:block absolute inset-0 bg-cover bg-center opacity-30 blur-xs"
+        className="hidden md:block absolute inset-0 bg-cover bg-center opacity-30 blur-x"
         style={{
           backgroundImage: `url(${heroImgDesktop})`,
           transform: `translateY(${offset * 2}px)`,
