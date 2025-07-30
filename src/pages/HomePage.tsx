@@ -16,7 +16,7 @@ const HomePage = () => {
     <div className="flex flex-col min-h-screen bg-[var(--color-background)] text-[var(--color-text)]">
       {/* Hero Section */}
       <HeroSection />
-      <div className="py-10 text-center">
+      <div className="py-10 text-center bg-gradient-to-b from-[var(--color-footer)] to-[var(--color-background)]">
         <h2 className="text-4xl md:text-5xl mb-2 text-white">
           Why Choose Rancho de Paloma Blanca?
         </h2>
