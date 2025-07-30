@@ -75,7 +75,7 @@ const Navbar = () => {
           </Link>
 
           {/* Desktop Nav */}
-          <div className="hidden lg:flex md:space-x-2 lg:space-x-4 md:text-xs ">
+          <div className="hidden lg:flex md:space-x-2 lg:space-x-4 text-sm ">
             {navLinks.map((link) => (
               <Link
                 key={link.to}
@@ -100,14 +100,16 @@ const Navbar = () => {
 
       {/* Side Drawer */}
       <div
-        className={`fixed top-0 right-0 h-screen w-80 bg-[var(--color-background)] shadow-xl z-50 flex flex-col transform transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 right-0 h-screen w-80 bg-gradient-to-r from-[var(--color-background)] to-[var(--color-footer)] shadow-xl z-50 flex flex-col transform transition-transform duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
         <div className="flex items-center justify-between p-4 border-b border-[var(--color-background)]">
           <div className="flex items-center gap-2 text-white">
             <img className="w-10" src={logo} alt="Rancho logo" />
-            <p className="text-sm font-semibold">Rancho de Paloma Blanca</p>
+            <p className="text-lg font-broadsheet text-white">
+              Rancho de Paloma Blanca
+            </p>
           </div>
           <button
             onClick={() => setIsOpen(false)}
@@ -119,7 +121,7 @@ const Navbar = () => {
         </div>
 
         {/* Nav Links */}
-        <div className="flex flex-col flex-grow px-6 py-6 space-y-6 text-md text-neutral-300">
+        <div className="flex flex-col flex-grow px-6 py-6 space-y-6 text-md text-[var(--color-text)]">
           {navLinks.map((link) => (
             <Link
               key={link.to}

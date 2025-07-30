@@ -23,15 +23,15 @@ const InfoCards = () => {
         {cards.map((card, idx) => (
           <div
             key={idx}
-            className="flex-1 bg-[var(--color-card)] text-[var(--color-text)] rounded-lg shadow-lg p-8 text-center 
+            className="flex-1  text-[var(--color-text)] rounded-lg shadow-xl p-8 text-center 
                          hover:shadow-xl hover:scale-105 transition-transform duration-300"
             data-aos="fade-up"
             data-aos-delay={card.delay}
           >
-            <h3 className="text-2xl text-[var(--color-accent-gold)] mb-4">
+            <h3 className="text-4xl md:text-3xl lg:text-4xl text-[var(--color-accent-gold)] mb-4">
               {card.title}
             </h3>
-            <p className="text-base opacity-90">{card.text}</p>
+            <p className="text-base">{card.text}</p>
           </div>
         ))}
       </div>
