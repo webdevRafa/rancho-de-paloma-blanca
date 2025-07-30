@@ -30,10 +30,12 @@ body {
   background-color: var(--color-background);
   font-family: 'Inter', sans-serif; /* Or your preferred font */
 }
-h1, h2, h3, span, .hero-btn {
+h1, h2, h3, span.broadsheet, .hero-btn {
   font-family: 'broadsheet', serif;
 }
-
+.font-broadsheet {
+  font-family: 'broadsheet', serif;
+}
 .font-acumin {
   font-family: "Acumin Pro", sans-serif;
 }

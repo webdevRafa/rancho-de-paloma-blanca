@@ -40,6 +40,7 @@ const Navbar = () => {
     { to: "/gallery", label: "Gallery" },
     { to: "/contact", label: "Contact" },
     { to: "/about", label: "About Us" },
+    { to: "/sponsor", label: "Our Sponsor" },
   ];
 
   return (
@@ -60,7 +61,7 @@ const Navbar = () => {
           !scrolled ? "" : ""
         }`}
       >
-        <div className="max-w-[1400px] mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-[1600px] mx-auto px-6 py-4 flex items-center justify-between">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-3">
             <img
@@ -68,16 +69,18 @@ const Navbar = () => {
               alt="Rancho Logo"
               className="h-10 w-10 rounded-full"
             />
-            <span className="text-xl text-white">Rancho de Paloma Blanca</span>
+            <span className="broadsheet text-lg text-white">
+              Rancho de Paloma Blanca
+            </span>
           </Link>
 
           {/* Desktop Nav */}
-          <div className="hidden md:flex space-x-4 text-sm">
+          <div className="hidden lg:flex md:space-x-2 lg:space-x-4 md:text-xs ">
             {navLinks.map((link) => (
               <Link
                 key={link.to}
                 to={link.to}
-                className="hover:bg-[var(--color-button)] border-2 border-transparent hover:border-[var(--color-background)] rounded-sm p-2 transition text-white"
+                className="hover:bg-[var(--color-background)]/40  rounded-sm p-2 transition text-white"
               >
                 {link.label}
               </Link>
@@ -86,7 +89,7 @@ const Navbar = () => {
 
           {/* Mobile Hamburger */}
           <button
-            className="md:hidden focus:outline-none text-white"
+            className="lg:hidden focus:outline-none text-white"
             onClick={toggleMenu}
             aria-label="Toggle Menu"
           >
@@ -97,7 +100,7 @@ const Navbar = () => {
 
       {/* Side Drawer */}
       <div
-        className={`fixed top-0 right-0 h-screen w-80 bg-[var(--color-card)] shadow-xl z-50 flex flex-col transform transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 right-0 h-screen w-80 bg-[var(--color-background)] shadow-xl z-50 flex flex-col transform transition-transform duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
@@ -122,7 +125,7 @@ const Navbar = () => {
               key={link.to}
               to={link.to}
               onClick={() => setIsOpen(false)}
-              className="hover:text-[var(--color-button-hover)] transition"
+              className="hover:text-[var(--color-button-hover)] transition font-broadsheet text-lg"
             >
               {link.label}
             </Link>

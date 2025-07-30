@@ -1,6 +1,9 @@
 import { Routes, Route } from "react-router-dom";
 import Navbar from "./components/Navbar";
+import Footer from "./components/Footer";
+
 import HomePage from "./pages/HomePage";
+import SponsorPage from "./pages/SponsorPage";
 import { useEffect } from "react";
 import AOS from "aos";
 import "aos/dist/aos.css"; // Import AOS styles
@@ -20,7 +23,9 @@ function App() {
         <Navbar />
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/sponsor" element={<SponsorPage />} />
         </Routes>
+        <Footer />
       </div>
     </>
   );
