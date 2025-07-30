@@ -72,12 +72,12 @@ const Navbar = () => {
           </Link>
 
           {/* Desktop Nav */}
-          <div className="hidden md:flex space-x-6 text-sm">
+          <div className="hidden md:flex space-x-4 text-sm">
             {navLinks.map((link) => (
               <Link
                 key={link.to}
                 to={link.to}
-                className="hover:text-[var(--color-accent-gold)] transition text-white"
+                className="hover:bg-[var(--color-button)] border-2 border-transparent hover:border-[var(--color-background)] rounded-sm p-2 transition text-white"
               >
                 {link.label}
               </Link>
@@ -108,7 +108,7 @@ const Navbar = () => {
           </div>
           <button
             onClick={() => setIsOpen(false)}
-            className="p-1 text-[var(--color-text)] hover:text-[var(--color-accent-gold)]"
+            className="p-1 text-[var(--color-text)] hover:text-[var(--color-button-hover)]"
             aria-label="Close Menu"
           >
             <X className="h-6 w-6" />
@@ -122,7 +122,7 @@ const Navbar = () => {
               key={link.to}
               to={link.to}
               onClick={() => setIsOpen(false)}
-              className="hover:text-[var(--color-accent-gold)] transition"
+              className="hover:text-[var(--color-button-hover)] transition"
             >
               {link.label}
             </Link>

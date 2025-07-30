@@ -9,7 +9,7 @@ const HomePage = () => {
 
       {/* Placeholder for other sections (to build later) */}
       <section className="py-20 px-6 max-w-6xl mx-auto text-center">
-        <h2 className="text-4xl md:text-5xl mb-2 text-[var(--color-accent-sage)]">
+        <h2 className="text-4xl md:text-5xl mb-2 text-[var(--color-button)]">
           Why Choose Rancho de Paloma Blanca?
         </h2>
         <p className="text-md max-w-3xl mx-auto mb-10 text-white">
