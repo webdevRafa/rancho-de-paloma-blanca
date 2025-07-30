@@ -49,16 +49,16 @@ const HeroSection = () => {
 
       {/* Content */}
       <div className="relative z-10 text-center px-6">
-        <img className="w-40 mx-auto" src={logo} alt="" />
+        <img className="w-30 mx-auto" src={logo} alt="" />
         <h1 className="font-light text-2xl md:text-4xl text-white mb-0">
           Welcome to Rancho de Paloma Blanca
         </h1>
-        <p className="text-sm md:text-md max-w-2xl mx-auto mb-6">
+        <p className="text-xs md:text-md max-w-2xl mx-auto mb-6">
           Experience premium guided hunts and the beauty of Texas outdoors.
         </p>
         <a
           href="/book"
-          className="inline-block px-5 py-3 bg-[var(--color-background)] hover:bg-[var(--color-card)] text-white text-lg font-medium rounded-md transition"
+          className="inline-block hero-btn px-5 text-[var(--color-background)] border-3  border-[var(--color-background)] py-3 bg-[var(--color-button)] hover:bg-[var(--color-button-hover)]  text-lg md:text-xl font-medium rounded-md transition duration-300 ease-in-out"
         >
           Book Your Hunt
         </a>

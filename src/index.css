@@ -30,7 +30,7 @@ body {
   background-color: var(--color-background);
   font-family: 'Inter', sans-serif; /* Or your preferred font */
 }
-h1, h2, h3, span {
+h1, h2, h3, span, .hero-btn {
   font-family: 'broadsheet', serif;
 }
 
