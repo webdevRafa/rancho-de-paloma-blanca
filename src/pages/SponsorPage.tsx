@@ -42,7 +42,7 @@ const SponsorPage = () => {
 
       <Link
         to="/"
-        className="mt-8 text-[var(--color-text)] text-sm hover:underline text-base"
+        className="mt-8 text-[var(--color-text)] text-sm hover:underline "
       >
         ← Back to Home
       </Link>
