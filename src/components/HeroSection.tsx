@@ -14,11 +14,12 @@ const HeroSection = () => {
 
   return (
     <section className="relative text-[var(--color-text)] min-h-[80vh] flex items-center justify-center overflow-hidden">
-      {/* Background Video */}
+      {/* Background Videos */}
       <div className="absolute inset-0 overflow-hidden">
+        {/* Desktop Horizontal Video */}
         <video
-          className="w-full h-full object-cover opacity-40 blur-xs"
-          src="https://player.vimeo.com/progressive_redirect/playback/1105476172/rendition/1080p/file.mp4?loc=external&signature=9bd7a4ea1f8b8264af6c49d9168fec5bd90837b92a67d86d3de8d027d5f17f9b"
+          className="hidden md:block w-full h-full object-cover opacity-50 "
+          src="https://player.vimeo.com/progressive_redirect/playback/1105805752/rendition/1080p/file.mp4?loc=external&signature=6a79087644a3a7a8e3ef3c4f08b3b029efb9734bcbc96a9a6a4a6a7617ccbc83"
           autoPlay
           muted
           loop
@@ -26,8 +27,22 @@ const HeroSection = () => {
         >
           Your browser does not support the video tag.
         </video>
+
+        {/* Mobile Vertical Video */}
+        <video
+          className="block md:hidden w-full h-full object-cover opacity-50"
+          src="https://player.vimeo.com/progressive_redirect/playback/1105805801/rendition/1080p/file.mp4?loc=external&signature=8656f7dfb525f7a636460887e9ea23581a3ece9add465861ff66f4af11a52ed1"
+          autoPlay
+          muted
+          loop
+          playsInline
+        >
+          Your browser does not support the video tag.
+        </video>
+
+        {/* Overlay */}
         <div
-          className="absolute inset-0  bg-opacity-50"
+          className="absolute inset-0 bg-opacity-50"
           style={{ transform: `translateY(${offset * 0.5}px)` }}
         />
       </div>
@@ -38,7 +53,7 @@ const HeroSection = () => {
         <h1 className="font-light text-2xl md:text-4xl text-white mb-0">
           Welcome to Rancho de Paloma Blanca
         </h1>
-        <p className="text-sm md:text-md max-w-2xl mx-auto mb-6 ">
+        <p className="text-sm md:text-md max-w-2xl mx-auto mb-6">
           Experience premium guided hunts and the beauty of Texas outdoors.
         </p>
         <a

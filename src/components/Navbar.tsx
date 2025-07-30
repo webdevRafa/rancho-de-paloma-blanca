@@ -7,6 +7,7 @@ const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [showNav, setShowNav] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
+  const [scrolled, setScrolled] = useState(false);
 
   const toggleMenu = () => setIsOpen(!isOpen);
 
@@ -14,11 +15,15 @@ const Navbar = () => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
 
+      // Hide nav on fast downward scroll (only when menu closed)
       if (!isOpen && currentScrollY > lastScrollY && currentScrollY > 80) {
         setShowNav(false);
       } else {
         setShowNav(true);
       }
+
+      // Change background color when scrolled past 50px
+      setScrolled(currentScrollY > 50);
 
       setLastScrollY(currentScrollY);
     };
@@ -39,7 +44,7 @@ const Navbar = () => {
 
   return (
     <>
-      {/* Backdrop Blur (covers navbar + content) */}
+      {/* Backdrop Blur for mobile menu */}
       {isOpen && (
         <div
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
@@ -49,11 +54,13 @@ const Navbar = () => {
 
       {/* Navbar */}
       <nav
-        className={`fixed top-0 left-0 w-full bg-[var(--color-card)] text-[var(--color-text)] shadow-md z-30 transform transition-transform duration-300 ${
+        className={`fixed top-0 left-0 w-full text-[var(--color-text)] z-30 transform transition-all duration-300 ${
           showNav ? "translate-y-0" : "-translate-y-full"
+        } ${scrolled ? "bg-[var(--color-card)] shadow-md" : "bg-transparent"} ${
+          !scrolled ? "" : ""
         }`}
       >
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-[1400px] mx-auto px-6 py-4 flex items-center justify-between">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-3">
             <img
@@ -61,7 +68,7 @@ const Navbar = () => {
               alt="Rancho Logo"
               className="h-10 w-10 rounded-full"
             />
-            <span className="text-xl">Rancho de Paloma Blanca</span>
+            <span className="text-xl text-white">Rancho de Paloma Blanca</span>
           </Link>
 
           {/* Desktop Nav */}
@@ -70,7 +77,7 @@ const Navbar = () => {
               <Link
                 key={link.to}
                 to={link.to}
-                className="hover:text-[var(--color-accent-gold)] transition"
+                className="hover:text-[var(--color-accent-gold)] transition text-white"
               >
                 {link.label}
               </Link>
@@ -79,7 +86,7 @@ const Navbar = () => {
 
           {/* Mobile Hamburger */}
           <button
-            className="md:hidden focus:outline-none"
+            className="md:hidden focus:outline-none text-white"
             onClick={toggleMenu}
             aria-label="Toggle Menu"
           >
@@ -88,13 +95,12 @@ const Navbar = () => {
         </div>
       </nav>
 
-      {/* Side Drawer (moved out of nav, always above backdrop) */}
+      {/* Side Drawer */}
       <div
         className={`fixed top-0 right-0 h-screen w-80 bg-[var(--color-card)] shadow-xl z-50 flex flex-col transform transition-transform duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        {/* Header with Close Button */}
         <div className="flex items-center justify-between p-4 border-b border-[var(--color-background)]">
           <div className="flex items-center gap-2 text-white">
             <img className="w-10" src={logo} alt="Rancho logo" />
