@@ -28,7 +28,7 @@
 }
 
 body {
-  background-color: var(--color-background);
+  background-color: var(--color-dark);
   font-family: 'Inter', sans-serif; /* Or your preferred font */
 }
 h1, h2, h3, span.broadsheet, .hero-btn {
