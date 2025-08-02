@@ -20,7 +20,7 @@ const Footer = () => {
         <div className="flex space-x-6">
           {/* Facebook */}
           <a
-            href="#"
+            href="https://www.facebook.com/share/16fMa3w3iP/?mibextid=wwXlfr"
             aria-label="Facebook"
             className="transition transform hover:scale-110 hover:opacity-80"
           >
