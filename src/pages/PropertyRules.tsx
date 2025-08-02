@@ -2,61 +2,73 @@ const PropertyRules = () => {
   return (
     <section
       data-aos="fade-in"
-      className="bg-[var(--color-card)] text-[var(--color-text)] px-6 py-16 max-w-4xl my-30 mx-auto rounded-lg shadow-lg"
+      className="bg-[var(--color-card)] text-[var(--color-text)] px-6 py-16 max-w-3xl mx-auto rounded-lg shadow-lg"
     >
-      <h1 className="text-[var(--color-accent-gold)] text-4xl font-broadsheet mb-6">
-        Property Rules & Hunting Etiquette
+      {/* Header */}
+      <h1 className="text-4xl font-broadsheet text-[var(--color-accent-gold)] mb-2 text-center">
+        Hunting Rules
       </h1>
-      <div className="space-y-6 text-[var(--color-text)] text-base leading-relaxed font-acumin">
-        <p>
-          Welcome to Rancho de Paloma Blanca. We’re proud to offer a safe and
-          respectful hunting environment. Before your hunt, please read the
-          following rules carefully.
-        </p>
+      <p className="text-lg font-broadsheet text-[var(--color-accent-sage)] mb-10 text-center">
+        1419 Ranch, LLC
+      </p>
 
-        <h2 className="text-[var(--color-accent-sage)] text-2xl font-broadsheet mt-8">
-          General Conduct
-        </h2>
-        <ul className="list-disc list-inside space-y-2">
-          <li>Always treat firearms with care and respect.</li>
-          <li>Clean up after yourself — leave no trash behind.</li>
-        </ul>
+      {/* C.R.I.M.E. Breakdown */}
+      <div className="space-y-8 font-acumin text-[var(--color-text)]">
+        <div>
+          <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2">
+            C — Clean up your area
+          </h2>
+          <p>
+            Please pick up all trash, used shells, and gear. Help us keep the
+            land clean and ready for the next hunt.
+          </p>
+        </div>
 
-        <h2 className="text-[var(--color-accent-sage)] text-2xl font-broadsheet mt-8">
-          Safety Guidelines
-        </h2>
-        <ul className="list-disc list-inside space-y-2">
-          <li>Keep your muzzle pointed in a safe direction at all times.</li>
-          <li>Do not shoot unless you’re 100% sure of your target.</li>
-        </ul>
+        <div>
+          <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2">
+            R — Respect fellow hunters
+          </h2>
+          <p>
+            Be courteous and professional toward everyone on the property. Your
+            behavior reflects on all of us.
+          </p>
+        </div>
 
-        <h2 className="text-[var(--color-accent-sage)] text-2xl font-broadsheet mt-8">
-          Property Rules
-        </h2>
-        <ul className="list-disc list-inside space-y-2">
-          <li>Stay within designated hunting zones.</li>
-          <li>No unauthorized vehicles beyond the ranch gate.</li>
-          <li>Campfires must be approved by ranch staff beforehand.</li>
-        </ul>
+        <div>
+          <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2">
+            I — Intoxicated hunters will not be tolerated
+          </h2>
+          <p>
+            If you are under the influence of alcohol or drugs, you will be
+            asked to leave immediately — no exceptions.
+          </p>
+        </div>
 
-        <h2 className="text-[var(--color-accent-sage)] text-2xl font-broadsheet mt-8">
-          Game & Harvest
-        </h2>
-        <ul className="list-disc list-inside space-y-2">
-          <li>All game must be logged with staff immediately after harvest.</li>
-          <li>Do not exceed your tag or limit for any species.</li>
-          <li>We reserve the right to inspect game bags or vehicles.</li>
-        </ul>
+        <div>
+          <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2">
+            M — Maintain safe distance between areas
+          </h2>
+          <p>
+            Stay aware of your surroundings and avoid hunting too close to other
+            groups. Keep a courteous, safe buffer.
+          </p>
+        </div>
 
-        <p className="mt-8">
-          By entering the ranch, you agree to follow these rules. Violators may
-          be asked to leave without refund.
-        </p>
-
-        <p className="text-[var(--color-accent-gold)] font-broadsheet mt-6 text-center text-lg">
-          Thank you for respecting the land — and the hunt.
-        </p>
+        <div>
+          <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2">
+            E — Elevate your shots
+          </h2>
+          <p>
+            Never shoot low over the fields. Always elevate your aim to avoid
+            endangering others.
+          </p>
+        </div>
       </div>
+
+      <p className="text-center text-lg mt-12 font-broadsheet text-[var(--color-accent-sage)]">
+        Thank you for helping us keep the ranch safe, respectful, and fun for
+        everyone.
+      </p>
     </section>
   );
 };
