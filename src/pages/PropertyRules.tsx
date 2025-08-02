@@ -1,3 +1,5 @@
+import logo from "../assets/logo-official.png";
+
 const PropertyRules = () => {
   return (
     <section
@@ -8,6 +10,7 @@ const PropertyRules = () => {
       <h1 className="text-4xl font-broadsheet text-[var(--color-accent-gold)] mb-2 text-center">
         Hunting Rules
       </h1>
+      <img className="h-30 mx-auto" src={logo} alt="" />
       <p className="text-lg font-broadsheet text-[var(--color-accent-sage)] mb-10 text-center">
         1419 Ranch, LLC
       </p>
