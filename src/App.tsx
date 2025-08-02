@@ -1,6 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
+import PropertyRules from "./pages/PropertyRules";
 
 import HomePage from "./pages/HomePage";
 import SponsorPage from "./pages/SponsorPage";
@@ -24,6 +25,7 @@ function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/sponsor" element={<SponsorPage />} />
+          <Route path="/rules" element={<PropertyRules />} />
         </Routes>
         <Footer />
       </div>
