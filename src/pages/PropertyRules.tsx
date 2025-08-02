@@ -18,7 +18,7 @@ const PropertyRules = () => {
           <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2">
             C — Clean up your area
           </h2>
-          <p className="ml-10 text-neutral-400!">
+          <p className="ml-5 text-neutral-400!">
             Please pick up all trash, used shells, and gear. Help us keep the
             land clean and ready for the next hunt.
           </p>
@@ -28,7 +28,7 @@ const PropertyRules = () => {
           <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2">
             R — Respect fellow hunters
           </h2>
-          <p className="ml-10 text-neutral-400!">
+          <p className="ml-5 text-neutral-400!">
             Be courteous and professional toward everyone on the property. Your
             behavior reflects on all of us.
           </p>
@@ -38,7 +38,7 @@ const PropertyRules = () => {
           <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2">
             I — Intoxicated hunters will not be tolerated
           </h2>
-          <p className="ml-10 text-neutral-400!">
+          <p className="ml-5 text-neutral-400!">
             Responsible alcohol consumption is allowed, but any reckless or
             unsafe behavior — including handling firearms while visibly impaired
             — will result in immediate removal from the property.
@@ -49,7 +49,7 @@ const PropertyRules = () => {
           <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2">
             M — Maintain safe distance between areas
           </h2>
-          <p className="ml-10 text-neutral-400!">
+          <p className="ml-5 text-neutral-400!">
             Stay aware of your surroundings and avoid hunting too close to other
             groups. Keep a courteous, safe buffer.
           </p>
@@ -59,7 +59,7 @@ const PropertyRules = () => {
           <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2">
             E — Elevate your shots
           </h2>
-          <p className="ml-10 text-neutral-400!">
+          <p className="ml-5 text-neutral-400!">
             Never shoot low over the fields. Always elevate your aim to avoid
             endangering others.
           </p>
