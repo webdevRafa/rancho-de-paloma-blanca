@@ -1,4 +1,4 @@
-import logo from "../assets/logo-official.png";
+import logo from "../assets/logo-official.webp";
 
 const PropertyRules = () => {
   return (
@@ -10,7 +10,7 @@ const PropertyRules = () => {
       <h1 className="text-4xl font-broadsheet text-[var(--color-accent-gold)] mb-2 text-center">
         Hunting Rules
       </h1>
-      <img className="h-30 mx-auto" src={logo} alt="" />
+      <img className="h-30 mx-auto mb" src={logo} alt="" />
       <p className="text-lg font-broadsheet text-[var(--color-accent-sage)] mb-10 text-center">
         1419 Ranch, LLC
       </p>
