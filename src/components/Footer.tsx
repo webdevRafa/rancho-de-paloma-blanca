@@ -21,6 +21,7 @@ const Footer = () => {
           {/* Facebook */}
           <a
             href="https://www.facebook.com/share/16fMa3w3iP/?mibextid=wwXlfr"
+            target="_blank"
             aria-label="Facebook"
             className="transition transform hover:scale-110 hover:opacity-80"
           >
