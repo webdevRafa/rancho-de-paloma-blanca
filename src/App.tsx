@@ -8,6 +8,7 @@ import SponsorPage from "./pages/SponsorPage";
 import { useEffect } from "react";
 import AOS from "aos";
 import "aos/dist/aos.css"; // Import AOS styles
+import BookingPage from "./pages/BookingPage";
 
 function App() {
   useEffect(() => {
@@ -26,6 +27,7 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/sponsor" element={<SponsorPage />} />
           <Route path="/rules" element={<PropertyRules />} />
+          <Route path="/book" element={<BookingPage />} />
         </Routes>
         <Footer />
       </div>

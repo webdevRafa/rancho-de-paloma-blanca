@@ -2,22 +2,16 @@ import { FaFacebookF, FaInstagram } from "react-icons/fa";
 
 const Footer = () => {
   return (
-    <footer
-      className="w-full py-20"
-      style={{
-        backgroundColor: "var(--color-footer)",
-        color: "var(--color-text)",
-      }}
-    >
+    <footer className="w-full py-20 bg-gradient-to-r from-[var(--color-dark)] via-[var(--color-footer)] to-[var(--color-dark)] mt-20">
       <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
         {/* Brand / Copyright */}
-        <p className="text-sm text-center md:text-left">
+        <p className="text-sm text-center md:text-left text-white opacity-60">
           © {new Date().getFullYear()} Rancho de Paloma Blanca. All rights
           reserved.
         </p>
 
         {/* Social Links */}
-        <div className="flex space-x-6">
+        <div className="flex space-x-6 text-white">
           {/* Facebook */}
           <a
             href="https://www.facebook.com/share/16fMa3w3iP/?mibextid=wwXlfr"

@@ -18,7 +18,7 @@ const HomePage = () => {
       <HeroSection />
       <div
         data-aos="fade-in"
-        className="py-10 text-center bg-gradient-to-b from-[var(--color-footer)] to-[var(--color-background)]"
+        className="py-10 text-center bg-gradient-to-r from-[var(--color-dark)] via-[var(--color-footer)] to-[var(--color-dark)]"
       >
         <h2 id="info" className="text-4xl md:text-5xl mb-2 text-white">
           Why Choose Rancho de Paloma Blanca?

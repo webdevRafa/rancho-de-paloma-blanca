@@ -57,9 +57,9 @@ const Navbar = () => {
       <nav
         className={`fixed top-0 left-0 w-full text-[var(--color-text)] z-30 transform transition-all duration-300 ${
           showNav ? "translate-y-0" : "-translate-y-full"
-        } ${scrolled ? "bg-[var(--color-card)] shadow-md" : "bg-transparent"} ${
-          !scrolled ? "" : ""
-        }`}
+        } ${
+          scrolled ? "bg-[var(--color-footer)] shadow-md" : "bg-transparent"
+        } ${!scrolled ? "" : ""}`}
       >
         <div className="max-w-[1600px] mx-auto px-6 py-4 flex items-center justify-between">
           {/* Logo */}
