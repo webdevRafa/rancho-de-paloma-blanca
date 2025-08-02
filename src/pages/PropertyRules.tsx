@@ -19,7 +19,6 @@ const PropertyRules = () => {
         </h2>
         <ul className="list-disc list-inside space-y-2">
           <li>Always treat firearms with care and respect.</li>
-          <li>No alcohol consumption before or during your hunt.</li>
           <li>Clean up after yourself — leave no trash behind.</li>
         </ul>
 
@@ -27,7 +26,6 @@ const PropertyRules = () => {
           Safety Guidelines
         </h2>
         <ul className="list-disc list-inside space-y-2">
-          <li>Wear blaze orange when moving through open areas.</li>
           <li>Keep your muzzle pointed in a safe direction at all times.</li>
           <li>Do not shoot unless you’re 100% sure of your target.</li>
         </ul>
