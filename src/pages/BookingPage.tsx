@@ -13,7 +13,7 @@ const BookingPage = () => {
           <img className="object-cover h-full w-full" src={dove} alt="" />
         </div>
         <h1 className="text-center text-4xl md:text-6xl font-broadsheet mb-5 text-neutral-300 translate-y-[-70%]">
-          Book a Next Hunt
+          Book your next hunt
         </h1>
 
         {/* Packages */}

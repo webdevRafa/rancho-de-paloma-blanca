@@ -4,10 +4,11 @@ import { db } from "../firebase/firebaseConfig";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import type { NewBooking } from "../types/Types";
 import gsignup from "../assets/google-signup.png";
-
+import { useNavigate } from "react-router-dom";
 const BookingForm = () => {
   const { user, login } = useAuth();
-
+  const [step, setStep] = useState(1);
+  const navigate = useNavigate();
   const [form, setForm] = useState({
     numberOfHunters: 1,
     includesPartyDeck: false,
@@ -26,52 +27,72 @@ const BookingForm = () => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.checked }));
   };
 
+  const handleNextStep = () => setStep((prev) => prev + 1);
+  const handlePrevStep = () => setStep((prev) => prev - 1);
+
   const handleSubmit = async () => {
     if (!user) return alert("Please sign in with Google first.");
+
+    const price =
+      form.numberOfHunters *
+      (form.selectedPackage === "1-day"
+        ? 200
+        : form.selectedPackage === "2-day"
+        ? 350
+        : 450);
 
     const booking: NewBooking = {
       userId: user.uid,
       name: user.displayName || "Unknown",
       email: user.email || "No email",
-      phone: "", // optional
+      phone: "",
       dates: form.dates,
       numberOfHunters: form.numberOfHunters,
       includesPartyDeck: form.includesPartyDeck,
       selectedPackage: form.selectedPackage,
-      price: 0,
+      price,
       status: "pending",
       createdAt: serverTimestamp(),
     };
 
     try {
-      await addDoc(collection(db, "bookings"), booking);
+      const docRef = await addDoc(collection(db, "bookings"), booking);
+      navigate(`/booking-confirmed?bookingId=${docRef.id}`);
       alert("Booking submitted!");
+      // redirect to payment page or confirmation
     } catch (err) {
       console.error("Error booking:", err);
     }
   };
 
-  return (
-    <div className="max-w-2xl mx-auto mt-20 bg-gradient-to-r from-[var(--color-dark)] via-[var(--color-footer)] to-[var(--color-dark)] p-8 rounded-xl shadow-2xl text-[var(--color-text)]">
-      {!user ? (
+  if (!user) {
+    return (
+      <div className="max-w-2xl mx-auto mt-20 bg-gradient-to-r from-[var(--color-dark)] via-[var(--color-footer)] to-[var(--color-dark)] p-8 rounded-xl shadow-2xl text-[var(--color-text)] text-center">
         <img
           className="cursor-pointer hover:scale-105 transition-transform duration-300 mx-auto"
           onClick={login}
           src={gsignup}
           alt="Sign in with Google"
         />
-      ) : (
-        <>
-          <h2 className="text-3xl font-broadsheet mb-1 text-center text-[var(--color-accent-gold)]">
-            Choose a Package & Party Size
-          </h2>
+      </div>
+    );
+  }
 
-          <p className="mb-8 text-sm text-neutral-500 text-center">
-            signed in as, {user.displayName} ({user.email})
-          </p>
+  return (
+    <div className="max-w-2xl mx-auto mt-20 bg-gradient-to-r from-[var(--color-dark)] via-[var(--color-footer)] to-[var(--color-dark)] p-8 rounded-xl shadow-2xl text-[var(--color-text)]">
+      <h2 className="text-3xl font-broadsheet mb-1 text-center text-[var(--color-accent-gold)]">
+        {step === 1 && "Choose a Package & Party Size"}
+        {step === 2 && "Choose Your Dates & Extras"}
+        {step === 3 && "Review & Submit Your Booking"}
+      </h2>
 
-          <div className="flex flex-col space-y-5">
-            {/* Package Selector */}
+      <p className="mb-8 text-sm text-neutral-500 text-center">
+        signed in as, {user.displayName} ({user.email})
+      </p>
+
+      <div className="flex flex-col space-y-5">
+        {step === 1 && (
+          <>
             <label className="flex flex-col">
               <span className="mb-1 text-sm text-[var(--color-accent-sage)]">
                 Select Package
@@ -88,7 +109,6 @@ const BookingForm = () => {
               </select>
             </label>
 
-            {/* Number of Hunters */}
             <label className="flex flex-col">
               <span className="mb-1 text-sm text-[var(--color-accent-sage)]">
                 Number of Hunters
@@ -103,21 +123,48 @@ const BookingForm = () => {
                 placeholder="Enter number"
               />
             </label>
+          </>
+        )}
 
-            {form.dates.length > 0 && (
-              <label className="flex items-center gap-2">
-                <input
-                  name="includesPartyDeck"
-                  type="checkbox"
-                  checked={form.includesPartyDeck}
-                  onChange={handleCheckbox}
-                  className="accent-[var(--color-accent-gold)]"
-                />
-                <span className="text-[var(--color-accent-sage)] text-sm">
-                  Book Party Deck
-                </span>
-              </label>
-            )}
+        {step === 2 && (
+          <>
+            {/* Simulated date picker + party deck checkbox */}
+            <div className="text-sm text-[var(--color-accent-sage)] text-center">
+              (Date picker would go here)
+            </div>
+            <label className="flex items-center gap-2">
+              <input
+                name="includesPartyDeck"
+                type="checkbox"
+                checked={form.includesPartyDeck}
+                onChange={handleCheckbox}
+                className="accent-[var(--color-accent-gold)]"
+              />
+              <span className="text-[var(--color-accent-sage)] text-sm">
+                Book Party Deck
+              </span>
+            </label>
+          </>
+        )}
+
+        {step === 3 && (
+          <>
+            <div className="text-sm text-[var(--color-accent-sage)]">
+              <p>
+                Package: <strong>{form.selectedPackage}</strong>
+              </p>
+              <p>
+                Hunters: <strong>{form.numberOfHunters}</strong>
+              </p>
+              <p>
+                Party Deck:{" "}
+                <strong>{form.includesPartyDeck ? "Yes" : "No"}</strong>
+              </p>
+              <p>
+                Dates:{" "}
+                <strong>{form.dates.join(", ") || "Not selected"}</strong>
+              </p>
+            </div>
             <p className="text-lg font-semibold text-[var(--color-text)] text-center">
               Total Price: $
               {form.numberOfHunters *
@@ -127,16 +174,36 @@ const BookingForm = () => {
                   ? 350
                   : 450)}
             </p>
-            {/* Submit */}
+          </>
+        )}
+
+        {/* Navigation Buttons */}
+        <div className="flex justify-between pt-4">
+          {step > 1 && (
+            <button
+              onClick={handlePrevStep}
+              className="text-sm text-[var(--color-accent-gold)] hover:underline"
+            >
+              ← Back
+            </button>
+          )}
+          {step < 3 ? (
+            <button
+              onClick={handleNextStep}
+              className="ml-auto bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white px-6 py-2 rounded-md text-sm font-semibold"
+            >
+              Continue →
+            </button>
+          ) : (
             <button
               onClick={handleSubmit}
-              className="w-full mt-4 bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] border-2 border-[var(--color-button-hover)] font-bold text-[var(--color-footer)] px-6 py-3 rounded-md text-xs  tracking-wide transition-all max-w-[180px]"
+              className="ml-auto bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] border border-[var(--color-button-hover)] font-bold text-[var(--color-footer)] px-6 py-3 rounded-md text-sm tracking-wide transition-all"
             >
               Submit Booking
             </button>
-          </div>
-        </>
-      )}
+          )}
+        </div>
+      </div>
     </div>
   );
 };
