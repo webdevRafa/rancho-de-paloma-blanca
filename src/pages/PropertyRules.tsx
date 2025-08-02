@@ -4,7 +4,7 @@ const PropertyRules = () => {
   return (
     <section
       data-aos="fade-in"
-      className="bg-gradient-to-r from-[var(--color-footer)] via-[var(--color-card)] to-[var(--color-footer)] text-[var(--color-text)] px-6 py-16 max-w-4xl mx-auto my-30 rounded-lg shadow-sm"
+      className="bg-gradient-to-r from-[var(--color-footer)] via-[var(--color-card)] to-[var(--color-footer)] text-[var(--color-text)] px-6 md:px-20 py-16 max-w-4xl mx-auto my-30 rounded-lg shadow-sm"
     >
       {/* Header */}
       <h1 className="text-4xl font-broadsheet text-[var(--color-accent-gold)] mb-2 text-center">
@@ -18,30 +18,30 @@ const PropertyRules = () => {
       {/* C.R.I.M.E. Breakdown */}
       <div className="space-y-8 font-acumin text-[var(--color-text)]">
         <div>
-          <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2">
+          <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2 opacity-50">
             C — Clean up your area
           </h2>
-          <p className="ml-5 text-neutral-400!">
+          <p className="ml-5 text-neutral-400! text-md">
             Please pick up all trash, used shells, and gear. Help us keep the
             land clean and ready for the next hunt.
           </p>
         </div>
 
         <div>
-          <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2">
+          <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2 opacity-50">
             R — Respect fellow hunters
           </h2>
-          <p className="ml-5 text-neutral-400!">
+          <p className="ml-5 text-neutral-400! text-md">
             Be courteous and professional toward everyone on the property. Your
             behavior reflects on all of us.
           </p>
         </div>
 
         <div>
-          <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2">
+          <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2 opacity-50">
             I — Intoxicated hunters will not be tolerated
           </h2>
-          <p className="ml-5 text-neutral-400!">
+          <p className="ml-5 text-neutral-400! text-md">
             Responsible alcohol consumption is allowed, but any reckless or
             unsafe behavior — including handling firearms while visibly impaired
             — will result in immediate removal from the property.
@@ -49,27 +49,27 @@ const PropertyRules = () => {
         </div>
 
         <div>
-          <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2">
+          <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2 opacity-50">
             M — Maintain safe distance between areas
           </h2>
-          <p className="ml-5 text-neutral-400!">
+          <p className="ml-5 text-neutral-400! text-md">
             Stay aware of your surroundings and avoid hunting too close to other
             groups. Keep a courteous, safe buffer.
           </p>
         </div>
 
         <div>
-          <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2">
+          <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2 opacity-50">
             E — Elevate your shots
           </h2>
-          <p className="ml-5 text-neutral-400!">
+          <p className="ml-5 text-neutral-400! text-md">
             Never shoot low over the fields. Always elevate your aim to avoid
             endangering others.
           </p>
         </div>
       </div>
 
-      <p className="text-center text-lg mt-12 font-broadsheet text-[var(--color-accent-sage)]">
+      <p className="text-center text-xl mt-12 font-broadsheet text-[var(--color-accent-sage)]">
         Thank you for helping us keep the ranch safe, respectful, and fun for
         everyone.
       </p>
