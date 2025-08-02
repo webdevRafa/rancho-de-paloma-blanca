@@ -4,7 +4,7 @@ const PropertyRules = () => {
   return (
     <section
       data-aos="fade-in"
-      className="bg-[var(--color-footer)] text-[var(--color-text)] px-6 py-16 max-w-4xl mx-auto my-30 rounded-lg shadow-sm"
+      className="bg-gradient-to-r from-[var(--color-dark)] via-[var(--color-footer)] to-[var(--color-dark)] text-[var(--color-text)] px-6 py-16 max-w-4xl mx-auto my-30 rounded-lg shadow-sm"
     >
       {/* Header */}
       <h1 className="text-4xl font-broadsheet text-[var(--color-accent-gold)] mb-2 text-center">
