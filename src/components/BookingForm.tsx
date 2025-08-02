@@ -62,12 +62,12 @@ const BookingForm = () => {
         />
       ) : (
         <>
-          <h2 className="text-3xl font-broadsheet mb-6 text-center text-[var(--color-accent-gold)]">
-            Book Your Hunt
+          <h2 className="text-3xl font-broadsheet mb-1 text-center text-[var(--color-accent-gold)]">
+            Choose a Package & Party Size
           </h2>
 
-          <p className="mb-8 text-sm text-[var(--color-accent-sage)] text-center">
-            Welcome, {user.displayName} ({user.email})
+          <p className="mb-8 text-sm text-neutral-500 text-center">
+            signed in as, {user.displayName} ({user.email})
           </p>
 
           <div className="flex flex-col space-y-5">
@@ -104,24 +104,33 @@ const BookingForm = () => {
               />
             </label>
 
-            {/* Party Deck */}
-            <label className="flex items-center gap-3">
-              <input
-                name="includesPartyDeck"
-                type="checkbox"
-                checked={form.includesPartyDeck}
-                onChange={handleCheckbox}
-                className="w-5 h-5 accent-[var(--color-accent-gold)]"
-              />
-              <span className="text-[var(--color-accent-sage)] text-sm">
-                Book Party Deck
-              </span>
-            </label>
-
+            {form.dates.length > 0 && (
+              <label className="flex items-center gap-2">
+                <input
+                  name="includesPartyDeck"
+                  type="checkbox"
+                  checked={form.includesPartyDeck}
+                  onChange={handleCheckbox}
+                  className="accent-[var(--color-accent-gold)]"
+                />
+                <span className="text-[var(--color-accent-sage)] text-sm">
+                  Book Party Deck
+                </span>
+              </label>
+            )}
+            <p className="text-lg font-semibold text-[var(--color-text)] text-center">
+              Total Price: $
+              {form.numberOfHunters *
+                (form.selectedPackage === "1-day"
+                  ? 200
+                  : form.selectedPackage === "2-day"
+                  ? 350
+                  : 450)}
+            </p>
             {/* Submit */}
             <button
               onClick={handleSubmit}
-              className="w-full mt-4 bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white px-6 py-3 rounded-md text-sm  tracking-wide transition-all max-w-[180px]"
+              className="w-full mt-4 bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] border-2 border-[var(--color-button-hover)] font-bold text-[var(--color-footer)] px-6 py-3 rounded-md text-xs  tracking-wide transition-all max-w-[180px]"
             >
               Submit Booking
             </button>
