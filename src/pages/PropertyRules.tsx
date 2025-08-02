@@ -1,6 +1,9 @@
 const PropertyRules = () => {
   return (
-    <section className="bg-[var(--color-card)] text-[var(--color-text)] px-6 py-16 max-w-4xl my-30 mx-auto rounded-lg shadow-lg">
+    <section
+      data-aos="fade-in"
+      className="bg-[var(--color-card)] text-[var(--color-text)] px-6 py-16 max-w-4xl my-30 mx-auto rounded-lg shadow-lg"
+    >
       <h1 className="text-[var(--color-accent-gold)] text-4xl font-broadsheet mb-6">
         Property Rules & Hunting Etiquette
       </h1>
