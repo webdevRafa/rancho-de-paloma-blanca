@@ -39,8 +39,9 @@ const PropertyRules = () => {
             I — Intoxicated hunters will not be tolerated
           </h2>
           <p className="ml-10">
-            If you are under the influence of alcohol or drugs, you will be
-            asked to leave immediately — no exceptions.
+            Responsible alcohol consumption is allowed, but any reckless or
+            unsafe behavior — including handling firearms while visibly impaired
+            — will result in immediate removal from the property.
           </p>
         </div>
 
