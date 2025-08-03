@@ -25,8 +25,9 @@ const PropertyRules = () => {
         {/* C.R.I.M.E. Breakdown */}
         <div className="space-y-8 font-acumin text-[var(--color-text)]">
           <div>
-            <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2 opacity-50">
-              C — Clean up your area
+            <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2">
+              <span className="opacity-100">C</span>{" "}
+              <span className="opacity-50">— Clean up your area</span>
             </h2>
             <p className="ml-5 text-neutral-400! text-md">
               Please pick up all trash, used shells, and gear. Help us keep the
@@ -35,8 +36,9 @@ const PropertyRules = () => {
           </div>
 
           <div>
-            <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2 opacity-50">
-              R — Respect fellow hunters
+            <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2">
+              <span className="opacity-100">R</span>{" "}
+              <span className="opacity-50">— Respect fellow hunters</span>
             </h2>
             <p className="ml-5 text-neutral-400! text-md">
               Be courteous and professional toward everyone on the property.
@@ -45,8 +47,11 @@ const PropertyRules = () => {
           </div>
 
           <div>
-            <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2 opacity-50">
-              I — Intoxicated hunters will not be tolerated
+            <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2">
+              <span className="opacity-100">I</span>{" "}
+              <span className="opacity-50">
+                — Intoxicated hunters will not be tolerated
+              </span>
             </h2>
             <p className="ml-5 text-neutral-400! text-md">
               Responsible alcohol consumption is allowed, but any reckless or
@@ -56,8 +61,11 @@ const PropertyRules = () => {
           </div>
 
           <div>
-            <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2 opacity-50">
-              M — Maintain safe distance between areas
+            <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2">
+              <span className="opacity-100">M</span>{" "}
+              <span className="opacity-50">
+                — Maintain safe distance between areas
+              </span>
             </h2>
             <p className="ml-5 text-neutral-400! text-md">
               Stay aware of your surroundings and avoid hunting too close to
@@ -66,8 +74,9 @@ const PropertyRules = () => {
           </div>
 
           <div>
-            <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2 opacity-50">
-              E — Elevate your shots
+            <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2">
+              <span className="opacity-100">E</span>{" "}
+              <span className="opacity-50">— Elevate your shots</span>
             </h2>
             <p className="ml-5 text-neutral-400! text-md">
               Never shoot low over the fields. Always elevate your aim to avoid
