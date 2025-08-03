@@ -8,7 +8,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import type { Availability, SeasonConfig } from "../types/Types";
-import { DayPicker, Chevron } from "react-day-picker";
+import { DayPicker, useDayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
 import { toLocalDateString } from "../utils/formatDate";
 
@@ -141,17 +141,58 @@ const DateSelector = ({
         modifiersClassNames={{
           selected: "bg-[var(--color-accent-gold)] text-black",
           disabled: "opacity-40 cursor-not-allowed",
-          today: "text-[var(--color-accent-gold)]", // colour today’s date gold
+          today: "text-[var(--color-accent-gold)]",
         }}
         className="p-4 rounded shadow-lg"
+        navLayout="after" // Position navigation after the month caption (right side)
         components={{
-          // Render chevrons in white by appending Tailwind’s `text-white`
-          Chevron: (props: any) => (
-            <Chevron
-              {...props}
-              className={`${props.className ?? ""} text-white`}
-            />
-          ),
+          Nav: () => {
+            const { previousMonth, nextMonth, goToMonth } = useDayPicker();
+            return (
+              <div className="flex justify-end items-center gap-2">
+                <button
+                  type="button"
+                  disabled={!previousMonth}
+                  onClick={() => previousMonth && goToMonth(previousMonth!)}
+                  className="p-1 text-white disabled:opacity-40"
+                  aria-label="Previous month"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="15 18 9 12 15 6" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  disabled={!nextMonth}
+                  onClick={() => nextMonth && goToMonth(nextMonth!)}
+                  className="p-1 text-white disabled:opacity-40"
+                  aria-label="Next month"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </button>
+              </div>
+            );
+          },
         }}
       />
     </div>
