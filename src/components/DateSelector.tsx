@@ -38,7 +38,6 @@ const DateSelector = ({ selectedPackage, onSelect }: DateSelectorProps) => {
     fetchAvailability();
   }, []);
 
-  // Convert availability into a Set for fast lookup
   const availableMap = new Map(availableDates.map((d) => [d.id, d]));
   const bookedOut = new Set(
     availableDates.filter((d) => d.huntersBooked >= 75).map((d) => d.id)
@@ -52,10 +51,8 @@ const DateSelector = ({ selectedPackage, onSelect }: DateSelectorProps) => {
   const handleSelect = (day: Date | undefined) => {
     if (!day) return;
 
-    // Stay fully in local timezone
-    const dateStr = toLocalDateString(day);
-    const clicked = new Date(day); // ✅ safe – already local
-
+    const clicked = new Date(day);
+    const dateStr = toLocalDateString(clicked);
     let selectedDates: string[] = [];
 
     if (selectedPackage === "1-day") {
@@ -98,8 +95,12 @@ const DateSelector = ({ selectedPackage, onSelect }: DateSelectorProps) => {
       selectedDates = [dateStr, satStr, sunStr];
     }
 
-    // ✅ Mark selected date in DayPicker UI
-    setSelected([day]);
+    const dateObjects = selectedDates.map((d) => {
+      const [y, m, d2] = d.split("-").map(Number);
+      return new Date(y, m - 1, d2); // Local-safe
+    });
+
+    setSelected(dateObjects);
     onSelect(selectedDates);
   };
 
@@ -110,11 +111,12 @@ const DateSelector = ({ selectedPackage, onSelect }: DateSelectorProps) => {
         selected={selected[0]}
         onSelect={handleSelect}
         disabled={isDateBlocked}
+        modifiers={{ selected }}
         modifiersClassNames={{
           selected: "bg-[var(--color-accent-gold)] text-black",
           disabled: "opacity-40 cursor-not-allowed",
         }}
-        className="bg-[var(--color-card)] p-4 rounded shadow-lg"
+        className="p-4 rounded shadow-lg"
       />
     </div>
   );
