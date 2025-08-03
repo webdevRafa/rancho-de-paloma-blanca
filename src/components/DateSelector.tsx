@@ -7,109 +7,135 @@ import {
   where,
   Timestamp,
 } from "firebase/firestore";
-import type { Availability } from "../types/Types";
+import type { Availability, SeasonConfig } from "../types/Types";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
 import { toLocalDateString } from "../utils/formatDate";
 
+/**
+ * Props for the DateSelector component. The component allows users to
+ * freely select any combination of future dates, subject to capacity
+ * restrictions. It is aware of the season configuration to
+ * determine the earliest selectable day and the daily capacity.
+ */
 interface DateSelectorProps {
-  selectedPackage: "1-day" | "2-day" | "3-day";
+  /**
+   * Callback invoked whenever the selected dates change. The callback
+   * receives an array of ISO date strings (YYYY-MM-DD) representing
+   * the chosen days.
+   */
   onSelect: (dates: string[]) => void;
+  /**
+   * Active season configuration pulled from Firestore. Used to look
+   * up the maximum capacity per day and to compute the first date
+   * hunters are allowed to book (i.e. seasonStart or today, whichever
+   * is later).
+   */
+  seasonConfig: SeasonConfig | null;
+  /**
+   * Number of hunters in the current booking. Used to evaluate
+   * whether a day has enough capacity remaining for the entire party.
+   */
+  numberOfHunters: number;
 }
 
-const DateSelector = ({ selectedPackage, onSelect }: DateSelectorProps) => {
+const DateSelector = ({
+  onSelect,
+  seasonConfig,
+  numberOfHunters,
+}: DateSelectorProps) => {
   const [availableDates, setAvailableDates] = useState<Availability[]>([]);
   const [selected, setSelected] = useState<Date[]>([]);
 
+  // Fetch availability documents for all future dates. We query for
+  // timestamps >= today. Each document stores the number of hunters
+  // already booked for that day and whether the party deck is booked.
   useEffect(() => {
     const fetchAvailability = async () => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const todayTimestamp = Timestamp.fromDate(today);
-
       const ref = collection(db, "availability");
       const q = query(ref, where("timestamp", ">=", todayTimestamp));
       const snapshot = await getDocs(q);
-
       const data = snapshot.docs.map((doc) => doc.data() as Availability);
       setAvailableDates(data);
     };
-
     fetchAvailability();
   }, []);
 
+  // Map for quick lookup of availability by date string
   const availableMap = new Map(availableDates.map((d) => [d.id, d]));
-  const bookedOut = new Set(
-    availableDates.filter((d) => d.huntersBooked >= 75).map((d) => d.id)
-  );
+  // Determine per-day capacity. Default to 75 if the season config has not
+  // loaded yet, to avoid blocking selection prematurely.
+  const maxCapacity = seasonConfig?.maxHuntersPerDay ?? 75;
 
+  // Compute the earliest selectable date. Hunters cannot book days in the
+  // past, and the season does not open until seasonStart. The first
+  // selectable date should therefore be today if today is on or after
+  // the season start; otherwise it should be the season start date.
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = toLocalDateString(today);
+  // Remove any extraneous quotes from the seasonStart string
+  const rawStart = seasonConfig?.seasonStart?.replace(/"/g, "") ?? "";
+  let minSelectableDate = todayStr;
+  if (rawStart) {
+    minSelectableDate = todayStr >= rawStart ? todayStr : rawStart;
+  }
+
+  /**
+   * Determine if a day should be disabled. A day is disabled if it
+   * occurs before the minimum selectable date (either in the past or
+   * before the season starts) or if the remaining capacity cannot
+   * accommodate the current party size. A missing availability record
+   * implies zero hunters booked and thus availability.
+   */
   const isDateBlocked = (day: Date) => {
     const dateStr = toLocalDateString(day);
-    return !availableMap.has(dateStr) || bookedOut.has(dateStr);
+    // Block dates earlier than the minimum selectable date
+    if (dateStr < minSelectableDate) {
+      return true;
+    }
+    const avail = availableMap.get(dateStr);
+    if (!avail) return false;
+    return avail.huntersBooked + numberOfHunters > maxCapacity;
   };
 
-  const handleSelect = (day: Date | undefined) => {
+  /**
+   * Toggle the clicked date in the selection. If the day is already
+   * selected, it will be removed. Otherwise, it will be added to the
+   * selection provided there is enough capacity.
+   */
+  const handleDayClick = (day: Date | undefined) => {
     if (!day) return;
-
     const clicked = new Date(day);
     const dateStr = toLocalDateString(clicked);
-    let selectedDates: string[] = [];
-
-    if (selectedPackage === "1-day") {
-      selectedDates = [dateStr];
-    } else if (selectedPackage === "2-day") {
-      const next = new Date(clicked);
-      next.setDate(clicked.getDate() + 1);
-      const nextStr = toLocalDateString(next);
-
-      if (!availableMap.has(nextStr) || bookedOut.has(nextStr)) {
-        alert("Next day not available.");
-        return;
-      }
-
-      selectedDates = [dateStr, nextStr];
-    } else if (selectedPackage === "3-day") {
-      if (clicked.getDay() !== 5) {
-        alert("3-day package must start on a Friday.");
-        return;
-      }
-
-      const sat = new Date(clicked);
-      const sun = new Date(clicked);
-      sat.setDate(clicked.getDate() + 1);
-      sun.setDate(clicked.getDate() + 2);
-
-      const satStr = toLocalDateString(sat);
-      const sunStr = toLocalDateString(sun);
-
-      if (!availableMap.has(satStr) || !availableMap.has(sunStr)) {
-        alert("Saturday or Sunday not available.");
-        return;
-      }
-
-      if (bookedOut.has(satStr) || bookedOut.has(sunStr)) {
-        alert("One of the weekend days is booked.");
-        return;
-      }
-
-      selectedDates = [dateStr, satStr, sunStr];
+    // Ignore clicks on blocked days
+    if (isDateBlocked(clicked)) return;
+    // Check if the day is already selected
+    const existingIndex = selected.findIndex(
+      (d) => toLocalDateString(d) === dateStr
+    );
+    let newSelected: Date[] = [];
+    if (existingIndex >= 0) {
+      // Remove the existing selection
+      newSelected = [...selected];
+      newSelected.splice(existingIndex, 1);
+    } else {
+      // Add the new date
+      newSelected = [...selected, clicked];
     }
-
-    const dateObjects = selectedDates.map((d) => {
-      const [y, m, d2] = d.split("-").map(Number);
-      return new Date(y, m - 1, d2); // Local-safe
-    });
-
-    setSelected(dateObjects);
-    onSelect(selectedDates);
+    setSelected(newSelected);
+    onSelect(newSelected.map((d) => toLocalDateString(d)));
   };
 
   return (
     <div className="flex justify-center">
       <DayPicker
-        mode="single"
-        selected={selected[0]}
-        onSelect={handleSelect}
+        mode="multiple"
+        selected={selected}
+        onDayClick={handleDayClick}
         disabled={isDateBlocked}
         modifiers={{ selected }}
         modifiersClassNames={{

@@ -2,7 +2,9 @@ import { Timestamp, serverTimestamp } from "firebase/firestore";
 
 export type BookingStatus = "pending" | "paid" | "cancelled";
 
-export type PackageOption = "1-day" | "2-day" | "3-day";
+// Removed PackageOption as package selection is no longer part of the UI.
+// Pricing is now calculated dynamically based on the selected dates and
+// whether they fall on weekend days during the season.
 
 // When creating a booking (write)
 export interface NewBooking {
@@ -11,11 +13,26 @@ export interface NewBooking {
   email: string;
   phone?: string;
 
-  dates: string[]; // Format: ['2025-09-14', '2025-09-15']
+  /**
+   * An array of ISO date strings (YYYY-MM-DD) representing the days
+   * booked for this hunt.
+   */
+  dates: string[];
+  /**
+   * Number of hunters in this party. Used to calculate price and
+   * update daily availability counts.
+   */
   numberOfHunters: number;
+  /**
+   * Whether the customer has reserved the party deck. Adds the
+   * partyDeckRatePerDay to the cost for each selected day.
+   */
   includesPartyDeck: boolean;
-  selectedPackage: PackageOption;
 
+  /**
+   * Total price for this booking, calculated server-side from the
+   * season configuration and selected dates.
+   */
   price: number;
   status: BookingStatus;
   notes?: string;
@@ -36,6 +53,7 @@ export interface Availability {
   partyDeckBooked: boolean;
 }
 
+
 export interface SeasonRates {
   singleDay: number;
   twoConsecutiveDays: number;
@@ -43,11 +61,10 @@ export interface SeasonRates {
 }
 
 export interface SeasonConfig {
-  seasonStart: string; // Format: '2025-09-14'
-  seasonEnd: string;   // Format: '2025-10-26'
-
-  seasonRates: SeasonRates;
-  offSeasonRate: number;
+  seasonStart: string;
+  seasonEnd: string;
+  weekendRates: SeasonRates;
+  weekdayRate: number;
   partyDeckRatePerDay: number;
   maxHuntersPerDay: number;
 }

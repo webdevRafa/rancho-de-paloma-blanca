@@ -16,22 +16,42 @@ const BookingPage = () => {
           Book your next hunt
         </h1>
 
-        {/* Packages */}
-        <section className="max-w-4xl mx-auto mb-16 grid md:grid-cols-3 gap-6 py-2 md:py-10">
+        {/* Pricing overview: display static pricing information so visitors know
+        the rates for weekend packages and standard weekday/off-season
+        pricing. These cards are informational only and do not affect the
+        booking form. */}
+        <section className="max-w-4xl mx-auto mb-16 grid md:grid-cols-4 gap-6 py-2 md:py-10">
           {[
-            { label: "One-Day Hunt", desc: "$200 per person", key: "1-day" },
-            { label: "Two-Day Combo", desc: "$350 total", key: "2-day" },
-            { label: "Three-Day Weekend", desc: "$450 total", key: "3-day" },
+            {
+              label: "Weekend Single Day",
+              desc: "Fri/Sat/Sun: $200 per person",
+              key: "weekend-single",
+            },
+            {
+              label: "Weekend 2-Day Combo",
+              desc: "Fri+Sat or Sat+Sun: $350 per person",
+              key: "weekend-two",
+            },
+            {
+              label: "Weekend 3-Day Combo",
+              desc: "Fri–Sun: $450 per person",
+              key: "weekend-three",
+            },
+            {
+              label: "All Other Days",
+              desc: "$125 per person per day",
+              key: "weekday",
+            },
           ].map((pkg) => (
             <div
               key={pkg.key}
-              className="bg-gradient-to-r from-[var(--color-dark)] via-[var(--color-footer)] to-[var(--color-dark)] shadow-md py-10 px-2 flex items-center justify-center transition duration-300 ease-in-out hover:scale-105 cursor-pointer"
+              className="bg-gradient-to-r from-[var(--color-dark)] via-[var(--color-footer)] to-[var(--color-dark)] shadow-md py-8 px-4 flex items-center justify-center"
             >
-              <div>
-                <h3 className="text-3xl! font-broadsheet text-[var(--color-accent-gold)] mb-2">
+              <div className="text-center">
+                <h3 className="text-2xl md:text-3xl font-broadsheet text-[var(--color-accent-gold)] mb-2">
                   {pkg.label}
                 </h3>
-                <p className="text-sm text-[var(--color-accent-sage)]">
+                <p className="text-xs md:text-sm text-[var(--color-accent-sage)]">
                   {pkg.desc}
                 </p>
               </div>
