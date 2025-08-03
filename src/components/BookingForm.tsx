@@ -1,13 +1,27 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { db } from "../firebase/firebaseConfig";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import type { NewBooking } from "../types/Types";
+import type { NewBooking, SeasonConfig } from "../types/Types";
 import gsignup from "../assets/google-signup.png";
 import { useNavigate } from "react-router-dom";
+import DateSelector from "./DateSelector";
+import { getSeasonConfig } from "../utils/getSeasonConfig";
+
 const BookingForm = () => {
   const { user, login } = useAuth();
   const [step, setStep] = useState(1);
+  const [seasonConfig, setSeasonConfig] = useState<SeasonConfig | null>(null);
+  const calculateTotalPrice = (): number => {
+    if (!seasonConfig) return 0;
+
+    const partyDeckCost = form.includesPartyDeck
+      ? seasonConfig.partyDeckRatePerDay * form.dates.length
+      : 0;
+
+    return form.numberOfHunters * baseRate() + partyDeckCost;
+  };
+
   const navigate = useNavigate();
   const [form, setForm] = useState({
     numberOfHunters: 1,
@@ -15,6 +29,13 @@ const BookingForm = () => {
     selectedPackage: "1-day" as "1-day" | "2-day" | "3-day",
     dates: [] as string[],
   });
+  useEffect(() => {
+    const fetchConfig = async () => {
+      const config = await getSeasonConfig();
+      setSeasonConfig(config);
+    };
+    fetchConfig();
+  }, []);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -77,6 +98,24 @@ const BookingForm = () => {
       </div>
     );
   }
+  const baseRate = (): number => {
+    if (!seasonConfig) return 0;
+
+    const isInSeason = form.dates.every(
+      (date) =>
+        date >= seasonConfig.seasonStart && date <= seasonConfig.seasonEnd
+    );
+
+    return isInSeason
+      ? seasonConfig.seasonRates[
+          form.selectedPackage === "1-day"
+            ? "singleDay"
+            : form.selectedPackage === "2-day"
+            ? "twoConsecutiveDays"
+            : "threeDayCombo"
+        ]
+      : seasonConfig.offSeasonRate;
+  };
 
   return (
     <div className="max-w-2xl mx-auto mt-20 bg-gradient-to-r from-[var(--color-dark)] via-[var(--color-footer)] to-[var(--color-dark)] p-8 rounded-xl shadow-2xl text-[var(--color-text)]">
@@ -130,7 +169,11 @@ const BookingForm = () => {
           <>
             {/* Simulated date picker + party deck checkbox */}
             <div className="text-sm text-[var(--color-accent-sage)] text-center">
-              (Date picker would go here)
+              <DateSelector
+                selectedPackage={form.selectedPackage}
+                onSelect={(dates) => setForm((prev) => ({ ...prev, dates }))}
+                key={form.selectedPackage}
+              />
             </div>
             <label className="flex items-center gap-2">
               <input
@@ -165,15 +208,26 @@ const BookingForm = () => {
                 <strong>{form.dates.join(", ") || "Not selected"}</strong>
               </p>
             </div>
-            <p className="text-lg font-semibold text-[var(--color-text)] text-center">
-              Total Price: $
-              {form.numberOfHunters *
-                (form.selectedPackage === "1-day"
-                  ? 200
-                  : form.selectedPackage === "2-day"
-                  ? 350
-                  : 450)}
-            </p>
+            {seasonConfig && (
+              <div className="text-center text-[var(--color-text)] space-y-1 text-sm mt-4">
+                <p className="text-lg font-semibold text-[var(--color-text)]">
+                  Total Price: ${calculateTotalPrice()}
+                </p>
+
+                <p>
+                  Base Rate: ${baseRate()} × {form.numberOfHunters}{" "}
+                  {form.numberOfHunters > 1 ? "hunters" : "hunter"}
+                </p>
+
+                {form.includesPartyDeck && (
+                  <p>
+                    Party Deck: ${seasonConfig.partyDeckRatePerDay} ×{" "}
+                    {form.dates.length} {form.dates.length > 1 ? "days" : "day"}{" "}
+                    = ${seasonConfig.partyDeckRatePerDay * form.dates.length}
+                  </p>
+                )}
+              </div>
+            )}
           </>
         )}
 
