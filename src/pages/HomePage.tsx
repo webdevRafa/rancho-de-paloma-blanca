@@ -13,7 +13,7 @@ const HomePage = () => {
   }, []);
 
   return (
-    <div className="flex flex-col min-h-screen bg-[var(--color-background)] text-[var(--color-text)]">
+    <div className="flex flex-col min-h-screen  text-[var(--color-text)]">
       {/* Hero Section */}
       <HeroSection />
       <div
@@ -30,16 +30,25 @@ const HomePage = () => {
       </div>
       {/* Section with birds background */}
       <section
-        className="py-20 px-6 w-full mx-auto text-center"
+        className="relative py-20 px-6 w-[90%] mx-auto text-center"
         style={{
           backgroundImage: `url(${birds})`,
           backgroundSize: "cover",
           backgroundPosition: "center",
           backgroundRepeat: "no-repeat",
-          backgroundAttachment: isIOS ? "scroll" : "fixed", // Avoid iOS scroll bugs
+          backgroundAttachment: isIOS ? "scroll" : "fixed",
         }}
       >
-        <div className="py-10">
+        {/* Precise overlay gradient: 5% dark on left/right */}
+        <div
+          className="absolute inset-0 z-0 pointer-events-none"
+          style={{
+            backgroundImage: `linear-gradient(to right, var(--color-dark) 0%, transparent 1%, transparent 99%, var(--color-dark) 100%)`,
+          }}
+        />
+
+        {/* Content */}
+        <div className="relative z-10 py-10">
           <InfoCards />
         </div>
       </section>
