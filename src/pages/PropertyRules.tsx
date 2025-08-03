@@ -6,7 +6,7 @@ const PropertyRules = () => {
     <>
       <section
         data-aos="fade-in"
-        className="bg-gradient-to-r from-[var(--color-dark)] via-[var(--color-card)] to-[var(--color-dark)] text-[var(--color-text)] pb-10 w-[90%]   max-w-6xl mx-auto my-30 rounded-lg shadow-sm relative"
+        className="bg-gradient-to-r from-[var(--color-dark)] via-[var(--color-card)] to-[var(--color-dark)] text-[var(--color-text)]  w-[90%]   max-w-6xl mx-auto my-30 rounded-lg shadow-sm relative"
       >
         {/* Header */}
         <div className="relative w-full py-5">
@@ -85,7 +85,7 @@ const PropertyRules = () => {
           </div>
         </div>
 
-        <p className="text-center text-xl mt-12 font-broadsheet text-[var(--color-accent-sage)]">
+        <p className="text-center text-md  mt-12  font-extralight opacity-80 text-[var(--color-accent-sage)] bg-[var(--color-dark)] py-5">
           Thank you for helping us keep the ranch safe, respectful, and fun for
           everyone.
         </p>
