@@ -144,12 +144,12 @@ const DateSelector = ({
           today: "text-[var(--color-accent-gold)]",
         }}
         className="p-4 rounded shadow-lg"
-        navLayout="after" // Position navigation after the month caption (right side)
+        navLayout="after"
         components={{
           Nav: () => {
             const { previousMonth, nextMonth, goToMonth } = useDayPicker();
             return (
-              <div className="flex justify-end items-center gap-2">
+              <div className="flex justify-end items-center gap-2 mt-[-35px] mb-4">
                 <button
                   type="button"
                   disabled={!previousMonth}
@@ -157,6 +157,7 @@ const DateSelector = ({
                   className="p-1 text-white disabled:opacity-40"
                   aria-label="Previous month"
                 >
+                  {/* Left arrow */}
                   <svg
                     width="16"
                     height="16"
@@ -177,6 +178,7 @@ const DateSelector = ({
                   className="p-1 text-white disabled:opacity-40"
                   aria-label="Next month"
                 >
+                  {/* Right arrow */}
                   <svg
                     width="16"
                     height="16"
