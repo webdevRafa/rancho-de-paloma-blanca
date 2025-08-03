@@ -132,6 +132,14 @@ const DateSelector = ({
 
   return (
     <div className="flex justify-center">
+      {/* 
+        Custom styling for DayPicker:
+        - Set --rdp-today-color to your accent gold so that today’s date is no longer blue.
+        - Reinforce the rule with a higher-specificity .rdp-day_today selector.
+        - Recolor the navigation arrows to white by setting the button’s color,
+          which the chevron SVG inherits via currentColor.
+      */}
+
       <DayPicker
         mode="multiple"
         selected={selected}

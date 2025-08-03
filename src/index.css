@@ -27,6 +27,30 @@
   --font-size-body: 1rem;
 }
 
+/* Override the color of today's date (removes default blue) */
+.rdp {
+  --rdp-accent-color: white;
+  --rdp-today-color: var(--color-accent-gold);
+}
+.rdp-day_today {
+  color: var(--color-accent-gold) !important;
+}
+.rdp-nav_button {
+  color: white !important;
+}
+.rdp-nav_button svg {
+  color: inherit !important;
+  fill: inherit !important;
+  stroke: inherit !important;
+}
+/* Change the chevron navigation icons to white */
+.rdp-nav_button svg {
+  color: white !important;
+  fill: white !important;  /* For some SVG icons */
+  stroke: white !important; /* For others that use stroke */
+}
+
+
 body {
   background-color: var(--color-dark);
   font-family: 'Inter', sans-serif; /* Or your preferred font */
