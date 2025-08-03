@@ -6,6 +6,7 @@ import {
   doc,
   runTransaction,
   serverTimestamp,
+  getDoc,
 } from "firebase/firestore";
 import type { NewBooking, SeasonConfig, Availability } from "../types/Types";
 import gsignup from "../assets/google-signup.png";
@@ -21,9 +22,20 @@ const BookingForm = () => {
   const [seasonConfig, setSeasonConfig] = useState<SeasonConfig | null>(null);
   const [form, setForm] = useState({
     numberOfHunters: 1,
-    includesPartyDeck: false,
     dates: [] as string[],
+    // List of dates on which the party deck is reserved. Each date
+    // must correspond to a selected date in `dates`. The deck can
+    // only be booked once per day.
+    partyDeckDates: [] as string[],
   });
+
+  // Track availability of the party deck for each selected date. When
+  // true, the deck is available for that date. This is populated
+  // whenever the user reaches the review step or the selected dates
+  // change.
+  const [deckAvailability, setDeckAvailability] = useState<
+    Record<string, boolean>
+  >({});
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -33,6 +45,40 @@ const BookingForm = () => {
     fetchConfig();
   }, []);
 
+  // When advancing to the review step or when the selected dates change,
+  // determine the availability of the party deck for each date. If the
+  // deck is already booked on a day, the corresponding entry will be
+  // false. Unavailable dates are automatically removed from the
+  // user's partyDeckDates selection.
+  useEffect(() => {
+    const fetchDeckAvailability = async () => {
+      if (step !== 3 || form.dates.length === 0) {
+        setDeckAvailability({});
+        return;
+      }
+      const availability: Record<string, boolean> = {};
+      await Promise.all(
+        form.dates.map(async (date) => {
+          const ref = doc(db, "availability", date);
+          const snap = await getDoc(ref);
+          if (snap.exists()) {
+            const data = snap.data() as Availability;
+            availability[date] = !data.partyDeckBooked;
+          } else {
+            availability[date] = true;
+          }
+        })
+      );
+      setDeckAvailability(availability);
+      // prune selections
+      setForm((prev) => ({
+        ...prev,
+        partyDeckDates: prev.partyDeckDates.filter((d) => availability[d]),
+      }));
+    };
+    fetchDeckAvailability();
+  }, [step, form.dates]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setForm((prev) => ({
@@ -41,11 +87,40 @@ const BookingForm = () => {
     }));
   };
 
-  const handleCheckbox = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm((prev) => ({
-      ...prev,
-      [e.target.name]: e.target.checked,
-    }));
+  // Toggle a date in the partyDeckDates array. If the date is already
+  // selected, remove it; otherwise add it. This allows users to
+  // choose specific days for the party deck on the review step.
+  const togglePartyDeckDate = (date: string) => {
+    setForm((prev) => {
+      const idx = prev.partyDeckDates.indexOf(date);
+      let newList: string[];
+      if (idx >= 0) {
+        newList = prev.partyDeckDates.filter((d) => d !== date);
+      } else {
+        newList = [...prev.partyDeckDates, date];
+      }
+      return { ...prev, partyDeckDates: newList };
+    });
+  };
+
+  /**
+   * Convert an ISO date string (YYYY-MM-DD) into a friendly format
+   * like "September 7th, 2025". Includes an ordinal suffix.
+   */
+  const formatFriendlyDate = (iso: string) => {
+    const [yyyy, mm, dd] = iso.split("-");
+    const year = Number(yyyy);
+    const monthIndex = Number(mm) - 1;
+    const day = Number(dd);
+    const dateObj = new Date(year, monthIndex, day);
+    const monthName = dateObj.toLocaleString("en-US", { month: "long" });
+    const j = day % 10;
+    const k = day % 100;
+    let suffix = "th";
+    if (j === 1 && k !== 11) suffix = "st";
+    else if (j === 2 && k !== 12) suffix = "nd";
+    else if (j === 3 && k !== 13) suffix = "rd";
+    return `${monthName} ${day}${suffix}, ${year}`;
   };
 
   const handleNextStep = () => setStep((prev) => prev + 1);
@@ -142,10 +217,10 @@ const BookingForm = () => {
       perPersonTotal += weekdayRate;
       i += 1;
     }
-    // Multiply by number of hunters and add party deck cost
-    const partyDeckCost = form.includesPartyDeck
-      ? seasonConfig.partyDeckRatePerDay * form.dates.length
-      : 0;
+    // Multiply by number of hunters and add party deck cost. The
+    // party deck cost is applied per day selected in partyDeckDates.
+    const partyDeckCost =
+      seasonConfig.partyDeckRatePerDay * form.partyDeckDates.length;
     return perPersonTotal * form.numberOfHunters + partyDeckCost;
   };
 
@@ -166,7 +241,7 @@ const BookingForm = () => {
       phone: "",
       dates: form.dates,
       numberOfHunters: form.numberOfHunters,
-      includesPartyDeck: form.includesPartyDeck,
+      partyDeckDates: form.partyDeckDates,
       price,
       status: "pending",
     };
@@ -194,14 +269,16 @@ const BookingForm = () => {
               `Not enough spots available on ${date}. Please choose another day or reduce your party size.`
             );
           }
-          if (form.includesPartyDeck && partyDeckBooked) {
+          // Determine if the party deck is requested for this date
+          const wantsDeck = form.partyDeckDates.includes(date);
+          if (wantsDeck && partyDeckBooked) {
             throw new Error(
-              `The party deck is already booked on ${date}. Please uncheck the party deck or choose different dates.`
+              `The party deck is already booked on ${date}. Please deselect the party deck for this date or choose different dates.`
             );
           }
           transaction.update(availRef, {
             huntersBooked: huntersBooked + form.numberOfHunters,
-            partyDeckBooked: form.includesPartyDeck ? true : partyDeckBooked,
+            partyDeckBooked: wantsDeck ? true : partyDeckBooked,
           });
         }
         const bookingRef = doc(collection(db, "bookings"));
@@ -236,7 +313,7 @@ const BookingForm = () => {
     <div className="max-w-2xl mx-auto mt-20 bg-gradient-to-r from-[var(--color-dark)] via-[var(--color-footer)] to-[var(--color-dark)] p-8 rounded-xl shadow-2xl text-[var(--color-text)]">
       <h2 className="text-3xl font-broadsheet mb-1 text-center text-[var(--color-accent-gold)]">
         {step === 1 && "Enter Party Size"}
-        {step === 2 && "Choose Your Dates & Extras"}
+        {step === 2 && "Choose Your Dates"}
         {step === 3 && "Review & Submit Your Booking"}
       </h2>
       <p className="mb-8 text-sm text-neutral-500 text-center">
@@ -270,45 +347,69 @@ const BookingForm = () => {
                 numberOfHunters={form.numberOfHunters}
               />
             </div>
-            <label className="flex items-center gap-2">
-              <input
-                name="includesPartyDeck"
-                type="checkbox"
-                checked={form.includesPartyDeck}
-                onChange={handleCheckbox}
-                className="accent-[var(--color-accent-gold)]"
-              />
-              <span className="text-[var(--color-accent-sage)] text-sm">
-                Book Party Deck
-              </span>
-            </label>
+            {/* Party deck selection moved to step 3 */}
           </>
         )}
         {step === 3 && (
           <>
-            <div className="text-sm text-[var(--color-accent-sage)]">
+            {/* Summary of party size and selected dates */}
+            <div className="text-sm text-[var(--color-accent-sage)] space-y-1">
               <p>
                 Hunters: <strong>{form.numberOfHunters}</strong>
               </p>
               <p>
-                Party Deck:{" "}
-                <strong>{form.includesPartyDeck ? "Yes" : "No"}</strong>
-              </p>
-              <p>
                 Dates:{" "}
-                <strong>{form.dates.join(", ") || "Not selected"}</strong>
+                <strong>
+                  {form.dates.length === 0
+                    ? "Not selected"
+                    : form.dates.map((d) => formatFriendlyDate(d)).join(", ")}
+                </strong>
               </p>
             </div>
+            {/* Party deck selection per day */}
+            {form.dates.length > 0 && (
+              <div className="mt-4 border-t border-[var(--color-accent-sage)] pt-4">
+                <p className="mb-2 text-[var(--color-accent-sage)] text-sm font-semibold">
+                  Add Party Deck ($500/day):
+                </p>
+                <div className="space-y-2">
+                  {form.dates.map((date) => {
+                    const available = deckAvailability[date];
+                    const checked = form.partyDeckDates.includes(date);
+                    return (
+                      <label
+                        key={date}
+                        className="flex items-center gap-2 text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          disabled={!available}
+                          checked={checked}
+                          onChange={() => togglePartyDeckDate(date)}
+                          className="accent-[var(--color-accent-gold)]"
+                        />
+                        <span className="text-[var(--color-accent-sage)]">
+                          {formatFriendlyDate(date)}{" "}
+                          {available ? "" : "(unavailable)"}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {/* Pricing summary with party deck cost breakdown */}
             {seasonConfig && (
               <div className="text-center text-[var(--color-text)] space-y-1 text-sm mt-4">
                 <p className="text-lg font-semibold text-[var(--color-text)]">
                   Total Price: ${calculateTotalPrice()}
                 </p>
-                {form.includesPartyDeck && (
+                {form.partyDeckDates.length > 0 && (
                   <p>
                     Party Deck: ${seasonConfig.partyDeckRatePerDay} ×{" "}
-                    {form.dates.length} = $
-                    {seasonConfig.partyDeckRatePerDay * form.dates.length}
+                    {form.partyDeckDates.length} = $
+                    {seasonConfig.partyDeckRatePerDay *
+                      form.partyDeckDates.length}
                   </p>
                 )}
               </div>

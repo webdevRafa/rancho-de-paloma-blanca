@@ -24,10 +24,13 @@ export interface NewBooking {
    */
   numberOfHunters: number;
   /**
-   * Whether the customer has reserved the party deck. Adds the
-   * partyDeckRatePerDay to the cost for each selected day.
+   * List of dates for which the customer has reserved the party deck.
+   * Each date must be one of the booked `dates`. The party deck can only
+   * be booked once per day, so this list cannot contain duplicate dates.
+   * The price calculation will add `partyDeckRatePerDay` for each date
+   * included here.
    */
-  includesPartyDeck: boolean;
+  partyDeckDates: string[];
 
   /**
    * Total price for this booking, calculated server-side from the
