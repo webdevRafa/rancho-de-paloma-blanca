@@ -8,7 +8,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import type { Availability, SeasonConfig } from "../types/Types";
-import { DayPicker } from "react-day-picker";
+import { DayPicker, Chevron } from "react-day-picker";
 import "react-day-picker/dist/style.css";
 import { toLocalDateString } from "../utils/formatDate";
 
@@ -132,14 +132,6 @@ const DateSelector = ({
 
   return (
     <div className="flex justify-center">
-      {/* 
-        Custom styling for DayPicker:
-        - Set --rdp-today-color to your accent gold so that today’s date is no longer blue.
-        - Reinforce the rule with a higher-specificity .rdp-day_today selector.
-        - Recolor the navigation arrows to white by setting the button’s color,
-          which the chevron SVG inherits via currentColor.
-      */}
-
       <DayPicker
         mode="multiple"
         selected={selected}
@@ -149,8 +141,18 @@ const DateSelector = ({
         modifiersClassNames={{
           selected: "bg-[var(--color-accent-gold)] text-black",
           disabled: "opacity-40 cursor-not-allowed",
+          today: "text-[var(--color-accent-gold)]", // colour today’s date gold
         }}
         className="p-4 rounded shadow-lg"
+        components={{
+          // Render chevrons in white by appending Tailwind’s `text-white`
+          Chevron: (props: any) => (
+            <Chevron
+              {...props}
+              className={`${props.className ?? ""} text-white`}
+            />
+          ),
+        }}
       />
     </div>
   );

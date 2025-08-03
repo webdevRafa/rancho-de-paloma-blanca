@@ -12,7 +12,7 @@ const BookingPage = () => {
         <div className="w-full h-[40vh] md:h-[50vh] z-[-10] opacity-50 blur-[1px]">
           <img className="object-cover h-full w-full" src={dove} alt="" />
         </div>
-        <h1 className="text-center text-4xl md:text-6xl font-broadsheet mb-5 text-neutral-300 translate-y-[-70%]">
+        <h1 className="text-center text-4xl md:text-4xl font-broadsheet mb-5 text-[var(--color-text)] translate-y-[-70%] bg-[var(--color-dark)] max-w-[300px] mx-auto">
           Book your next hunt
         </h1>
 
@@ -20,7 +20,7 @@ const BookingPage = () => {
         the rates for weekend packages and standard weekday/off-season
         pricing. These cards are informational only and do not affect the
         booking form. */}
-        <section className="max-w-4xl mx-auto mb-16 grid md:grid-cols-4 gap-6 py-2 md:py-10">
+        <section className="max-w-6xl mx-auto mb-16 grid md:grid-cols-4 gap-6 py-2 md:py-10">
           {[
             {
               label: "Weekend Single Day",
@@ -45,7 +45,7 @@ const BookingPage = () => {
           ].map((pkg) => (
             <div
               key={pkg.key}
-              className="bg-gradient-to-r from-[var(--color-dark)] via-[var(--color-footer)] to-[var(--color-dark)] shadow-md py-8 px-4 flex items-center justify-center"
+              className="bg-gradient-to-r md:bg-gradient-to-b from-[var(--color-dark)] via-[var(--color-footer)] to-[var(--color-dark)] shadow-md py-10 md:py-20 flex items-center justify-center"
             >
               <div className="text-center">
                 <h3 className="text-2xl md:text-3xl font-broadsheet text-[var(--color-accent-gold)] mb-2">
