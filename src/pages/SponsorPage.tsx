@@ -3,7 +3,7 @@ import sponsor from "../assets/sponsor.svg";
 
 const SponsorPage = () => {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-r from-[var(--color-dark)] via-[var(--color-card)] to-[var(--color-dark)]  text-[var(--color-text)] mt-30 px-6 py-16 text-center">
+    <div className="flex flex-col items-center justify-center min-h-screen max-w-[1200px] w-[90%] mx-auto bg-gradient-to-r from-[var(--color-dark)] via-[var(--color-card)] to-[var(--color-dark)]  text-[var(--color-text)] mt-30 px-6 py-16 text-center">
       <h1 className="text-4xl md:text-5xl  mb-6">
         Seasoned to Perfection — Thanks to Our Sponsor
       </h1>
