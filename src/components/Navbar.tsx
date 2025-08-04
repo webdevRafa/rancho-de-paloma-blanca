@@ -41,6 +41,7 @@ const Navbar = () => {
     { to: "/contact", label: "Contact" },
     { to: "/about", label: "About Us" },
     { to: "/sponsor", label: "Our Sponsor" },
+    { to: "/dashboard", label: "Dashboard" },
   ];
 
   return (

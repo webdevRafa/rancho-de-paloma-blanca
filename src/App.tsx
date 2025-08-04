@@ -2,7 +2,6 @@ import { Routes, Route } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import PropertyRules from "./pages/PropertyRules";
-
 import HomePage from "./pages/HomePage";
 import SponsorPage from "./pages/SponsorPage";
 import { useEffect } from "react";
@@ -12,6 +11,7 @@ import BookingPage from "./pages/BookingPage";
 import DevSeed from "./pages/DevSeed";
 import MerchandisePage from "./pages/MerchandisePage";
 import CheckoutPage from "./pages/CheckoutPage";
+import ClientDashboard from "./pages/ClientDashboard";
 function App() {
   useEffect(() => {
     AOS.init({
@@ -31,6 +31,7 @@ function App() {
           <Route path="/rules" element={<PropertyRules />} />
           <Route path="/merch" element={<MerchandisePage />} />
           <Route path="/book" element={<BookingPage />} />
+          <Route path="/dashboard" element={<ClientDashboard />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/dev-add-docs" element={<DevSeed />} />
         </Routes>
