@@ -22,7 +22,7 @@ const MerchandisePage = () => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto mt-16 text-[var(--color-text)]">
+    <div className="max-w-2xl mx-auto mt-60 text-[var(--color-text)] px-6">
       <h1 className="text-3xl font-broadsheet text-[var(--color-accent-gold)] mb-6 text-center">
         Shop Official Merch
       </h1>

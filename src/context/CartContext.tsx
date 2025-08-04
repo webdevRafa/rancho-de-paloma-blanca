@@ -112,6 +112,11 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     isHydrated,
   };
 
+  // ⛔ Prevent rendering app before localStorage is restored
+  if (!isHydrated) {
+    return <div className="text-white text-center py-20">Loading cart...</div>;
+  }
+
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 };
 

@@ -12,7 +12,11 @@ import DevSeed from "./pages/DevSeed";
 import MerchandisePage from "./pages/MerchandisePage";
 import CheckoutPage from "./pages/CheckoutPage";
 import ClientDashboard from "./pages/ClientDashboard";
+import { useCart } from "./context/CartContext";
+
 function App() {
+  const { isHydrated } = useCart();
+
   useEffect(() => {
     AOS.init({
       duration: 1000, // animation duration in ms
@@ -21,6 +25,10 @@ function App() {
       easing: "ease-in-out",
     });
   }, []);
+  if (!isHydrated) {
+    return <div className="text-white text-center py-20">Loading...</div>;
+  }
+
   return (
     <>
       <div className="min-h-screen ">
