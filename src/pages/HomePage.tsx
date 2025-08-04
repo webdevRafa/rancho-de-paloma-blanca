@@ -20,7 +20,7 @@ const HomePage = () => {
         data-aos="fade-in"
         className="py-10 text-center bg-gradient-to-r from-[var(--color-dark)] via-[var(--color-footer)] to-[var(--color-dark)]"
       >
-        <h2 id="info" className="text-4xl md:text-5xl mb-2 text-white">
+        <h2 id="info" className="text-4xl md:text-5xl mb-2 text-white pt-10">
           Why Choose Rancho de Paloma Blanca?
         </h2>
         <p className="text-md max-w-3xl mx-auto mb-10">

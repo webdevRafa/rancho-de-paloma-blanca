@@ -45,7 +45,7 @@ const BookingPage = () => {
           ].map((pkg) => (
             <div
               key={pkg.key}
-              className="bg-gradient-to-r md:bg-gradient-to-b from-[var(--color-dark)] via-[var(--color-footer)] to-[var(--color-dark)] shadow-md py-10 md:py-20 flex items-center justify-center"
+              className="bg-[var(--color-card)] shadow-md py-10 md:py-20 flex items-center justify-center"
             >
               <div className="text-center">
                 <h3 className="text-2xl md:text-3xl font-broadsheet text-[var(--color-accent-gold)] mb-2">

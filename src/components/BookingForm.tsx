@@ -8,14 +8,22 @@ import {
   serverTimestamp,
   getDoc,
 } from "firebase/firestore";
-import type { NewBooking, SeasonConfig, Availability } from "../types/Types";
+import type {
+  NewBooking,
+  SeasonConfig,
+  Availability,
+  BookingStatus,
+} from "../types/Types";
 import gsignup from "../assets/google-signup.png";
 import { useNavigate } from "react-router-dom";
 import DateSelector from "./DateSelector";
 import { getSeasonConfig } from "../utils/getSeasonConfig";
+import { useCart } from "../context/CartContext";
 
 const BookingForm = () => {
   const { user, login } = useAuth();
+  const { setBooking } = useCart();
+
   const navigate = useNavigate();
 
   const [step, setStep] = useState(1);
@@ -243,7 +251,7 @@ const BookingForm = () => {
       numberOfHunters: form.numberOfHunters,
       partyDeckDates: form.partyDeckDates,
       price,
-      status: "pending",
+      status: "pending" as BookingStatus,
     };
     try {
       let newBookingId = "";
@@ -298,7 +306,7 @@ const BookingForm = () => {
 
   if (!user) {
     return (
-      <div className="max-w-2xl mx-auto mt-20 bg-gradient-to-r from-[var(--color-dark)] via-[var(--color-footer)] to-[var(--color-dark)] p-8 rounded-xl shadow-2xl text-[var(--color-text)] text-center">
+      <div className="max-w-2xl mx-auto mt-20 bg-[var(--color-card)] p-8 rounded-xl shadow-2xl text-[var(--color-text)] text-center">
         <img
           className="cursor-pointer hover:scale-105 transition-transform duration-300 mx-auto"
           onClick={login}
@@ -308,9 +316,42 @@ const BookingForm = () => {
       </div>
     );
   }
+  const handleContinueToMerch = () => {
+    if (!user) {
+      alert("Please sign in with Google first.");
+      return;
+    }
+
+    if (!seasonConfig) {
+      alert("Season configuration not loaded. Please try again later.");
+      return;
+    }
+
+    if (form.dates.length === 0) {
+      alert("Please select at least one date.");
+      return;
+    }
+
+    const price = calculateTotalPrice();
+
+    const booking = {
+      userId: user.uid,
+      name: user.displayName || "Unknown",
+      email: user.email || "No email",
+      phone: "",
+      dates: form.dates,
+      numberOfHunters: form.numberOfHunters,
+      partyDeckDates: form.partyDeckDates,
+      price,
+      status: "pending" as BookingStatus,
+    };
+
+    setBooking(booking);
+    navigate("/merch");
+  };
 
   return (
-    <div className="max-w-2xl mx-auto mt-20 bg-gradient-to-r from-[var(--color-dark)] via-[var(--color-footer)] to-[var(--color-dark)] p-8 rounded-xl shadow-2xl text-[var(--color-text)]">
+    <div className="max-w-2xl mx-auto mt-20 mb-50 bg-[var(--color-card)] border-2 border-[var(--color-accent-gold)]/30 p-8  shadow-2xl text-[var(--color-text)]">
       <h2 className="text-3xl font-broadsheet mb-1 text-center text-[var(--color-accent-gold)]">
         {step === 1 && "Enter Party Size"}
         {step === 2 && "Choose Your Dates"}
@@ -426,12 +467,20 @@ const BookingForm = () => {
             </button>
           )}
           {step < 3 ? (
-            <button
-              onClick={handleNextStep}
-              className="ml-auto bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white px-6 py-2 rounded-md text-sm font-semibold"
-            >
-              Continue →
-            </button>
+            <>
+              <button
+                onClick={handleNextStep}
+                className="ml-auto bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white px-6 py-2  text-sm font-semibold"
+              >
+                Continue →
+              </button>
+              <button
+                className="bg-[var(--color-accent-gold)] text-[var(--color-footer)] font-bold shadow-md p-2 text-xs ml-3"
+                onClick={handleContinueToMerch}
+              >
+                Shop Merch
+              </button>
+            </>
           ) : (
             <button
               onClick={handleSubmit}

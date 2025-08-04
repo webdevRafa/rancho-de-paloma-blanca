@@ -143,7 +143,7 @@ const DateSelector = ({
           disabled: "opacity-40 cursor-not-allowed",
           today: "text-[var(--color-accent-gold)]",
         }}
-        className="p-4 rounded shadow-lg"
+        className="p-4 rounded "
         navLayout="after"
         components={{
           Nav: () => {

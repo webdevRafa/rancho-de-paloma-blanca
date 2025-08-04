@@ -10,7 +10,8 @@ import AOS from "aos";
 import "aos/dist/aos.css"; // Import AOS styles
 import BookingPage from "./pages/BookingPage";
 import DevSeed from "./pages/DevSeed";
-
+import MerchandisePage from "./pages/MerchandisePage";
+import CheckoutPage from "./pages/CheckoutPage";
 function App() {
   useEffect(() => {
     AOS.init({
@@ -28,7 +29,9 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/sponsor" element={<SponsorPage />} />
           <Route path="/rules" element={<PropertyRules />} />
+          <Route path="/merch" element={<MerchandisePage />} />
           <Route path="/book" element={<BookingPage />} />
+          <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/dev-add-docs" element={<DevSeed />} />
         </Routes>
         <Footer />
