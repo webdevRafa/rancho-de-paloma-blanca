@@ -32,7 +32,7 @@ function App() {
 
   return (
     <>
-      <div className="min-h-screen mx-auto px-4 md:px-0 ">
+      <div className="min-h-screen mx-auto ">
         <Navbar />
         <Routes>
           <Route path="/" element={<HomePage />} />
