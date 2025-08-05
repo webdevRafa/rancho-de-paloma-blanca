@@ -51,8 +51,8 @@ const GalleryPage = () => {
   };
 
   return (
-    <div className="min-h-screen pt-24 pb-12 px-4 md:px-8 bg-[var(--color-dark)] text-[var(--color-text)] max-w-[1400px] mx-auto">
-      <h1 className="text-center text-4xl font-broadsheet mb-10 text-[var(--color-accent-gold)]">
+    <div className="min-h-screen pt-24 pb-12 px-4 md:px-8 bg-[var(--color-dark)] text-[var(--color-text)] max-w-[1400px] mx-auto md:mt-20">
+      <h1 className="text-4xl font-broadsheet mb-10 text-[var(--color-accent-gold)]">
         Photo Gallery
       </h1>
 
@@ -112,21 +112,27 @@ const GalleryPage = () => {
         {/* Thumbnails */}
         <div className="grid grid-cols-2 gap-4 mt-4">
           {imageUrls.map((url, idx) => (
-            <button
+            <motion.button
               key={idx}
               onClick={() => setCurrentIndex(idx)}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.4, delay: idx * 0.03 }}
               className={`overflow-hidden rounded-lg border-2 transition duration-300 ${
                 currentIndex === idx
                   ? "border-[var(--color-accent-gold)]"
                   : "border-transparent"
               }`}
             >
-              <img
+              <motion.img
                 src={url}
                 alt={`Thumb ${idx + 1}`}
                 className="w-full h-32 object-cover"
+                whileHover={{ scale: 1.05 }}
+                transition={{ duration: 0.3 }}
               />
-            </button>
+            </motion.button>
           ))}
         </div>
       </div>
