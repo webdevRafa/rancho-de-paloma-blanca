@@ -26,7 +26,7 @@ const Thumbnail: React.FC<Props> = ({ url, index, isActive, onClick }) => {
     <div
       ref={ref}
       className={`transition-all duration-700 transform ${
-        inView ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-10"
+        inView ? "opacity-50 translate-x-0" : "opacity-0 -translate-x-10"
       }`}
     >
       <button
