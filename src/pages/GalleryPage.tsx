@@ -3,12 +3,13 @@ import { storage } from "../firebase/firebaseConfig";
 import { ref, listAll, getDownloadURL } from "firebase/storage";
 import Thumbnail from "../components/Thumbnail";
 import { motion, AnimatePresence } from "framer-motion";
+import "yet-another-react-lightbox/styles.css";
 
 const GalleryPage = () => {
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null); // 👈 track slideshow interval
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const fetchImages = async () => {
@@ -36,7 +37,6 @@ const GalleryPage = () => {
     }, 5000);
   };
 
-  // Set interval when images load
   useEffect(() => {
     if (imageUrls.length === 0) return;
     startSlideshow();
@@ -45,10 +45,9 @@ const GalleryPage = () => {
     };
   }, [imageUrls]);
 
-  // 👉 reset slideshow when user manually clicks a thumbnail
   const handleThumbnailClick = (index: number) => {
     setCurrentIndex(index);
-    startSlideshow(); // ⏱ reset slideshow timer
+    startSlideshow();
   };
 
   return (
@@ -57,44 +56,80 @@ const GalleryPage = () => {
         Photo Gallery
       </h1>
 
-      {loading ? (
-        <p className="text-center text-neutral-300">Loading gallery...</p>
-      ) : imageUrls.length === 0 ? (
-        <p className="text-center text-neutral-400">No images found.</p>
-      ) : (
-        <div className="grid lg:grid-cols-4 gap-8">
-          {/* Left Column - Main Image */}
-          <div className="lg:col-span-3">
-            <div className="sticky top-28 overflow-hidden rounded-lg shadow-lg">
-              <AnimatePresence mode="wait">
-                <motion.img
-                  key={imageUrls[currentIndex]}
-                  src={imageUrls[currentIndex]}
-                  initial={{ opacity: 0, x: -40 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 40 }}
-                  transition={{ duration: 0.6 }}
-                  alt={`Main image ${currentIndex + 1}`}
-                  className="w-full h-[500px] object-cover rounded-lg"
+      {/* Desktop View */}
+      <div className="hidden md:block">
+        {loading ? (
+          <p className="text-center text-neutral-300">Loading gallery...</p>
+        ) : imageUrls.length === 0 ? (
+          <p className="text-center text-neutral-400">No images found.</p>
+        ) : (
+          <div className="grid lg:grid-cols-4 gap-8">
+            {/* Left Column - Main Image */}
+            <div className="lg:col-span-3">
+              <div className="sticky top-28 overflow-hidden rounded-lg shadow-lg">
+                <AnimatePresence mode="wait">
+                  <motion.img
+                    key={imageUrls[currentIndex]}
+                    src={imageUrls[currentIndex]}
+                    initial={{ opacity: 0, x: -40 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 40 }}
+                    transition={{ duration: 0.6 }}
+                    alt={`Main image ${currentIndex + 1}`}
+                    className="w-full h-[500px] object-cover rounded-lg"
+                  />
+                </AnimatePresence>
+              </div>
+            </div>
+
+            {/* Right Column - Thumbnails */}
+            <div className="lg:col-span-1 grid grid-cols-2 sm:grid-cols-2 gap-4">
+              {imageUrls.map((url, idx) => (
+                <Thumbnail
+                  key={idx}
+                  url={url}
+                  index={idx}
+                  isActive={currentIndex === idx}
+                  onClick={() => handleThumbnailClick(idx)}
                 />
-              </AnimatePresence>
+              ))}
             </div>
           </div>
+        )}
+      </div>
 
-          {/* Right Column - Thumbnails */}
-          <div className="lg:col-span-1 grid grid-cols-2 sm:grid-cols-2 gap-4">
-            {imageUrls.map((url, idx) => (
-              <Thumbnail
-                key={idx}
-                url={url}
-                index={idx}
-                isActive={currentIndex === idx}
-                onClick={() => handleThumbnailClick(idx)}
-              />
-            ))}
-          </div>
+      {/* Mobile View */}
+      <div className="block md:hidden">
+        {/* Sticky Main Image */}
+        <div className="sticky top-24 z-10 bg-[var(--color-dark)] pb-4">
+          <img
+            src={imageUrls[currentIndex]}
+            alt={`Main image mobile ${currentIndex + 1}`}
+            className="w-full h-[300px] object-cover rounded-lg shadow-lg"
+          />
         </div>
-      )}
+
+        {/* Thumbnails */}
+        <div className="grid grid-cols-2 gap-4 mt-4">
+          {imageUrls.map((url, idx) => (
+            <button
+              key={idx}
+              onClick={() => setCurrentIndex(idx)}
+              className={`overflow-hidden rounded-lg border-2 transition duration-300 ${
+                currentIndex === idx
+                  ? "border-[var(--color-accent-gold)]"
+                  : "border-transparent"
+              }`}
+            >
+              <img
+                src={url}
+                alt={`Thumb ${idx + 1}`}
+                className="w-full h-32 object-cover"
+              />
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };
