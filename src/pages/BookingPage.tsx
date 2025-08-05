@@ -23,22 +23,22 @@ const BookingPage = () => {
         <section className="max-w-6xl mx-auto mb-16 grid md:grid-cols-4 gap-6 py-2 md:py-10">
           {[
             {
-              label: "Weekend Single Day",
+              label: "Special White Wing Weekend",
               desc: "Fri/Sat/Sun: $200 per person",
               key: "weekend-single",
             },
             {
-              label: "Weekend 2-Day Combo",
+              label: "Special White Wing Weekend",
               desc: "Fri+Sat or Sat+Sun: $350 per person",
               key: "weekend-two",
             },
             {
-              label: "Weekend 3-Day Combo",
+              label: "Special White Wing Weekend",
               desc: "Fri–Sun: $450 per person",
               key: "weekend-three",
             },
             {
-              label: "All Other Days",
+              label: "Regular Season",
               desc: "$125 per person per day",
               key: "weekday",
             },

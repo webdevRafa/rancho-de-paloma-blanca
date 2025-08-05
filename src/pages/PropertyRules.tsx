@@ -6,7 +6,7 @@ const PropertyRules = () => {
     <>
       <section
         data-aos="fade-in"
-        className="bg-gradient-to-r from-[var(--color-dark)] via-[var(--color-card)] to-[var(--color-dark)] text-[var(--color-text)]  w-[90%]   max-w-6xl mx-auto my-30 rounded-lg shadow-sm relative"
+        className="bg-[var(--color-card)] text-[var(--color-text)]  w-[90%]   max-w-6xl mx-auto my-30 rounded-lg shadow-sm relative"
       >
         {/* Header */}
         <div className="relative w-full py-5">
@@ -14,11 +14,15 @@ const PropertyRules = () => {
             Hunting Rules
           </h1>
           <img className="h-30 mx-auto mb" src={logo} alt="" />
-          <p className="text-lg font-broadsheet text-[var(--color-accent-sage)] mb-10 text-center">
+          <p className="text-2xl font-bold font-broadsheet text-[var(--color-accent-gold)] mb-10 text-center">
             1419 Ranch, LLC
           </p>
-          <div className="absolute top-0 left-0 w-full h-[220px] z-[-1] overflow-hidden ">
-            <img className="object-contain opacity-[4%]" src={birds} alt="" />
+          <div className="absolute top-0 left-0 w-full h-[230px] z-[-1] overflow-hidden ">
+            <img
+              className="object-contain opacity-60 blur-[1px]"
+              src={birds}
+              alt=""
+            />
           </div>
         </div>
 
