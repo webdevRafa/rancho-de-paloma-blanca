@@ -76,7 +76,7 @@ const GalleryPage = () => {
                     exit={{ opacity: 0, x: 40 }}
                     transition={{ duration: 0.6 }}
                     alt={`Main image ${currentIndex + 1}`}
-                    className="w-full h-[500px] object-cover rounded-lg"
+                    className="w-full h-[600px] object-cover rounded-lg"
                   />
                 </AnimatePresence>
               </div>
