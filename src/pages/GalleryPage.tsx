@@ -3,12 +3,14 @@ import { storage } from "../firebase/firebaseConfig";
 import { ref, listAll, getDownloadURL } from "firebase/storage";
 import Thumbnail from "../components/Thumbnail";
 import { motion, AnimatePresence } from "framer-motion";
+import Lightbox from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
 
 const GalleryPage = () => {
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -45,6 +47,15 @@ const GalleryPage = () => {
     };
   }, [imageUrls]);
 
+  // 🧠 Pause slideshow when Lightbox is open
+  useEffect(() => {
+    if (lightboxOpen && intervalRef.current) {
+      clearInterval(intervalRef.current);
+    } else if (!lightboxOpen && imageUrls.length > 0) {
+      startSlideshow();
+    }
+  }, [lightboxOpen, imageUrls]);
+
   const handleThumbnailClick = (index: number) => {
     setCurrentIndex(index);
     startSlideshow();
@@ -66,17 +77,18 @@ const GalleryPage = () => {
           <div className="grid lg:grid-cols-4 gap-8">
             {/* Left Column - Main Image */}
             <div className="lg:col-span-3">
-              <div className="sticky top-28 overflow-hidden rounded-lg shadow-lg">
+              <div className="sticky top-28 overflow-hidden rounded-lg shadow-lg cursor-pointer">
                 <AnimatePresence mode="wait">
                   <motion.img
                     key={imageUrls[currentIndex]}
                     src={imageUrls[currentIndex]}
+                    onClick={() => setLightboxOpen(true)}
                     initial={{ opacity: 0, x: -40 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 40 }}
                     transition={{ duration: 0.6 }}
                     alt={`Main image ${currentIndex + 1}`}
-                    className="w-full h-[600px] object-cover rounded-lg"
+                    className="w-full h-[500px] object-cover rounded-lg"
                   />
                 </AnimatePresence>
               </div>
@@ -101,11 +113,12 @@ const GalleryPage = () => {
       {/* Mobile View */}
       <div className="block md:hidden">
         {/* Sticky Main Image */}
-        <div className="sticky top-0 z-10 bg-[var(--color-dark)] pb-4 pt-10">
+        <div className="sticky top-0 z-10 bg-[var(--color-dark)] pb-4 pt-10 cursor-pointer">
           <AnimatePresence mode="wait">
             <motion.img
               key={imageUrls[currentIndex]}
               src={imageUrls[currentIndex]}
+              onClick={() => setLightboxOpen(true)}
               initial={{ opacity: 0, y: -30 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 30 }}
@@ -135,7 +148,7 @@ const GalleryPage = () => {
               <motion.img
                 src={url}
                 alt={`Thumb ${idx + 1}`}
-                className="w-full h-32 object-cover opacity-60"
+                className="w-full h-32 object-cover"
                 whileHover={{ scale: 1.05 }}
                 transition={{ duration: 0.3 }}
               />
@@ -143,6 +156,15 @@ const GalleryPage = () => {
           ))}
         </div>
       </div>
+
+      {/* Lightbox Viewer */}
+      <Lightbox
+        open={lightboxOpen}
+        close={() => setLightboxOpen(false)}
+        index={currentIndex}
+        slides={imageUrls.map((src) => ({ src }))}
+        animation={{ fade: 0.5 }}
+      />
     </div>
   );
 };
