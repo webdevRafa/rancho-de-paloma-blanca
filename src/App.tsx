@@ -13,6 +13,7 @@ import MerchandisePage from "./pages/MerchandisePage";
 import CheckoutPage from "./pages/CheckoutPage";
 import ClientDashboard from "./pages/ClientDashboard";
 import { useCart } from "./context/CartContext";
+import GalleryPage from "./pages/GalleryPage";
 
 function App() {
   const { isHydrated } = useCart();
@@ -31,7 +32,7 @@ function App() {
 
   return (
     <>
-      <div className="min-h-screen ">
+      <div className="min-h-screen mx-auto px-4 md:px-0 ">
         <Navbar />
         <Routes>
           <Route path="/" element={<HomePage />} />
@@ -39,6 +40,7 @@ function App() {
           <Route path="/rules" element={<PropertyRules />} />
           <Route path="/merch" element={<MerchandisePage />} />
           <Route path="/book" element={<BookingPage />} />
+          <Route path="/gallery" element={<GalleryPage />} />
           <Route path="/dashboard" element={<ClientDashboard />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/dev-add-docs" element={<DevSeed />} />
