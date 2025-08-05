@@ -102,11 +102,18 @@ const GalleryPage = () => {
       <div className="block md:hidden">
         {/* Sticky Main Image */}
         <div className="sticky top-0 z-10 bg-[var(--color-dark)] pb-4 pt-10">
-          <img
-            src={imageUrls[currentIndex]}
-            alt={`Main image mobile ${currentIndex + 1}`}
-            className="w-full h-[400px] object-cover rounded-lg shadow-lg"
-          />
+          <AnimatePresence mode="wait">
+            <motion.img
+              key={imageUrls[currentIndex]}
+              src={imageUrls[currentIndex]}
+              initial={{ opacity: 0, y: -30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 30 }}
+              transition={{ duration: 0.6 }}
+              alt={`Main image mobile ${currentIndex + 1}`}
+              className="w-full h-[500px] object-cover rounded-lg shadow-lg"
+            />
+          </AnimatePresence>
         </div>
 
         {/* Thumbnails */}
