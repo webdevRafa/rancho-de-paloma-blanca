@@ -27,7 +27,7 @@ const PropertyRules = () => {
         </div>
 
         {/* C.R.I.M.E. Breakdown */}
-        <div className="space-y-8 font-acumin text-[var(--color-text)]">
+        <div className="space-y-8 font-acumin text-[var(--color-text)] px-4 md:px-6">
           <div>
             <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2">
               <span className="opacity-100">C</span>{" "}
