@@ -135,7 +135,7 @@ const GalleryPage = () => {
               <motion.img
                 src={url}
                 alt={`Thumb ${idx + 1}`}
-                className="w-full h-32 object-cover"
+                className="w-full h-32 object-cover opacity-60"
                 whileHover={{ scale: 1.05 }}
                 transition={{ duration: 0.3 }}
               />
