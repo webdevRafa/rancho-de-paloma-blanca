@@ -101,11 +101,11 @@ const GalleryPage = () => {
       {/* Mobile View */}
       <div className="block md:hidden">
         {/* Sticky Main Image */}
-        <div className="sticky top-24 z-10 bg-[var(--color-dark)] pb-4">
+        <div className="sticky top-0 z-10 bg-[var(--color-dark)] pb-4 pt-10">
           <img
             src={imageUrls[currentIndex]}
             alt={`Main image mobile ${currentIndex + 1}`}
-            className="w-full h-[300px] object-cover rounded-lg shadow-lg"
+            className="w-full h-[500px] object-cover rounded-lg shadow-lg"
           />
         </div>
 
