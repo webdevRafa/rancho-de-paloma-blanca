@@ -121,7 +121,7 @@ const GalleryPage = () => {
           {imageUrls.map((url, idx) => (
             <motion.button
               key={idx}
-              onClick={() => setCurrentIndex(idx)}
+              onClick={() => handleThumbnailClick(idx)}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
