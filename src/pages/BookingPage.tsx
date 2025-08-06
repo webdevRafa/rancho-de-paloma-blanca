@@ -20,45 +20,50 @@ const BookingPage = () => {
         the rates for weekend packages and standard weekday/off-season
         pricing. These cards are informational only and do not affect the
         booking form. */}
-        <section className="max-w-6xl mx-auto mb-16 grid md:grid-cols-4 gap-6 py-2 md:py-10">
-          {[
-            {
-              label: "Special White Wing Weekend",
-              desc: "Fri/Sat/Sun: $200 per person",
-              key: "weekend-single",
-            },
-            {
-              label: "Special White Wing Weekend",
-              desc: "Fri+Sat or Sat+Sun: $350 per person",
-              key: "weekend-two",
-            },
-            {
-              label: "Special White Wing Weekend",
-              desc: "Fri–Sun: $450 per person",
-              key: "weekend-three",
-            },
-            {
-              label: "Regular Season",
-              desc: "$125 per person per day",
-              key: "weekday",
-            },
-          ].map((pkg) => (
-            <div
-              key={pkg.key}
-              className="bg-[var(--color-card)] shadow-md py-10 md:py-20 flex items-center justify-center"
-            >
-              <div className="text-center">
-                <h3 className="text-2xl md:text-3xl font-broadsheet text-[var(--color-accent-gold)] mb-2">
-                  {pkg.label}
-                </h3>
-                <p className="text-xs md:text-sm text-[var(--color-accent-sage)]">
-                  {pkg.desc}
+        <section className="max-w-4xl mx-auto flex flex-col md:flex-row gap-3">
+          <div
+            data-aos="fade-up"
+            className="bg-[var(--color-card)] w-full py-10 flex items-start justify-center border-4 border-[var(--color-footer)]"
+          >
+            <div>
+              <h1 className="text-center py-2 mb-2 text-3xl md:text-5xl">
+                Special White Wing Weekend
+              </h1>
+              <div className="text-center text-[var(--color-accent-gold)]">
+                <p className="bg-[var(--color-footer)] max-w-[300px] mx-auto mb-1 py-2">
+                  $200 a day per gun
+                </p>
+                <p className="bg-[var(--color-footer)] max-w-[300px] mx-auto mb-1 py-2">
+                  $350 for both days
+                </p>
+                <p className="bg-[var(--color-footer)] max-w-[300px] mx-auto mb-1 py-2">
+                  $450 for three days
                 </p>
               </div>
             </div>
-          ))}
-        </section>
+          </div>
 
+          <div
+            data-aos="fade-up"
+            className="bg-[var(--color-card)] w-full py-10 flex items-center justify-center border-4 border-[var(--color-footer)]"
+          >
+            <div>
+              <h1 className="text-center py-2 mb-2 text-3xl md:text-5xl">
+                Regular season
+              </h1>
+              <div className="text-center text-[var(--color-accent-gold)]">
+                <p className="bg-[var(--color-footer)] max-w-[300px] mx-auto mb-1 py-2">
+                  $125 a day per gun
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section data-aos="fade-up" className="max-w-4xl mx-auto w-full mt-20">
+          <h1 className="text-center text-4xl md:text-6xl mb-0!">
+            Party Deck Rental $500 a day
+          </h1>
+        </section>
         {/* Sign in prompt OR form */}
         {!user ? (
           <div className="text-center">
