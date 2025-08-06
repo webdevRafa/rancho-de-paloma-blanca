@@ -354,7 +354,8 @@ const BookingForm = () => {
                 </strong>
               </p>
             </div>
-            {/* Party deck selection per day */}
+
+            {/* Party deck selection */}
             {form.dates.length > 0 && (
               <div className="mt-4 border-t border-[var(--color-accent-sage)] pt-4">
                 <p className="mb-2 text-[var(--color-accent-sage)] text-sm font-semibold">
@@ -386,7 +387,8 @@ const BookingForm = () => {
                 </div>
               </div>
             )}
-            {/* Pricing summary with party deck cost breakdown */}
+
+            {/* Pricing summary */}
             {seasonConfig && (
               <div className="text-center text-[var(--color-text)] space-y-1 text-sm mt-4">
                 <p className="text-lg font-semibold text-[var(--color-text)]">
@@ -400,8 +402,27 @@ const BookingForm = () => {
                       form.partyDeckDates.length}
                   </p>
                 )}
+                <p className="text-xs italic text-[var(--color-accent-sage)] mt-2">
+                  Your hunt will be reserved after checkout is completed.
+                </p>
               </div>
             )}
+
+            {/* Buttons */}
+            <div className="flex justify-between pt-6">
+              <button
+                onClick={handlePrevStep}
+                className="text-sm text-[var(--color-accent-gold)] hover:underline"
+              >
+                ← Back
+              </button>
+              <button
+                onClick={handleSubmit}
+                className="ml-auto bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] border border-[var(--color-button-hover)] font-bold text-[var(--color-footer)] px-6 py-3 rounded-md text-sm tracking-wide transition-all"
+              >
+                Review & Checkout
+              </button>
+            </div>
           </>
         )}
         <div className="flex justify-between pt-4">

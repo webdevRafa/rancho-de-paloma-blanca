@@ -1,7 +1,9 @@
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import { db } from "../firebase/firebaseConfig";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 const CheckoutPage = () => {
   const {
@@ -10,9 +12,24 @@ const CheckoutPage = () => {
     partyDeckDates,
     merchItems,
     booking,
+    resetCart,
+    isHydrated,
   } = useCart();
   const { user } = useAuth();
-  const { isHydrated } = useCart();
+  const navigate = useNavigate();
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [hasTriedSubmitting, setHasTriedSubmitting] = useState(false);
+
+  const ORDER_ID_KEY = "rdp_order_id";
+  const [orderId] = useState<string>(() => {
+    return localStorage.getItem(ORDER_ID_KEY) || crypto.randomUUID();
+  });
+
+  useEffect(() => {
+    localStorage.setItem(ORDER_ID_KEY, orderId);
+  }, [orderId]);
 
   if (!isHydrated) {
     return <div className="text-center text-white py-20">Loading cart...</div>;
@@ -110,17 +127,23 @@ const CheckoutPage = () => {
   const total = calculateBookingTotal() + calculateMerchTotal();
 
   const handleCompleteCheckout = async () => {
-    if (!user) {
-      alert("Please sign in with Google first.");
-      return;
-    }
-    if (!booking && !hasMerch) {
-      alert("You have nothing in your cart to checkout.");
-      return;
-    }
+    if (isSubmitting || hasTriedSubmitting) return;
+
+    setIsSubmitting(true);
+    setHasTriedSubmitting(true);
+    setErrorMsg("");
+
     try {
-      const orderId = crypto.randomUUID();
-      const orderRef = doc(db, "pendingOrders", orderId);
+      if (!user) throw new Error("Please sign in with Google first.");
+      if (!booking && !hasMerch) throw new Error("Your cart is empty.");
+
+      const orderRef = doc(db, "orders", orderId);
+      const existing = await getDoc(orderRef);
+      if (existing.exists()) {
+        navigate("/dashboard?status=pending");
+        return;
+      }
+
       await setDoc(orderRef, {
         userId: user.uid,
         booking,
@@ -129,17 +152,32 @@ const CheckoutPage = () => {
         status: "pending",
         createdAt: serverTimestamp(),
       });
+
       const res = await fetch("/api/createDeluxePayment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orderId }),
       });
-      const data = await res.json();
-      if (!data.paymentUrl) throw new Error("Failed to get payment link");
+
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error("Invalid JSON response from payment API.");
+      }
+
+      if (!res.ok) throw new Error(data?.error || "Deluxe API failed");
+      if (!data.paymentUrl) throw new Error("Missing payment URL");
+
+      // Clear cart & redirect
+      localStorage.removeItem(ORDER_ID_KEY);
+      resetCart();
       window.location.href = data.paymentUrl;
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Checkout failed: " + (err as any).message);
+      setErrorMsg(err.message || "Checkout failed.");
+      // Optional redirect on error:
+      navigate("/dashboard?error=checkout-failed");
     }
   };
 
@@ -193,11 +231,20 @@ const CheckoutPage = () => {
           <h2 className="text-2xl font-bold mt-4 text-center">
             Total Due: ${total}
           </h2>
+          {errorMsg && (
+            <p className="text-sm text-red-400 text-center mt-4">{errorMsg}</p>
+          )}
+
           <button
             onClick={handleCompleteCheckout}
-            className="block w-full mt-6 max-w-[300px] mx-auto text-sm bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] font-light text-white py-3 px-6 rounded-md"
+            disabled={isSubmitting || hasTriedSubmitting}
+            className={`block w-full mt-6 max-w-[300px] mx-auto text-sm text-white py-3 px-6 rounded-md transition-all duration-200 ${
+              isSubmitting || hasTriedSubmitting
+                ? "bg-gray-600 cursor-not-allowed"
+                : "bg-[var(--color-button)] hover:bg-[var(--color-button-hover)]"
+            }`}
           >
-            Complete Checkout
+            {isSubmitting ? "Processing..." : "Complete Checkout"}
           </button>
         </>
       )}

@@ -81,3 +81,19 @@ export interface PendingOrder {
   status: BookingStatus;
   createdAt?: any; // Can be Firebase Timestamp or FieldValue
 }
+
+export type OrderStatus = "pending" | "paid" | "cancelled";
+
+export interface Order {
+  id?: string; // Optional when writing, required when reading
+  userId: string;
+  status: OrderStatus;
+  total: number;
+  createdAt?: Timestamp;
+
+  // Optional booking info (only present if user booked a hunt)
+  booking?: Omit<NewBooking, "createdAt">;
+
+  // Optional merch info (only present if user bought merch)
+  merchItems?: Record<string, MerchCartItem>;
+}

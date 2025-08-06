@@ -16,6 +16,9 @@ import { useCart } from "./context/CartContext";
 import GalleryPage from "./pages/GalleryPage";
 import ContactPage from "./pages/ContactPage";
 import AboutPage from "./pages/AboutPage";
+import VideoGallery from "./pages/VideoGallery";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 function App() {
   const { isHydrated } = useCart();
@@ -43,6 +46,8 @@ function App() {
           <Route path="/merch" element={<MerchandisePage />} />
           <Route path="/book" element={<BookingPage />} />
           <Route path="/about" element={<AboutPage />} />
+          <Route path="/videos" element={<VideoGallery />} />
+
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/gallery" element={<GalleryPage />} />
           <Route path="/dashboard" element={<ClientDashboard />} />
@@ -51,6 +56,7 @@ function App() {
         </Routes>
         <Footer />
       </div>
+      <ToastContainer position="top-center" />
     </>
   );
 }
