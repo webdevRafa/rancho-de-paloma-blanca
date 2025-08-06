@@ -26,7 +26,7 @@ const BookingPage = () => {
             className="bg-[var(--color-card)] w-full py-10 flex items-start justify-center border-4 border-[var(--color-footer)]"
           >
             <div>
-              <h1 className="text-center py-2 mb-2 text-3xl md:text-5xl">
+              <h1 className="text-center py-2 mb-2 text-3xl md:text-4xl">
                 Special White Wing Weekend
               </h1>
               <div className="text-center text-[var(--color-accent-gold)]">
@@ -45,10 +45,10 @@ const BookingPage = () => {
 
           <div
             data-aos="fade-up"
-            className="bg-[var(--color-card)] w-full py-10 flex items-center justify-center border-4 border-[var(--color-footer)]"
+            className="bg-[var(--color-card)] w-full py-10 flex items-start justify-center border-4 border-[var(--color-footer)]"
           >
             <div>
-              <h1 className="text-center py-2 mb-2 text-3xl md:text-5xl">
+              <h1 className="text-center py-2 mb-2 text-3xl md:text-4xl">
                 Regular season
               </h1>
               <div className="text-center text-[var(--color-accent-gold)]">

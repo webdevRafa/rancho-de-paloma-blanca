@@ -14,6 +14,7 @@ import CheckoutPage from "./pages/CheckoutPage";
 import ClientDashboard from "./pages/ClientDashboard";
 import { useCart } from "./context/CartContext";
 import GalleryPage from "./pages/GalleryPage";
+import ContactPage from "./pages/ContactPage";
 
 function App() {
   const { isHydrated } = useCart();
@@ -40,6 +41,7 @@ function App() {
           <Route path="/rules" element={<PropertyRules />} />
           <Route path="/merch" element={<MerchandisePage />} />
           <Route path="/book" element={<BookingPage />} />
+          <Route path="/contact" element={<ContactPage />} />
           <Route path="/gallery" element={<GalleryPage />} />
           <Route path="/dashboard" element={<ClientDashboard />} />
           <Route path="/checkout" element={<CheckoutPage />} />
