@@ -1,14 +1,7 @@
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import { db } from "../firebase/firebaseConfig";
-import {
-  collection,
-  doc,
-  runTransaction,
-  serverTimestamp,
-} from "firebase/firestore";
-import type { Availability } from "../types/Types";
-import { useNavigate } from "react-router-dom";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 
 const CheckoutPage = () => {
   const {
@@ -17,17 +10,15 @@ const CheckoutPage = () => {
     partyDeckDates,
     merchItems,
     booking,
-    resetCart,
   } = useCart();
   const { user } = useAuth();
-  const navigate = useNavigate();
   const { isHydrated } = useCart();
 
   if (!isHydrated) {
     return <div className="text-center text-white py-20">Loading cart...</div>;
   }
-  const PARTY_DECK_COST = 500;
 
+  const PARTY_DECK_COST = 500;
   const hasMerch = Object.keys(merchItems).length > 0;
 
   const formatFriendlyDate = (iso: string): string => {
@@ -36,21 +27,17 @@ const CheckoutPage = () => {
     const monthIndex = Number(mm) - 1;
     const day = Number(dd);
     const dateObj = new Date(year, monthIndex, day);
-
     const weekday = dateObj.toLocaleString("en-US", { weekday: "long" });
     const month = dateObj.toLocaleString("en-US", { month: "long" });
-
     const j = day % 10;
     const k = day % 100;
     let suffix = "th";
     if (j === 1 && k !== 11) suffix = "st";
     else if (j === 2 && k !== 12) suffix = "nd";
     else if (j === 3 && k !== 13) suffix = "rd";
-
     return `${weekday}, ${month} ${day}${suffix}, ${year}`;
   };
 
-  // fallback logic for dynamic support
   const fallbackDates = booking?.dates || selectedDates;
   const fallbackHunters = booking?.numberOfHunters || numberOfHunters;
   const fallbackDeckDays = booking?.partyDeckDates || partyDeckDates;
@@ -63,21 +50,18 @@ const CheckoutPage = () => {
 
   const calculateBookingTotal = () => {
     if (!fallbackDates.length) return 0;
-
     const weekdayRate = 125;
     const baseWeekendRates = {
       singleDay: 200,
       twoConsecutiveDays: 350,
       threeDayCombo: 450,
     };
-
     const dateObjs = fallbackDates
       .map((d) => {
         const [y, m, d2] = d.split("-").map(Number);
         return new Date(y, m - 1, d2);
       })
       .sort((a, b) => a.getTime() - b.getTime());
-
     let perPersonTotal = 0;
     let i = 0;
     while (i < dateObjs.length) {
@@ -119,7 +103,6 @@ const CheckoutPage = () => {
       }
       i++;
     }
-
     const partyDeckCost = fallbackDeckDays.length * PARTY_DECK_COST;
     return perPersonTotal * fallbackHunters + partyDeckCost;
   };
@@ -131,63 +114,32 @@ const CheckoutPage = () => {
       alert("Please sign in with Google first.");
       return;
     }
-
     if (!booking && !hasMerch) {
       alert("You have nothing in your cart to checkout.");
       return;
     }
-
     try {
-      if (booking) {
-        await runTransaction(db, async (transaction) => {
-          for (const date of booking.dates) {
-            const ref = doc(db, "availability", date);
-            const snap = await transaction.get(ref);
-            let huntersBooked = 0;
-            let partyDeckBooked = false;
-            if (snap.exists()) {
-              const data = snap.data() as Availability;
-              huntersBooked = data.huntersBooked ?? 0;
-              partyDeckBooked = data.partyDeckBooked ?? false;
-            } else {
-              transaction.set(ref, {
-                huntersBooked: 0,
-                partyDeckBooked: false,
-              });
-            }
-
-            const wantsDeck = booking.partyDeckDates.includes(date);
-            transaction.update(ref, {
-              huntersBooked: huntersBooked + booking.numberOfHunters,
-              partyDeckBooked: wantsDeck ? true : partyDeckBooked,
-            });
-          }
-
-          const bookingRef = doc(collection(db, "bookings"));
-          transaction.set(bookingRef, {
-            ...booking,
-            createdAt: serverTimestamp(),
-          });
-        });
-      }
-
-      if (hasMerch) {
-        const merchRef = doc(collection(db, "merchOrders"));
-        await runTransaction(db, async (transaction) => {
-          transaction.set(merchRef, {
-            userId: user.uid,
-            items: merchItems,
-            createdAt: serverTimestamp(),
-          });
-        });
-      }
-
-      alert("Checkout successful!");
-      resetCart();
-      navigate("/booking-confirmed");
-    } catch (err: any) {
+      const orderId = crypto.randomUUID();
+      const orderRef = doc(db, "pendingOrders", orderId);
+      await setDoc(orderRef, {
+        userId: user.uid,
+        booking,
+        merchItems,
+        total,
+        status: "pending",
+        createdAt: serverTimestamp(),
+      });
+      const res = await fetch("/api/createDeluxePayment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      });
+      const data = await res.json();
+      if (!data.paymentUrl) throw new Error("Failed to get payment link");
+      window.location.href = data.paymentUrl;
+    } catch (err) {
       console.error(err);
-      alert(err.message || "Something went wrong.");
+      alert("Checkout failed: " + (err as any).message);
     }
   };
 
@@ -207,7 +159,6 @@ const CheckoutPage = () => {
         <div className="mb-8">
           <h2 className="text-xl font-semibold mb-2">Booking Summary</h2>
           <p>Dates: {fallbackDates.map(formatFriendlyDate).join(", ")}</p>
-
           <p>Hunters: {fallbackHunters}</p>
           {fallbackDeckDays.length > 0 && (
             <p>

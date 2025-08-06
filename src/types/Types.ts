@@ -1,4 +1,5 @@
 import { Timestamp, serverTimestamp } from "firebase/firestore";
+import type { MerchCartItem } from "./MerchTypes";
 
 export type BookingStatus = "pending" | "paid" | "cancelled";
 
@@ -70,4 +71,13 @@ export interface SeasonConfig {
   weekdayRate: number;
   partyDeckRatePerDay: number;
   maxHuntersPerDay: number;
+}
+
+export interface PendingOrder {
+  userId: string;
+  booking?: Omit<NewBooking, "createdAt">;
+  merchItems?: Record<string, MerchCartItem>;
+  total: number;
+  status: BookingStatus;
+  createdAt?: any; // Can be Firebase Timestamp or FieldValue
 }

@@ -14,3 +14,8 @@ export interface CartItem {
   quantity: number;
   price: number;
 }
+
+export type MerchCartItem = {
+  product: Product;
+  quantity: number;
+};

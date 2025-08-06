@@ -1,13 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { db } from "../firebase/firebaseConfig";
-import {
-  collection,
-  doc,
-  runTransaction,
-  serverTimestamp,
-  getDoc,
-} from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import type {
   NewBooking,
   SeasonConfig,
@@ -251,57 +245,10 @@ const BookingForm = () => {
       numberOfHunters: form.numberOfHunters,
       partyDeckDates: form.partyDeckDates,
       price,
-      status: "pending" as BookingStatus,
+      status: "pending",
     };
-    try {
-      let newBookingId = "";
-      await runTransaction(db, async (transaction) => {
-        for (const date of form.dates) {
-          const availRef = doc(db, "availability", date);
-          const availSnap = await transaction.get(availRef);
-          let huntersBooked = 0;
-          let partyDeckBooked = false;
-          if (availSnap.exists()) {
-            const data = availSnap.data() as Availability;
-            huntersBooked = data.huntersBooked ?? 0;
-            partyDeckBooked = data.partyDeckBooked ?? false;
-          } else {
-            transaction.set(availRef, {
-              huntersBooked: 0,
-              partyDeckBooked: false,
-            });
-          }
-          const maxPerDay = seasonConfig.maxHuntersPerDay;
-          if (huntersBooked + form.numberOfHunters > maxPerDay) {
-            throw new Error(
-              `Not enough spots available on ${date}. Please choose another day or reduce your party size.`
-            );
-          }
-          // Determine if the party deck is requested for this date
-          const wantsDeck = form.partyDeckDates.includes(date);
-          if (wantsDeck && partyDeckBooked) {
-            throw new Error(
-              `The party deck is already booked on ${date}. Please deselect the party deck for this date or choose different dates.`
-            );
-          }
-          transaction.update(availRef, {
-            huntersBooked: huntersBooked + form.numberOfHunters,
-            partyDeckBooked: wantsDeck ? true : partyDeckBooked,
-          });
-        }
-        const bookingRef = doc(collection(db, "bookings"));
-        newBookingId = bookingRef.id;
-        transaction.set(bookingRef, {
-          ...booking,
-          createdAt: serverTimestamp(),
-        });
-      });
-      alert("Booking submitted!");
-      navigate(`/booking-confirmed?bookingId=${newBookingId}`);
-    } catch (err: any) {
-      console.error("Error booking:", err);
-      alert(err.message || "Error submitting your booking. Please try again.");
-    }
+    setBooking(booking);
+    navigate("/checkout");
   };
 
   if (!user) {
