@@ -1,5 +1,4 @@
 import logo from "../assets/logo-official.webp";
-import birds from "../assets/images/bird-bunch.webp";
 
 const PropertyRules = () => {
   return (
@@ -17,17 +16,10 @@ const PropertyRules = () => {
           <p className="text-2xl font-bold font-broadsheet text-[var(--color-accent-gold)] mb-10 text-center">
             1419 Ranch, LLC
           </p>
-          <div className="absolute top-0 left-0 w-full h-[230px] z-[-1] overflow-hidden ">
-            <img
-              className="object-contain opacity-60 blur-[1px]"
-              src={birds}
-              alt=""
-            />
-          </div>
         </div>
 
         {/* C.R.I.M.E. Breakdown */}
-        <div className="space-y-8 font-acumin text-[var(--color-text)] px-4 md:px-6">
+        <div className="space-y-8 font-acumin text-[var(--color-text)] px-4 md:px-30">
           <div>
             <h2 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-2">
               <span className="opacity-100">C</span>{" "}
