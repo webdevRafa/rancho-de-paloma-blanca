@@ -25,10 +25,8 @@ const BookingForm = () => {
   const [form, setForm] = useState({
     numberOfHunters: 1,
     dates: [] as string[],
-    // List of dates on which the party deck is reserved. Each date
-    // must correspond to a selected date in `dates`. The deck can
-    // only be booked once per day.
     partyDeckDates: [] as string[],
+    phone: "", // ← add this line
   });
 
   // Track availability of the party deck for each selected date. When
@@ -310,6 +308,36 @@ const BookingForm = () => {
       <div className="flex flex-col space-y-5">
         {step === 1 && (
           <>
+            <label className="flex flex-col mt-4">
+              <span className="mb-1 text-sm text-[var(--color-accent-sage)]">
+                Phone Number
+              </span>
+              <input
+                name="phone"
+                type="tel"
+                inputMode="numeric"
+                maxLength={12}
+                value={form.phone}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/\D/g, ""); // remove all non-digits
+                  let formatted = raw;
+
+                  if (raw.length > 3 && raw.length <= 6) {
+                    formatted = `${raw.slice(0, 3)}-${raw.slice(3)}`;
+                  } else if (raw.length > 6) {
+                    formatted = `${raw.slice(0, 3)}-${raw.slice(
+                      3,
+                      6
+                    )}-${raw.slice(6, 10)}`;
+                  }
+
+                  setForm((prev) => ({ ...prev, phone: formatted }));
+                }}
+                className="bg-[var(--color-card)] border border-[var(--color-accent-sage)] px-4 py-3 rounded-md placeholder:text-[var(--color-accent-sage)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-gold)]"
+                placeholder="e.g. 956-372-0268"
+              />
+            </label>
+
             <label className="flex flex-col">
               <span className="mb-1 text-sm text-[var(--color-accent-sage)]">
                 Number of Hunters
