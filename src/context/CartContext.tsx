@@ -1,3 +1,4 @@
+// CartContext.tsx
 import { createContext, useContext, useState, useEffect } from "react";
 import type { Product } from "../types/MerchTypes";
 import type { NewBooking } from "../types/Types";
@@ -13,6 +14,8 @@ interface CartContextType {
   partyDeckDates: string[];
   merchItems: Record<string, MerchCartItem>;
   booking: Omit<NewBooking, "createdAt"> | null;
+  calculateBookingTotal: () => number;
+  cartTotal: () => number;
   setNumberOfHunters: (n: number) => void;
   setSelectedDates: (d: string[]) => void;
   setPartyDeckDates: (d: string[]) => void;
@@ -88,6 +91,80 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     });
   };
 
+  const calculateBookingTotal = () => {
+    const dates = booking?.dates || selectedDates;
+    const hunters = booking?.numberOfHunters || numberOfHunters;
+    const deckDates = booking?.partyDeckDates || partyDeckDates;
+
+    if (!dates.length) return 0;
+
+    const weekdayRate = 125;
+    const baseWeekendRates = {
+      singleDay: 200,
+      twoConsecutiveDays: 350,
+      threeDayCombo: 450,
+    };
+    const dateObjs = dates
+      .map((d) => {
+        const [y, m, d2] = d.split("-").map(Number);
+        return new Date(y, m - 1, d2);
+      })
+      .sort((a, b) => a.getTime() - b.getTime());
+
+    let perPersonTotal = 0;
+    let i = 0;
+    while (i < dateObjs.length) {
+      const current = dateObjs[i];
+      const dow = current.getDay();
+      if (dow === 5 && i + 2 < dateObjs.length) {
+        const d1 = dateObjs[i + 1];
+        const d2 = dateObjs[i + 2];
+        const diff1 = (d1.getTime() - current.getTime()) / 86400000;
+        const diff2 = (d2.getTime() - d1.getTime()) / 86400000;
+        if (
+          diff1 === 1 &&
+          diff2 === 1 &&
+          d1.getDay() === 6 &&
+          d2.getDay() === 0
+        ) {
+          perPersonTotal += baseWeekendRates.threeDayCombo;
+          i += 3;
+          continue;
+        }
+      }
+      if (
+        i + 1 < dateObjs.length &&
+        ((dow === 5 && dateObjs[i + 1].getDay() === 6) ||
+          (dow === 6 && dateObjs[i + 1].getDay() === 0))
+      ) {
+        const next = dateObjs[i + 1];
+        const diff = (next.getTime() - current.getTime()) / 86400000;
+        if (diff === 1) {
+          perPersonTotal += baseWeekendRates.twoConsecutiveDays;
+          i += 2;
+          continue;
+        }
+      }
+      if ([5, 6, 0].includes(dow)) {
+        perPersonTotal += baseWeekendRates.singleDay;
+      } else {
+        perPersonTotal += weekdayRate;
+      }
+      i++;
+    }
+    const partyDeckCost = deckDates.length * 500;
+    return perPersonTotal * hunters + partyDeckCost;
+  };
+
+  const calculateCartTotal = () => {
+    const bookingTotal = calculateBookingTotal();
+    const merchTotal = Object.values(merchItems).reduce(
+      (acc, item) => acc + item.product.price * item.quantity,
+      0
+    );
+    return bookingTotal + merchTotal;
+  };
+
   const resetCart = () => {
     setNumberOfHunters(1);
     setSelectedDates([]);
@@ -103,6 +180,8 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     partyDeckDates,
     merchItems,
     booking,
+    calculateBookingTotal,
+    cartTotal: calculateCartTotal,
     setNumberOfHunters,
     setSelectedDates,
     setPartyDeckDates,
@@ -112,7 +191,6 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     isHydrated,
   };
 
-  // ⛔ Prevent rendering app before localStorage is restored
   if (!isHydrated) {
     return <div className="text-white text-center py-20">Loading cart...</div>;
   }

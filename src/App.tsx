@@ -20,6 +20,7 @@ import VideoGallery from "./pages/VideoGallery";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import SetupProfile from "./pages/SetupProfile";
+import CartDrawer from "./components/CartDrawer";
 
 function App() {
   const { isHydrated } = useCart();
@@ -57,6 +58,7 @@ function App() {
           <Route path="/dev-add-docs" element={<DevSeed />} />
         </Routes>
         <Footer />
+        <CartDrawer />
       </div>
       <ToastContainer position="top-center" />
     </>

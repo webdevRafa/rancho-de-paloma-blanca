@@ -69,6 +69,7 @@ export interface SeasonConfig {
   seasonEnd: string;
   weekendRates: SeasonRates;
   weekdayRate: number;
+  availableDates: string[];
   partyDeckRatePerDay: number;
   maxHuntersPerDay: number;
 }
