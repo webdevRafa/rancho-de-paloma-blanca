@@ -86,7 +86,7 @@ const HeroSection = () => {
         </p>
         <a
           href="/book"
-          className="inline-block hero-btn px-4 text-white font-light! border-2 border-[var(--color-button-hover)] py-2 bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-lg md:text-xl rounded-md transition duration-300 ease-in-out"
+          className="inline-block hero-btn px-4 text-white font-light! border-2 border-[var(--color-button-hover)] py-1 bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-lg md:text-xl rounded-md transition duration-300 ease-in-out"
         >
           Book Your Hunt
         </a>
