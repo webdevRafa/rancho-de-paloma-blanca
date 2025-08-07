@@ -13,8 +13,14 @@ const AuthModal = ({ isOpen, onClose }: Props) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const { loginWithGoogle, emailLogin, emailSignup, authError, loading } =
-    useAuth();
+  const {
+    loginWithGoogle,
+    emailLogin,
+    emailSignup,
+    authError,
+    loading,
+    resetPassword,
+  } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,7 +104,22 @@ const AuthModal = ({ isOpen, onClose }: Props) => {
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
-
+              {/* Forgot Password (only on login tab) */}
+              {tab === "login" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!email) {
+                      alert("Please enter your email address first.");
+                      return;
+                    }
+                    resetPassword(email);
+                  }}
+                  className="text-xs text-yellow-400 hover:underline text-left ml-1 -mt-2"
+                >
+                  Forgot your password?
+                </button>
+              )}
               <button
                 type="submit"
                 disabled={loading}
@@ -116,7 +137,7 @@ const AuthModal = ({ isOpen, onClose }: Props) => {
 
             {/* Error */}
             {authError && (
-              <p className="mt-3 text-sm text-red-400 text-center">
+              <p className="mt-3 text-xs text-red-400 text-center">
                 {authError}
               </p>
             )}

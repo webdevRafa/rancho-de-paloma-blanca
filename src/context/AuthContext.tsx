@@ -12,6 +12,7 @@ import { useEffect, useState, createContext, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { auth, provider, db } from "../firebase/firebaseConfig";
+import { sendPasswordResetEmail } from "firebase/auth";
 
 const getFriendlyError = (code: string): string => {
   switch (code) {
@@ -34,10 +35,11 @@ const getFriendlyError = (code: string): string => {
 
 interface AuthContextType {
   user: User | null;
-  login: () => Promise<void>; // Alias for Google login
+  login: () => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   emailLogin: (email: string, password: string) => Promise<void>;
   emailSignup: (email: string, password: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>; // ✅ Add this
   logout: () => Promise<void>;
   checkAndCreateUser: () => Promise<void>;
   authError: string | null;
@@ -50,6 +52,7 @@ const AuthContext = createContext<AuthContextType>({
   loginWithGoogle: async () => {},
   emailLogin: async () => {},
   emailSignup: async () => {},
+  resetPassword: async () => {}, // ✅ default value
   logout: async () => {},
   checkAndCreateUser: async () => {},
   authError: null,
@@ -104,7 +107,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const login = loginWithGoogle; // 👈 Add this for backward compatibility
+  const login = loginWithGoogle;
 
   const emailLogin = async (email: string, password: string) => {
     setLoading(true);
@@ -140,6 +143,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  // ✅ FIXED: moved inside component
+  const resetPassword = async (email: string) => {
+    setLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setAuthError("Password reset email sent. Check your inbox.");
+    } catch (err: any) {
+      console.error(err);
+      setAuthError(getFriendlyError(err.code));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const logout = async () => {
     try {
       await signOut(auth);
@@ -166,6 +183,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         loginWithGoogle,
         emailLogin,
         emailSignup,
+        resetPassword, // ✅ Make sure this is returned
         logout,
         checkAndCreateUser,
         authError,
