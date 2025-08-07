@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ChevronDown } from "lucide-react"; // <-- Import icon
-import logo from "../assets/rdp-white.svg";
+import logo from "../assets/logo-official.webp";
 
 const HeroSection = () => {
   const [offset, setOffset] = useState(0);
