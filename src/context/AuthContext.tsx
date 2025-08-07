@@ -43,6 +43,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   checkAndCreateUser: () => Promise<void>;
   authError: string | null;
+  setAuthError: (msg: string | null) => void;
   loading: boolean;
 }
 
@@ -53,6 +54,7 @@ const AuthContext = createContext<AuthContextType>({
   emailLogin: async () => {},
   emailSignup: async () => {},
   resetPassword: async () => {}, // ✅ default value
+  setAuthError: async () => {},
   logout: async () => {},
   checkAndCreateUser: async () => {},
   authError: null,
@@ -185,6 +187,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         emailSignup,
         resetPassword, // ✅ Make sure this is returned
         logout,
+        setAuthError,
         checkAndCreateUser,
         authError,
         loading,

@@ -20,6 +20,7 @@ const AuthModal = ({ isOpen, onClose }: Props) => {
     authError,
     loading,
     resetPassword,
+    setAuthError,
   } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -35,6 +36,13 @@ const AuthModal = ({ isOpen, onClose }: Props) => {
     await loginWithGoogle();
     onClose();
   };
+  const handleClose = () => {
+    setEmail("");
+    setPassword("");
+    setTab("login");
+    onClose();
+    setAuthError(null);
+  };
 
   return (
     <AnimatePresence>
@@ -44,7 +52,7 @@ const AuthModal = ({ isOpen, onClose }: Props) => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          onClick={onClose}
+          onClick={handleClose}
         >
           <motion.div
             onClick={(e) => e.stopPropagation()}
@@ -57,7 +65,7 @@ const AuthModal = ({ isOpen, onClose }: Props) => {
             {/* Close Button */}
             <button
               className="absolute top-2 right-3 text-[var(--color-accent-sage)] hover:text-[var(--color-accent-gold)] text-lg"
-              onClick={onClose}
+              onClick={handleClose}
             >
               ×
             </button>
@@ -105,16 +113,10 @@ const AuthModal = ({ isOpen, onClose }: Props) => {
                 required
               />
               {/* Forgot Password (only on login tab) */}
-              {tab === "login" && (
+              {tab === "login" && authError && (
                 <button
                   type="button"
-                  onClick={() => {
-                    if (!email) {
-                      alert("Please enter your email address first.");
-                      return;
-                    }
-                    resetPassword(email);
-                  }}
+                  onClick={() => resetPassword(email)}
                   className="text-xs text-yellow-400 hover:underline text-left ml-1 -mt-2"
                 >
                   Forgot your password?
