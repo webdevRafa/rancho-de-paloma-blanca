@@ -62,7 +62,7 @@ const SetupProfile = () => {
   if (loading || !user) return null;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--color-background)] px-6 py-12 text-[var(--color-text)]">
+    <div className="min-h-screen flex items-center justify-center bg-[var(--color-dark)] px-6 py-12 text-[var(--color-text)]">
       <div className="bg-[var(--color-card)] p-8 rounded-lg shadow-md w-full max-w-md">
         <h1 className="text-2xl font-bold mb-6 text-center text-[var(--color-accent-gold)]">
           Complete Your Profile
