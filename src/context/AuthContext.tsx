@@ -13,6 +13,25 @@ import { useNavigate } from "react-router-dom";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { auth, provider, db } from "../firebase/firebaseConfig";
 
+const getFriendlyError = (code: string): string => {
+  switch (code) {
+    case "auth/invalid-email":
+      return "Please enter a valid email address.";
+    case "auth/user-not-found":
+      return "No account found with that email.";
+    case "auth/wrong-password":
+      return "Incorrect password. Please try again.";
+    case "auth/email-already-in-use":
+      return "An account already exists with this email.";
+    case "auth/weak-password":
+      return "Password should be at least 6 characters.";
+    case "auth/invalid-credential":
+      return "Invalid credentials. Try again or reset your password.";
+    default:
+      return "Something went wrong. Please try again.";
+  }
+};
+
 interface AuthContextType {
   user: User | null;
   login: () => Promise<void>; // Alias for Google login
@@ -79,7 +98,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setAuthError(null);
     } catch (error: any) {
       console.error(error);
-      setAuthError(error.message);
+      setAuthError(getFriendlyError(error.code));
     } finally {
       setLoading(false);
     }
@@ -96,7 +115,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setAuthError(null);
     } catch (err: any) {
       console.error(err);
-      setAuthError(err.message);
+      setAuthError(getFriendlyError(err.code));
     } finally {
       setLoading(false);
     }
@@ -115,7 +134,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setAuthError(null);
     } catch (err: any) {
       console.error(err);
-      setAuthError(err.message);
+      setAuthError(getFriendlyError(err.code));
     } finally {
       setLoading(false);
     }

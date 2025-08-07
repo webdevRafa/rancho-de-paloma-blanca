@@ -1,18 +1,19 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import logo from "../assets/rdp-white.svg";
 import { useAuth } from "../context/AuthContext";
+import AuthModal from "./AuthModal";
 
 const Navbar = () => {
-  const { user, logout, login } = useAuth();
+  const { user, logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [showNav, setShowNav] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
   const [scrolled, setScrolled] = useState(false);
-  const navigate = useNavigate();
 
   const toggleMenu = () => setIsOpen(!isOpen);
+  const [authOpen, setAuthOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -80,20 +81,12 @@ const Navbar = () => {
             ))}
 
             {!user ? (
-              <>
-                <button
-                  onClick={login}
-                  className="text-white hover:text-[var(--color-accent-gold)] font-semibold text-sm"
-                >
-                  Login
-                </button>
-                <Link
-                  to="/signup"
-                  className="text-white hover:text-[var(--color-accent-gold)] font-semibold text-sm"
-                >
-                  Signup
-                </Link>
-              </>
+              <button
+                onClick={() => setAuthOpen(true)}
+                className="text-white hover:text-[var(--color-accent-gold)] font-semibold text-sm"
+              >
+                Login / Signup
+              </button>
             ) : (
               <Link
                 to="/dashboard"
@@ -199,29 +192,20 @@ const Navbar = () => {
                 Sign Out
               </button>
             ) : (
-              <>
-                <button
-                  onClick={async () => {
-                    await login();
-                    setIsOpen(false);
-                    navigate("/dashboard");
-                  }}
-                  className="text-[var(--color-accent-gold)] hover:underline text-left"
-                >
-                  Login with Google →
-                </button>
-                <Link
-                  to="/signup"
-                  onClick={() => setIsOpen(false)}
-                  className="text-white hover:text-[var(--color-accent-gold)] text-left"
-                >
-                  Signup
-                </Link>
-              </>
+              <button
+                onClick={() => {
+                  setAuthOpen(true);
+                  setIsOpen(false);
+                }}
+                className="text-left text-[var(--color-accent-gold)] hover:underline"
+              >
+                Login / Signup
+              </button>
             )}
           </div>
         </div>
       </div>
+      <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} />
     </>
   );
 };
