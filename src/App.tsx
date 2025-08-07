@@ -19,6 +19,7 @@ import AboutPage from "./pages/AboutPage";
 import VideoGallery from "./pages/VideoGallery";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import SetupProfile from "./pages/SetupProfile";
 
 function App() {
   const { isHydrated } = useCart();
@@ -47,6 +48,7 @@ function App() {
           <Route path="/book" element={<BookingPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/videos" element={<VideoGallery />} />
+          <Route path="/setup-profile" element={<SetupProfile />} />
 
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/gallery" element={<GalleryPage />} />

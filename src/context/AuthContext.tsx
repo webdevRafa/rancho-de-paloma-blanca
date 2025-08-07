@@ -88,7 +88,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         email: firebaseUser.email || "",
         avatarUrl: firebaseUser.photoURL || "",
         role: "client",
-        createdAt: new Date().toISOString(),
+        createdAt: serverTimestamp(),
       });
     }
   };
@@ -145,6 +145,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         role: "client",
         createdAt: serverTimestamp(),
       });
+      navigate("/setup-profile");
     } catch (error: any) {
       setAuthError(error.message);
     } finally {
