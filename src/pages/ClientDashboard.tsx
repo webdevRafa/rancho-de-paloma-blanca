@@ -76,7 +76,7 @@ const ClientDashboard = () => {
     return <div className="text-white text-center mt-10">Please sign in.</div>;
 
   return (
-    <div className="max-w-7xl mx-auto text-[var(--color-text)] py-16 px-6 flex flex-col md:flex-row gap-8 mt-20">
+    <div className="max-w-8xl mx-auto text-[var(--color-text)] py-16 px-6 flex flex-col md:flex-row gap-8 mt-20">
       {/* Sidebar */}
       <aside className="w-full md:w-1/4">
         <h1 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-6">
