@@ -8,7 +8,7 @@ const PropertyRules = () => {
         className="bg-[var(--color-card)] text-[var(--color-text)]  w-[90%]   max-w-6xl mx-auto my-30 rounded-lg shadow-sm relative"
       >
         {/* Header */}
-        <div className="relative w-full py-5">
+        <div className="relative w-full py-5 bg-gradient-to-b from-[var(--color-footer)] to-[var(--color-card)]">
           <h1 className="text-4xl font-broadsheet text-[var(--color-accent-gold)] mb-2 text-center">
             Hunting Rules
           </h1>

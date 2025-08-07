@@ -15,21 +15,21 @@ const BookingPage = () => {
 
         <h1
           data-aos="fade-up"
-          className="text-center text-4xl md:text-4xl font-broadsheet mb-5 text-[var(--color-text)] translate-y-[-70%] bg-[var(--color-dark)] max-w-[300px] mx-auto"
+          className="text-center text-4xl md:text-6xl font-broadsheet mb-5 text-[var(--color-text)] translate-y-[-70%] bg-[var(--color-dark)] max-w-[500px] mx-auto"
         >
           Book your next hunt
         </h1>
 
         {/* Pricing Overview */}
-        <section className="max-w-4xl mx-auto flex flex-col md:flex-row gap-3 mt-20">
+        <section className="max-w-4xl mx-auto flex flex-col  gap-3 mt-20">
           <div
             data-aos="fade-up"
             data-aos-delay="100"
-            className="bg-[var(--color-card)] w-full py-10 flex items-start justify-center border-4 border-[var(--color-footer)]"
+            className="bg-[var(--color-card)] w-[90%] mx-auto py-10 flex items-start justify-center border-4 border-[var(--color-footer)]"
           >
             <div>
               <h1 className="text-center py-2 mb-2 text-3xl md:text-4xl">
-                Special White Wing Weekend
+                Special White Wing Weekends
               </h1>
               <div className="text-center text-[var(--color-accent-gold)]">
                 <p className="bg-[var(--color-footer)] max-w-[300px] mx-auto mb-1 py-2">
@@ -48,7 +48,7 @@ const BookingPage = () => {
           <div
             data-aos="fade-up"
             data-aos-delay="200"
-            className="bg-[var(--color-card)] w-full py-10 flex items-start justify-center border-4 border-[var(--color-footer)]"
+            className="bg-[var(--color-card)] w-full py-2 flex items-start justify-center border-4 border-[var(--color-footer)]"
           >
             <div>
               <h1 className="text-center py-2 mb-2 text-3xl md:text-4xl">
