@@ -27,8 +27,10 @@ const AuthModal = ({ isOpen, onClose }: Props) => {
     e.preventDefault();
     if (tab === "login") {
       await emailLogin(email, password);
+      onClose();
     } else {
       await emailSignup(email, password);
+      onClose();
     }
   };
 

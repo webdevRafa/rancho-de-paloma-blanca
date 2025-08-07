@@ -4,13 +4,22 @@ import { doc, updateDoc, getDoc } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { useAuth } from "../context/AuthContext";
 
+const formatPhoneNumber = (value: string) => {
+  const cleaned = value.replace(/\D/g, ""); // Remove non-digits
+  const match = cleaned.match(/^(\d{0,3})(\d{0,3})(\d{0,4})$/);
+  if (!match) return value;
+  return [match[1], match[2], match[3]]
+    .filter(Boolean)
+    .join("-")
+    .substring(0, 12);
+};
+
 const SetupProfile = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -23,7 +32,6 @@ const SetupProfile = () => {
           const data = userDoc.data();
           setName(data.name || "");
           setPhone(data.phone || "");
-          setAddress(data.address || "");
         }
       }
     };
@@ -33,7 +41,7 @@ const SetupProfile = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !phone || !address || !user) {
+    if (!name || !phone || !user) {
       setError("Please fill in all fields.");
       return;
     }
@@ -45,7 +53,6 @@ const SetupProfile = () => {
       await updateDoc(doc(db, "users", user.uid), {
         name,
         phone,
-        address,
         updatedAt: new Date().toISOString(),
       });
 
@@ -78,19 +85,11 @@ const SetupProfile = () => {
           />
 
           <input
-            type="tel"
-            placeholder="Phone Number"
-            className="bg-[var(--color-footer)] px-4 py-2 rounded border border-[var(--color-accent-gold)]/20 focus:outline-none text-sm"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-          />
-
-          <input
             type="text"
-            placeholder="Address"
-            className="bg-[var(--color-footer)] px-4 py-2 rounded border border-[var(--color-accent-gold)]/20 focus:outline-none text-sm"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
+            value={phone}
+            onChange={(e) => setPhone(formatPhoneNumber(e.target.value))}
+            placeholder="Phone Number"
+            className="input"
           />
 
           {error && (
