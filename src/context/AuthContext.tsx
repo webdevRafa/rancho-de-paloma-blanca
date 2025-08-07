@@ -10,7 +10,7 @@ import {
 import type { User } from "firebase/auth";
 import { useEffect, useState, createContext, useContext } from "react";
 import { useNavigate } from "react-router-dom";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, provider, db } from "../firebase/firebaseConfig";
 import { sendPasswordResetEmail } from "firebase/auth";
 
@@ -87,6 +87,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         name: firebaseUser.displayName || "",
         email: firebaseUser.email || "",
         avatarUrl: firebaseUser.photoURL || "",
+        role: "client",
         createdAt: new Date().toISOString(),
       });
     }
@@ -128,18 +129,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const emailSignup = async (email: string, password: string) => {
     setLoading(true);
+    setAuthError(null);
     try {
-      const result = await createUserWithEmailAndPassword(
+      const userCredential = await createUserWithEmailAndPassword(
         auth,
         email,
         password
       );
-      await createUserDoc(result.user);
-      setUser(result.user);
-      setAuthError(null);
-    } catch (err: any) {
-      console.error(err);
-      setAuthError(getFriendlyError(err.code));
+      const user = userCredential.user;
+
+      // Create user doc in Firestore with role
+      await setDoc(doc(db, "users", user.uid), {
+        uid: user.uid,
+        email: user.email,
+        role: "client",
+        createdAt: serverTimestamp(),
+      });
+    } catch (error: any) {
+      setAuthError(error.message);
     } finally {
       setLoading(false);
     }
