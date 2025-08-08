@@ -37,6 +37,7 @@ const Navbar = () => {
     { to: "/rules", label: "Property Rules" },
     { to: "/merch", label: "Merchandise" },
     { to: "/gallery", label: "Gallery" },
+    { to: "/videos", label: "Videos" },
     { to: "/contact", label: "Contact" },
     { to: "/about", label: "About Us" },
     { to: "/sponsor", label: "Our Sponsor" },
