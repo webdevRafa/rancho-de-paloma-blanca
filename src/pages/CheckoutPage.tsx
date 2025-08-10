@@ -188,7 +188,7 @@ const CheckoutPage = () => {
       : "Selected Hunt";
 
   return (
-    <div className="max-w-3xl bg-neutral-200 border-4 border-white mx-auto mt-50 text-[var(--color-background)] py-10 px-6">
+    <div className="max-w-3xl bg-white border-4  mx-auto mt-50 text-[var(--color-background)] py-10 px-6">
       <h1 className="text-2xl font-acumin mb-6 text-center text-[var(--color-background)]">
         Order Summary
       </h1>
@@ -201,38 +201,49 @@ const CheckoutPage = () => {
 
       {hasBooking && (
         <div className="mb-8">
-          <h2 className="text-xl mb-2 font-acumin">{huntLabel}</h2>
-          <p>Dates: {booking!.dates.map(formatFriendlyDate).join(", ")}</p>
-          <p>Hunters: {booking!.numberOfHunters}</p>
-          {!!booking!.partyDeckDates?.length && (
-            <p>
-              Party Deck: {booking!.partyDeckDates.length} × ${PARTY_DECK_COST}
+          <h2 className="text-xl mb-2 font-acumin bg-[var(--color-footer)] text-white max-w-[200px] p-1">
+            {huntLabel}
+          </h2>
+          <div className="bg-neutral-100 p-3">
+            <p>Dates: {booking!.dates.map(formatFriendlyDate).join(", ")}</p>
+            <p>Hunters: {booking!.numberOfHunters}</p>
+            {!!booking!.partyDeckDates?.length && (
+              <p>
+                Party Deck: {booking!.partyDeckDates.length} × $
+                {PARTY_DECK_COST}
+              </p>
+            )}
+            <p className="mt-2 font-semibold">
+              Booking Subtotal: ${bookingSubtotal}
             </p>
-          )}
-          <p className="mt-2 font-semibold">
-            Booking Subtotal: ${bookingSubtotal}
-          </p>
+          </div>
         </div>
       )}
 
       {hasMerch && (
         <div className="mb-8">
-          <h2 className="text-xl font-semibold mb-2">Merchandise</h2>
-          <ul className="list-disc ml-5 space-y-1">
-            {Object.entries(merchItems).map(([id, item]) => (
-              <li key={id}>
-                {item.product.name} — {item.quantity} × ${item.product.price} =
-                ${item.product.price * item.quantity}
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2 font-semibold">Merch Subtotal: ${merchSubtotal}</p>
+          <h2 className="text-xl mb-2 font-acumin bg-[var(--color-footer)] text-white max-w-[200px] p-1">
+            Merchandise
+          </h2>
+          <div className="bg-neutral-100 p-3">
+            <ul className="list-disc ml-5 space-y-1">
+              {Object.entries(merchItems).map(([id, item]) => (
+                <li key={id}>
+                  {item.product.name} — {item.quantity} × ${item.product.price}{" "}
+                  = ${item.product.price * item.quantity}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 font-semibold">
+              Merch Subtotal: ${merchSubtotal}
+            </p>
+          </div>
         </div>
       )}
 
       {(hasBooking || hasMerch) && (
         <>
-          <h2 className="text-2xl font-bold mt-4 text-center">
+          <h2 className="text-2xl font-bold mt-4 text-center font-acumin">
             Total Due: ${total}
           </h2>
           {errorMsg && (

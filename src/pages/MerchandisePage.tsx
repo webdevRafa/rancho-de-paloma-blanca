@@ -22,8 +22,8 @@ const MerchandisePage = () => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto mt-60 text-[var(--color-text)] px-6">
-      <h1 className="text-3xl font-broadsheet text-[var(--color-accent-gold)] mb-6 text-center">
+    <div className="max-w-2xl mx-auto mt-60 text-[var(--color-text)] bg-white px-6 py-10">
+      <h1 className="text-2xl font-acumin text-[var(--color-footer)] mb-6 text-center">
         Shop Official Merch
       </h1>
       <ProductList

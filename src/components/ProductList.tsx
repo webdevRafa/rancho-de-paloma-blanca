@@ -9,14 +9,11 @@ interface Props {
 
 const ProductList: React.FC<Props> = ({ products, cart, onQuantityChange }) => {
   return (
-    <div className="mt-4">
-      <h3 className="text-lg font-semibold mb-2 text-[var(--color-accent-gold)]">
-        Add Merchandise
-      </h3>
-      <ul className="space-y-4">
+    <div className="my-10 py-10 w-[90%] max-w-[500px] mx-auto">
+      <ul className="space-y-4 bg-neutral-100 p-5">
         {products.map((product) => (
           <li key={product.id} className="flex items-center justify-between">
-            <span>{product.name}</span>
+            <span className="text-[var(--color-footer)]">{product.name}</span>
             <div className="flex items-center gap-2">
               <input
                 type="number"
@@ -27,7 +24,9 @@ const ProductList: React.FC<Props> = ({ products, cart, onQuantityChange }) => {
                 }
                 className="w-16 p-1 border rounded text-black"
               />
-              <span>${product.price.toFixed(2)}</span>
+              <span className="text-[var(--color-footer)]">
+                ${product.price.toFixed(2)}
+              </span>
             </div>
           </li>
         ))}
