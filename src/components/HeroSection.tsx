@@ -78,11 +78,11 @@ const HeroSection = () => {
       {/* Content */}
       <div className="relative z-10 text-center px-6">
         <img className="w-30 mx-auto" src={logo} alt="" />
-        <h1 className="font-light text-2xl md:text-4xl text-white mb-0">
+        <h1 className="font-light text-2xl md:text-3xl text-white mb-0 font-acumin">
           Welcome to Rancho de Paloma Blanca
         </h1>
         <p className="text-xs md:text-md max-w-2xl mx-auto mb-6">
-          Experience premium guided hunts and the beauty of Texas outdoors.
+          Experience premium hunts and the beauty of Texas outdoors.
         </p>
         <a
           href="/book"

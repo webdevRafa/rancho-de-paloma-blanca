@@ -189,8 +189,8 @@ const CheckoutPage = () => {
 
   return (
     <div className="max-w-3xl bg-neutral-200 mx-auto mt-50 text-[var(--color-background)] py-10 px-6">
-      <h1 className="text-3xl font-broadsheet mb-6 text-center text-[var(--color-background)]">
-        Checkout
+      <h1 className="text-3xl font-acumin mb-6 text-center text-[var(--color-background)]">
+        Order Summary
       </h1>
 
       {!hasBooking && !hasMerch && (

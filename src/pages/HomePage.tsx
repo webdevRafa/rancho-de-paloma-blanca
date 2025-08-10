@@ -24,8 +24,8 @@ const HomePage = () => {
           Why Choose Rancho de Paloma Blanca?
         </h2>
         <p className="text-md max-w-3xl mx-auto mb-10">
-          We offer premium guided hunts, breathtaking Texas landscapes, and a
-          ranch experience designed for hunters of all levels.
+          We offer premium hunts, breathtaking Texas landscapes, and a ranch
+          experience designed for hunters of all levels.
         </p>
       </div>
       {/* Section with birds background */}

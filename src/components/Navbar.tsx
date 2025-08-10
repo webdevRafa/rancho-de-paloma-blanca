@@ -66,7 +66,9 @@ const Navbar = () => {
               alt="Rancho Logo"
               className="h-10 w-10 rounded-full"
             />
-            <span className=" text-sm text-white">Rancho de Paloma Blanca</span>
+            <span className=" text-sm text-white font-acumin">
+              Rancho de Paloma Blanca
+            </span>
           </Link>
 
           {/* Desktop Nav */}

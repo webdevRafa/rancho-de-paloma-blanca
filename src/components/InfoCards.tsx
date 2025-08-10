@@ -4,8 +4,8 @@ import { motion, AnimatePresence } from "framer-motion";
 const InfoCards = () => {
   const cards = [
     {
-      title: "Guided Hunts",
-      text: "Join our experienced guides for unforgettable hunts on pristine Texas land.",
+      title: "Premium Hunts",
+      text: "unforgettable hunts on pristine Texas land.",
     },
     {
       title: "Scenic Property",
