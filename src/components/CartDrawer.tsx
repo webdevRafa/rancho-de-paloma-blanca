@@ -7,6 +7,7 @@ import EditBookingDatesModal from "./EditBookingDatesModal";
 import { db } from "../firebase/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import { getSeasonConfig } from "../utils/getSeasonConfig";
+import { formatLongDate } from "../utils/formatDate";
 
 type AvailabilityDoc = { huntersBooked?: number; partyDeckBooked?: boolean };
 
@@ -295,7 +296,9 @@ const CartDrawer = () => {
                           (availByDate[d] ?? 0) + draftHuntersNum > maxCapacity;
                         return (
                           <li key={d} className="flex items-center gap-2">
-                            <span>• {d}</span>
+                            <span className="bg-[var(--color-footer)] text-white p-1 shadow-md">
+                              {formatLongDate(d)}
+                            </span>
                             {over && (
                               <span className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-0.5">
                                 Exceeds limit — pick a different day
@@ -304,16 +307,21 @@ const CartDrawer = () => {
                           </li>
                         );
                       })}
-                      <li>
+                      <li className="mt-3 bg-[var(--color-button)]/10 max-w-[120px] p-1">
                         Hunters: <strong>{booking!.numberOfHunters}</strong>
                       </li>
+                      <p className="bg-[var(--color-button)]/10 max-w-[120px] p-1 mb-2">
+                        Days: <strong>{booking.dates.length}</strong>
+                      </p>
                       {!!booking!.partyDeckDates?.length && (
                         <li>
                           Party Deck: {booking!.partyDeckDates.length} × $
                           {PARTY_DECK_COST}
                         </li>
                       )}
-                      <li>Subtotal: ${bookingTotal}</li>
+                      <li className="bg-white max-w-[200px] text-[var(--color-footer)] p-1 shadow-sm text-md font-bold">
+                        Booking Subtotal: ${bookingTotal}
+                      </li>
                     </ul>
                   </div>
                 )}
@@ -329,12 +337,14 @@ const CartDrawer = () => {
                         </li>
                       ))}
                     </ul>
-                    <p className="mt-1">Merch Subtotal: ${merchTotal}</p>
+                    <p className="mt-1 bg-white max-w-[200px] text-[var(--color-footer)] p-1 shadow-sm text-sm font-bold">
+                      Merch Subtotal: ${merchTotal}
+                    </p>
                   </div>
                 )}
 
                 <div className="mt-3 flex items-center justify-between">
-                  <p className="font-bold text-lg bg-white px-2 rounded-sm shadow-sm">
+                  <p className="font-bold text-lg bg-[var(--color-accent-gold)] px-2 rounded-sm shadow-sm">
                     Total: ${total}
                   </p>
                   <button

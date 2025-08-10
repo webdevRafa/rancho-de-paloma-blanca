@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import BookingForm from "../components/BookingForm";
 import EditBookingDatesModal from "../components/EditBookingDatesModal";
+import { formatLongDate } from "../utils/formatDate";
+
 import { useCart } from "../context/CartContext";
 import dove from "../assets/dove.webp";
 const BookingPage = () => {
@@ -58,12 +60,21 @@ const BookingPage = () => {
               <div className="space-y-2 text-sm rounded-xl">
                 {hasBooking && (
                   <div className="rounded-md p-4 bg-neutral-200 ">
-                    <p className="font-semibold text-[var(--color-footer)]">
+                    <p className="font-semibold text-[var(--color-footer)] text-lg mb-1">
                       Current Booking
                     </p>
-                    <ul className="ml-5 list-disc text-[var(--color-footer)]">
-                      <li>Dates: {booking!.dates.join(", ")}</li>
-                      <li>Hunters: {booking!.numberOfHunters}</li>
+                    <ul className="ml-5 text-[var(--color-footer)]">
+                      <li>
+                        <span className="font-bold"> Dates:</span>
+                        <ul className="ml-4 list-disc mb-2">
+                          {booking!.dates.map((d) => (
+                            <li key={d}>{formatLongDate(d)}</li>
+                          ))}
+                        </ul>
+                      </li>
+                      <li className="font-semibold text-[var(--color-footer)]  mb-1">
+                        Hunters: {booking!.numberOfHunters}
+                      </li>
                       {!!booking!.partyDeckDates?.length && (
                         <li>
                           Party Deck Days: {booking!.partyDeckDates.length}
