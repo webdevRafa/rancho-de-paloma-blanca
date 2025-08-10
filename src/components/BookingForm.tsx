@@ -418,7 +418,7 @@ const BookingForm = () => {
 
             {seasonConfig && (
               <div className="text-center text-[var(--color-text)] space-y-1 text-sm mt-4">
-                <p className="text-lg font-semibold text-[var(--color-text)]">
+                <p className="text-lg font-semibold text-[var(--color-footer)]">
                   Total Price: ${calculateTotalPrice()}
                 </p>
                 {form.partyDeckDates.length > 0 && (
@@ -441,7 +441,7 @@ const BookingForm = () => {
           {step > 1 && step < 3 && (
             <button
               onClick={handlePrevStep}
-              className="text-sm text-[var(--color-accent-gold)] hover:underline"
+              className="text-sm text-[var(--color-button)] font-bold hover:underline"
             >
               ← Back
             </button>
@@ -466,13 +466,13 @@ const BookingForm = () => {
             <>
               <button
                 onClick={handlePrevStep}
-                className="text-sm text-[var(--color-accent-gold)] hover:underline"
+                className="text-sm text-[var(--color-button)] font-bold hover:underline"
               >
                 ← Back
               </button>
               <button
                 onClick={handleSubmit}
-                className="ml-auto bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] border border-[var(--color-button-hover)] font-bold text-[var(--color-footer)] px-6 py-3 rounded-md text-sm tracking-wide transition-all"
+                className="ml-auto bg-[var(--color-footer)] hover:bg-[var(--color-button-hover)] border border-[var(--color-button-hover)] font-bold text-white px-6 py-3 rounded-md text-sm tracking-wide transition-all"
               >
                 Review & Checkout
               </button>
