@@ -305,13 +305,13 @@ const BookingForm = () => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto mt-20 mb-50 bg-[var(--color-card)] border-4 border-[var(--color-footer)] p-8  shadow-2xl text-[var(--color-text)]">
-      <h2 className="text-3xl font-broadsheet mb-1 text-center text-[var(--color-accent-gold)]">
+    <div className="max-w-2xl mx-auto mt-20 mb-50 bg-white border-4 border-[var(--color-footer)] p-8  shadow-2xl text-[var(--color-text)]">
+      <h2 className="text-3xl font-acumin mb-0 text-center text-[var(--color-footer)]">
         {step === 1 && "Enter Party Size"}
         {step === 2 && "Choose Your Dates"}
         {step === 3 && "Review & Submit Your Booking"}
       </h2>
-      <p className="mb-8 text-sm text-neutral-500 text-center">
+      <p className="mb-8 text-sm text-neutral-800 text-center">
         signed in as, {user.displayName} ({user.email})
       </p>
 
@@ -319,7 +319,7 @@ const BookingForm = () => {
         {step === 1 && (
           <>
             <label className="flex flex-col mt-4">
-              <span className="mb-1 text-sm text-[var(--color-accent-sage)]">
+              <span className="mb-1 text-sm text-[var(--color-footer)]">
                 Phone Number
               </span>
               <input
@@ -329,13 +329,13 @@ const BookingForm = () => {
                 maxLength={12}
                 value={form.phone}
                 onChange={handlePhoneChange}
-                className="bg-[var(--color-card)] border border-[var(--color-accent-sage)] px-4 py-3 rounded-md placeholder:text-[var(--color-accent-sage)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-gold)]"
-                placeholder="e.g. 956-372-0268"
+                className="bg-neutral-200 text-[var(--color-footer)] px-4 py-3 rounded-md placeholder:text-[var(--color-footer)]/40 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-gold)]"
+                placeholder="e.g. 444-444-4444"
               />
             </label>
 
             <label className="flex flex-col">
-              <span className="mb-1 text-sm text-[var(--color-accent-sage)]">
+              <span className="mb-1 text-sm text-[var(--color-footer)]">
                 Number of Hunters
               </span>
               <input
@@ -346,10 +346,10 @@ const BookingForm = () => {
                 value={huntersInput}
                 onChange={handleHuntersChange}
                 onBlur={handleHuntersBlur}
-                className="bg-[var(--color-card)] border border-[var(--color-accent-sage)] px-4 py-3 rounded-md placeholder:text-[var(--color-accent-sage)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-gold)]"
+                className="bg-neutral-200 text-[var(--color-footer)] px-4 py-3 rounded-md placeholder:text-[var(--color-footer)]/40 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-gold)]"
                 placeholder="Enter number"
               />
-              <span className="mt-1 text-xs text-[var(--color-accent-sage)]">
+              <span className="mt-1 text-xs text-[var(--color-footer)]/80">
                 Must be at least 1.
               </span>
             </label>
@@ -358,7 +358,7 @@ const BookingForm = () => {
 
         {step === 2 && (
           <>
-            <div className="text-sm text-[var(--color-accent-sage)] text-center">
+            <div className="text-sm text-[var(--color-footer)] text-center">
               <DateSelector
                 onSelect={(dates) => setForm((prev) => ({ ...prev, dates }))}
                 seasonConfig={seasonConfig}
@@ -370,7 +370,7 @@ const BookingForm = () => {
 
         {step === 3 && (
           <>
-            <div className="text-sm text-[var(--color-accent-sage)] space-y-1">
+            <div className="text-sm text-[var(--color-footer)] space-y-1">
               <p>
                 Hunters: <strong>{form.numberOfHunters}</strong>
               </p>
@@ -385,8 +385,8 @@ const BookingForm = () => {
             </div>
 
             {form.dates.length > 0 && (
-              <div className="mt-4 border-t border-[var(--color-accent-sage)] pt-4">
-                <p className="mb-2 text-[var(--color-accent-sage)] text-sm font-semibold">
+              <div className="mt-4 border-t border-[var(--color-footer)] pt-4">
+                <p className="mb-2 text-[var(--color-footer)] text-sm font-semibold">
                   Add Party Deck ($500/day):
                 </p>
                 <div className="space-y-2">
@@ -405,7 +405,7 @@ const BookingForm = () => {
                           onChange={() => togglePartyDeckDate(date)}
                           className="accent-[var(--color-accent-gold)]"
                         />
-                        <span className="text-[var(--color-accent-sage)]">
+                        <span className="text-[var(--color-footer)]">
                           {formatFriendlyDate(date)}{" "}
                           {available ? "" : "(unavailable)"}
                         </span>
@@ -429,7 +429,7 @@ const BookingForm = () => {
                       form.partyDeckDates.length}
                   </p>
                 )}
-                <p className="text-xs italic text-[var(--color-accent-sage)] mt-2">
+                <p className="text-xs italic text-[var(--color-footer)] mt-2">
                   Your hunt will be reserved after checkout is completed.
                 </p>
               </div>
