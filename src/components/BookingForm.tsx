@@ -13,7 +13,6 @@ import { useNavigate } from "react-router-dom";
 import DateSelector from "./DateSelector";
 import { getSeasonConfig } from "../utils/getSeasonConfig";
 import { useCart } from "../context/CartContext";
-
 const BookingForm = () => {
   const { user, login } = useAuth();
   const { setBooking } = useCart();
@@ -435,9 +434,37 @@ const BookingForm = () => {
                 </p>
               </div>
             )}
+          </>
+        )}
+        <div className="flex justify-between pt-4">
+          {/* show Back only on steps 2 and earlier */}
+          {step > 1 && step < 3 && (
+            <button
+              onClick={handlePrevStep}
+              className="text-sm text-[var(--color-accent-gold)] hover:underline"
+            >
+              ← Back
+            </button>
+          )}
 
-            {/* Buttons */}
-            <div className="flex justify-between pt-6">
+          {step < 3 ? (
+            <>
+              <button
+                onClick={handleNextStep}
+                className="ml-auto bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white px-6 py-2 text-sm font-semibold"
+              >
+                Continue →
+              </button>
+              <button
+                className="bg-[var(--color-accent-gold)] text-[var(--color-footer)] font-bold shadow-md p-2 text-xs ml-3"
+                onClick={handleContinueToMerch}
+              >
+                Shop Merch
+              </button>
+            </>
+          ) : (
+            // step === 3
+            <>
               <button
                 onClick={handlePrevStep}
                 className="text-sm text-[var(--color-accent-gold)] hover:underline"
@@ -450,40 +477,7 @@ const BookingForm = () => {
               >
                 Review & Checkout
               </button>
-            </div>
-          </>
-        )}
-        <div className="flex justify-between pt-4">
-          {step > 1 && (
-            <button
-              onClick={handlePrevStep}
-              className="text-sm text-[var(--color-accent-gold)] hover:underline"
-            >
-              ← Back
-            </button>
-          )}
-          {step < 3 ? (
-            <>
-              <button
-                onClick={handleNextStep}
-                className="ml-auto bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white px-6 py-2  text-sm font-semibold"
-              >
-                Continue →
-              </button>
-              <button
-                className="bg-[var(--color-accent-gold)] text-[var(--color-footer)] font-bold shadow-md p-2 text-xs ml-3"
-                onClick={handleContinueToMerch}
-              >
-                Shop Merch
-              </button>
             </>
-          ) : (
-            <button
-              onClick={handleSubmit}
-              className="ml-auto bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] border border-[var(--color-button-hover)] font-bold text-[var(--color-footer)] px-6 py-3 rounded-md text-sm tracking-wide transition-all"
-            >
-              Submit Booking
-            </button>
           )}
         </div>
       </div>

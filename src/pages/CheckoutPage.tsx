@@ -6,15 +6,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
 const CheckoutPage = () => {
-  const {
-    selectedDates,
-    numberOfHunters,
-    partyDeckDates,
-    merchItems,
-    booking,
-    resetCart,
-    isHydrated,
-  } = useCart();
+  const { merchItems, booking, resetCart, isHydrated } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -37,6 +29,7 @@ const CheckoutPage = () => {
 
   const PARTY_DECK_COST = 500;
   const hasMerch = Object.keys(merchItems).length > 0;
+  const hasBooking = !!booking && booking.dates?.length > 0;
 
   const formatFriendlyDate = (iso: string): string => {
     const [yyyy, mm, dd] = iso.split("-");
@@ -55,10 +48,6 @@ const CheckoutPage = () => {
     return `${weekday}, ${month} ${day}${suffix}, ${year}`;
   };
 
-  const fallbackDates = booking?.dates || selectedDates;
-  const fallbackHunters = booking?.numberOfHunters || numberOfHunters;
-  const fallbackDeckDays = booking?.partyDeckDates || partyDeckDates;
-
   const calculateMerchTotal = () =>
     Object.values(merchItems).reduce(
       (acc, item) => acc + item.product.price * item.quantity,
@@ -66,24 +55,32 @@ const CheckoutPage = () => {
     );
 
   const calculateBookingTotal = () => {
-    if (!fallbackDates.length) return 0;
+    if (!hasBooking) return 0;
+    const dates = booking!.dates;
+    const hunters = booking!.numberOfHunters || 0;
+    const deckDays = booking!.partyDeckDates || [];
+
     const weekdayRate = 125;
     const baseWeekendRates = {
       singleDay: 200,
       twoConsecutiveDays: 350,
       threeDayCombo: 450,
     };
-    const dateObjs = fallbackDates
+
+    const dateObjs = dates
       .map((d) => {
         const [y, m, d2] = d.split("-").map(Number);
         return new Date(y, m - 1, d2);
       })
       .sort((a, b) => a.getTime() - b.getTime());
+
     let perPersonTotal = 0;
     let i = 0;
     while (i < dateObjs.length) {
       const current = dateObjs[i];
       const dow = current.getDay();
+
+      // Fri-Sat-Sun 3-day combo
       if (dow === 5 && i + 2 < dateObjs.length) {
         const d1 = dateObjs[i + 1];
         const d2 = dateObjs[i + 2];
@@ -100,6 +97,8 @@ const CheckoutPage = () => {
           continue;
         }
       }
+
+      // Fri+Sat or Sat+Sun 2-day combo
       if (
         i + 1 < dateObjs.length &&
         ((dow === 5 && dateObjs[i + 1].getDay() === 6) ||
@@ -113,18 +112,21 @@ const CheckoutPage = () => {
           continue;
         }
       }
-      if ([5, 6, 0].includes(dow)) {
-        perPersonTotal += baseWeekendRates.singleDay;
-      } else {
-        perPersonTotal += weekdayRate;
-      }
+
+      // Single weekend day vs weekday
+      if ([5, 6, 0].includes(dow)) perPersonTotal += baseWeekendRates.singleDay;
+      else perPersonTotal += weekdayRate;
+
       i++;
     }
-    const partyDeckCost = fallbackDeckDays.length * PARTY_DECK_COST;
-    return perPersonTotal * fallbackHunters + partyDeckCost;
+
+    const partyDeckCost = deckDays.length * PARTY_DECK_COST;
+    return perPersonTotal * hunters + partyDeckCost;
   };
 
-  const total = calculateBookingTotal() + calculateMerchTotal();
+  const bookingSubtotal = calculateBookingTotal();
+  const merchSubtotal = calculateMerchTotal();
+  const total = bookingSubtotal + merchSubtotal;
 
   const handleCompleteCheckout = async () => {
     if (isSubmitting || hasTriedSubmitting) return;
@@ -135,7 +137,7 @@ const CheckoutPage = () => {
 
     try {
       if (!user) throw new Error("Please sign in with Google first.");
-      if (!booking && !hasMerch) throw new Error("Your cart is empty.");
+      if (!hasBooking && !hasMerch) throw new Error("Your cart is empty.");
 
       const orderRef = doc(db, "orders", orderId);
       const existing = await getDoc(orderRef);
@@ -146,8 +148,8 @@ const CheckoutPage = () => {
 
       await setDoc(orderRef, {
         userId: user.uid,
-        booking,
-        merchItems,
+        ...(hasBooking ? { booking } : {}),
+        ...(hasMerch ? { merchItems } : {}),
         total,
         status: "pending",
         createdAt: serverTimestamp(),
@@ -176,35 +178,39 @@ const CheckoutPage = () => {
     } catch (err: any) {
       console.error(err);
       setErrorMsg(err.message || "Checkout failed.");
-      // Optional redirect on error:
       navigate("/dashboard?error=checkout-failed");
     }
   };
 
+  const huntLabel =
+    hasBooking && booking!.dates.length > 1
+      ? "Selected Hunts"
+      : "Selected Hunt";
+
   return (
-    <div className="max-w-3xl bg-[var(--color-card)] mx-auto mt-50 text-[var(--color-text)] py-10 px-6">
-      <h1 className="text-3xl font-broadsheet mb-6 text-center text-[var(--color-accent-gold)]">
+    <div className="max-w-3xl bg-neutral-200 mx-auto mt-50 text-[var(--color-background)] py-10 px-6">
+      <h1 className="text-3xl font-broadsheet mb-6 text-center text-[var(--color-background)]">
         Checkout
       </h1>
 
-      {!booking && !hasMerch && (
+      {!hasBooking && !hasMerch && (
         <p className="text-center text-sm text-red-400 mb-8">
           Your cart is empty. Add bookings or merch before checking out.
         </p>
       )}
 
-      {(booking || fallbackDates.length > 0) && (
+      {hasBooking && (
         <div className="mb-8">
-          <h2 className="text-xl font-semibold mb-2">Booking Summary</h2>
-          <p>Dates: {fallbackDates.map(formatFriendlyDate).join(", ")}</p>
-          <p>Hunters: {fallbackHunters}</p>
-          {fallbackDeckDays.length > 0 && (
+          <h2 className="text-xl font-semibold mb-2">{huntLabel}</h2>
+          <p>Dates: {booking!.dates.map(formatFriendlyDate).join(", ")}</p>
+          <p>Hunters: {booking!.numberOfHunters}</p>
+          {!!booking!.partyDeckDates?.length && (
             <p>
-              Party Deck: {fallbackDeckDays.length} × ${PARTY_DECK_COST}
+              Party Deck: {booking!.partyDeckDates.length} × ${PARTY_DECK_COST}
             </p>
           )}
           <p className="mt-2 font-semibold">
-            Booking Subtotal: ${calculateBookingTotal()}
+            Booking Subtotal: ${bookingSubtotal}
           </p>
         </div>
       )}
@@ -220,13 +226,11 @@ const CheckoutPage = () => {
               </li>
             ))}
           </ul>
-          <p className="mt-2 font-semibold">
-            Merch Subtotal: ${calculateMerchTotal()}
-          </p>
+          <p className="mt-2 font-semibold">Merch Subtotal: ${merchSubtotal}</p>
         </div>
       )}
 
-      {(booking || hasMerch) && (
+      {(hasBooking || hasMerch) && (
         <>
           <h2 className="text-2xl font-bold mt-4 text-center">
             Total Due: ${total}
