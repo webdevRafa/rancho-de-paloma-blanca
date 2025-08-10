@@ -13,6 +13,7 @@ import { useNavigate } from "react-router-dom";
 import DateSelector from "./DateSelector";
 import { getSeasonConfig } from "../utils/getSeasonConfig";
 import { useCart } from "../context/CartContext";
+
 const BookingForm = () => {
   const { user, login } = useAuth();
   const { setBooking } = useCart();
@@ -21,17 +22,18 @@ const BookingForm = () => {
 
   const [step, setStep] = useState(1);
   const [seasonConfig, setSeasonConfig] = useState<SeasonConfig | null>(null);
+
+  // Keep the canonical numeric value in form.numberOfHunters,
+  // but expose a separate string input value so users can clear it while typing.
   const [form, setForm] = useState({
     numberOfHunters: 1,
     dates: [] as string[],
     partyDeckDates: [] as string[],
-    phone: "", // ← add this line
+    phone: "",
   });
+  const [huntersInput, setHuntersInput] = useState<string>("1");
 
-  // Track availability of the party deck for each selected date. When
-  // true, the deck is available for that date. This is populated
-  // whenever the user reaches the review step or the selected dates
-  // change.
+  // Party deck availability per date
   const [deckAvailability, setDeckAvailability] = useState<
     Record<string, boolean>
   >({});
@@ -44,11 +46,6 @@ const BookingForm = () => {
     fetchConfig();
   }, []);
 
-  // When advancing to the review step or when the selected dates change,
-  // determine the availability of the party deck for each date. If the
-  // deck is already booked on a day, the corresponding entry will be
-  // false. Unavailable dates are automatically removed from the
-  // user's partyDeckDates selection.
   useEffect(() => {
     const fetchDeckAvailability = async () => {
       if (step !== 3 || form.dates.length === 0) {
@@ -69,7 +66,6 @@ const BookingForm = () => {
         })
       );
       setDeckAvailability(availability);
-      // prune selections
       setForm((prev) => ({
         ...prev,
         partyDeckDates: prev.partyDeckDates.filter((d) => availability[d]),
@@ -78,34 +74,52 @@ const BookingForm = () => {
     fetchDeckAvailability();
   }, [step, form.dates]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({
-      ...prev,
-      [name]: name === "numberOfHunters" ? parseInt(value, 10) || 1 : value,
-    }));
+  // --- Phone input stays the same ---
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/\D/g, "");
+    let formatted = raw;
+    if (raw.length > 3 && raw.length <= 6) {
+      formatted = `${raw.slice(0, 3)}-${raw.slice(3)}`;
+    } else if (raw.length > 6) {
+      formatted = `${raw.slice(0, 3)}-${raw.slice(3, 6)}-${raw.slice(6, 10)}`;
+    }
+    setForm((prev) => ({ ...prev, phone: formatted }));
   };
 
-  // Toggle a date in the partyDeckDates array. If the date is already
-  // selected, remove it; otherwise add it. This allows users to
-  // choose specific days for the party deck on the review step.
+  // --- Hunters: allow clearing while typing, enforce min=1 on blur or continue ---
+  const handleHuntersChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Accept only digits; allow '' so user can backspace to empty
+    const next = e.target.value.replace(/[^\d]/g, "");
+    setHuntersInput(next);
+
+    // If there is a number present, update the canonical numeric value.
+    if (next !== "") {
+      const n = Math.max(1, parseInt(next, 10) || 1);
+      setForm((prev) => ({ ...prev, numberOfHunters: n }));
+    }
+  };
+
+  const commitHunters = () => {
+    const n = Math.max(1, parseInt(huntersInput, 10) || 1);
+    setForm((prev) => ({ ...prev, numberOfHunters: n }));
+    // If the field was empty, snap it back to '1' visually.
+    if (huntersInput === "") setHuntersInput(String(n));
+  };
+
+  const handleHuntersBlur = () => {
+    commitHunters();
+  };
+
   const togglePartyDeckDate = (date: string) => {
     setForm((prev) => {
       const idx = prev.partyDeckDates.indexOf(date);
       let newList: string[];
-      if (idx >= 0) {
-        newList = prev.partyDeckDates.filter((d) => d !== date);
-      } else {
-        newList = [...prev.partyDeckDates, date];
-      }
+      if (idx >= 0) newList = prev.partyDeckDates.filter((d) => d !== date);
+      else newList = [...prev.partyDeckDates, date];
       return { ...prev, partyDeckDates: newList };
     });
   };
 
-  /**
-   * Convert an ISO date string (YYYY-MM-DD) into a friendly format
-   * like "September 7th, 2025". Includes an ordinal suffix.
-   */
   const formatFriendlyDate = (iso: string) => {
     const [yyyy, mm, dd] = iso.split("-");
     const year = Number(yyyy);
@@ -122,25 +136,23 @@ const BookingForm = () => {
     return `${monthName} ${day}${suffix}, ${year}`;
   };
 
-  const handleNextStep = () => setStep((prev) => prev + 1);
+  const handleNextStep = () => {
+    // Make sure the hunters value is committed before moving on.
+    commitHunters();
+    setStep((prev) => prev + 1);
+  };
   const handlePrevStep = () => setStep((prev) => prev - 1);
 
-  /**
-   * Compute the total price for the current selection. Pricing rules:
-   *
-   * - In-season weekend days (Fri, Sat, Sun) are eligible for bundled
-   *   discounts: one day ($200), two consecutive days Fri/Sat or Sat/Sun
-   *   ($350), or three consecutive days Fri/Sat/Sun ($450).
-   * - Any day that falls outside of these in-season weekend bundles is
-   *   priced at the standard weekday rate ($125) per person per day. This
-   *   applies to all weekdays (Mon–Thu) during the season and to every
-   *   day outside of the season.
-   * - The party deck cost is added per selected day if included.
-   */
   const calculateTotalPrice = (): number => {
     if (!seasonConfig) return 0;
-    const { seasonStart, seasonEnd, weekendRates, weekdayRate } = seasonConfig;
-    // Convert selected dates into Date objects and sort them
+    const {
+      seasonStart,
+      seasonEnd,
+      weekendRates,
+      weekdayRate,
+      partyDeckRatePerDay,
+    } = seasonConfig;
+
     const dateObjs = form.dates
       .map((d) => {
         const [y, m, d2] = d.split("-").map(Number);
@@ -148,7 +160,6 @@ const BookingForm = () => {
       })
       .sort((a, b) => a.getTime() - b.getTime());
 
-    // Helper to convert a Date to local YYYY-MM-DD
     const toISO = (d: Date) => {
       const yyyy = d.getFullYear();
       const mm = String(d.getMonth() + 1).padStart(2, "0");
@@ -165,7 +176,6 @@ const BookingForm = () => {
       const dow0 = current.getDay();
       const isWeekend = inSeason && (dow0 === 5 || dow0 === 6 || dow0 === 0);
       if (isWeekend) {
-        // Attempt to apply 3-day weekend combo starting on Friday
         if (dow0 === 5 && i + 2 < dateObjs.length) {
           const d1 = dateObjs[i + 1];
           const d2 = dateObjs[i + 2];
@@ -190,7 +200,6 @@ const BookingForm = () => {
             continue;
           }
         }
-        // Attempt to apply 2-day weekend combo (Fri+Sat or Sat+Sun)
         if (i + 1 < dateObjs.length) {
           const next = dateObjs[i + 1];
           const diff = (next.getTime() - current.getTime()) / 86_400_000;
@@ -207,19 +216,15 @@ const BookingForm = () => {
             continue;
           }
         }
-        // Default: single weekend day
         perPersonTotal += weekendRates.singleDay;
         i += 1;
         continue;
       }
-      // Not an in-season weekend day: apply weekday/off-season rate
       perPersonTotal += weekdayRate;
       i += 1;
     }
-    // Multiply by number of hunters and add party deck cost. The
-    // party deck cost is applied per day selected in partyDeckDates.
-    const partyDeckCost =
-      seasonConfig.partyDeckRatePerDay * form.partyDeckDates.length;
+
+    const partyDeckCost = partyDeckRatePerDay * form.partyDeckDates.length;
     return perPersonTotal * form.numberOfHunters + partyDeckCost;
   };
 
@@ -232,6 +237,9 @@ const BookingForm = () => {
       alert("Season configuration not loaded. Please try again later.");
       return;
     }
+    // Ensure hunters is committed before building the booking
+    commitHunters();
+
     const price = calculateTotalPrice();
     const booking: Omit<NewBooking, "createdAt"> = {
       userId: user.uid,
@@ -260,21 +268,23 @@ const BookingForm = () => {
       </div>
     );
   }
+
   const handleContinueToMerch = () => {
     if (!user) {
       alert("Please sign in with Google first.");
       return;
     }
-
     if (!seasonConfig) {
       alert("Season configuration not loaded. Please try again later.");
       return;
     }
-
     if (form.dates.length === 0) {
       alert("Please select at least one date.");
       return;
     }
+
+    // Commit hunters before computing price or navigating
+    commitHunters();
 
     const price = calculateTotalPrice();
 
@@ -304,6 +314,7 @@ const BookingForm = () => {
       <p className="mb-8 text-sm text-neutral-500 text-center">
         signed in as, {user.displayName} ({user.email})
       </p>
+
       <div className="flex flex-col space-y-5">
         {step === 1 && (
           <>
@@ -317,21 +328,7 @@ const BookingForm = () => {
                 inputMode="numeric"
                 maxLength={12}
                 value={form.phone}
-                onChange={(e) => {
-                  const raw = e.target.value.replace(/\D/g, ""); // remove all non-digits
-                  let formatted = raw;
-
-                  if (raw.length > 3 && raw.length <= 6) {
-                    formatted = `${raw.slice(0, 3)}-${raw.slice(3)}`;
-                  } else if (raw.length > 6) {
-                    formatted = `${raw.slice(0, 3)}-${raw.slice(
-                      3,
-                      6
-                    )}-${raw.slice(6, 10)}`;
-                  }
-
-                  setForm((prev) => ({ ...prev, phone: formatted }));
-                }}
+                onChange={handlePhoneChange}
                 className="bg-[var(--color-card)] border border-[var(--color-accent-sage)] px-4 py-3 rounded-md placeholder:text-[var(--color-accent-sage)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-gold)]"
                 placeholder="e.g. 956-372-0268"
               />
@@ -344,15 +341,21 @@ const BookingForm = () => {
               <input
                 name="numberOfHunters"
                 type="number"
+                inputMode="numeric"
                 min={1}
-                value={form.numberOfHunters}
-                onChange={handleChange}
+                value={huntersInput}
+                onChange={handleHuntersChange}
+                onBlur={handleHuntersBlur}
                 className="bg-[var(--color-card)] border border-[var(--color-accent-sage)] px-4 py-3 rounded-md placeholder:text-[var(--color-accent-sage)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-gold)]"
                 placeholder="Enter number"
               />
+              <span className="mt-1 text-xs text-[var(--color-accent-sage)]">
+                Must be at least 1.
+              </span>
             </label>
           </>
         )}
+
         {step === 2 && (
           <>
             <div className="text-sm text-[var(--color-accent-sage)] text-center">
@@ -362,12 +365,11 @@ const BookingForm = () => {
                 numberOfHunters={form.numberOfHunters}
               />
             </div>
-            {/* Party deck selection moved to step 3 */}
           </>
         )}
+
         {step === 3 && (
           <>
-            {/* Summary of party size and selected dates */}
             <div className="text-sm text-[var(--color-accent-sage)] space-y-1">
               <p>
                 Hunters: <strong>{form.numberOfHunters}</strong>
@@ -382,7 +384,6 @@ const BookingForm = () => {
               </p>
             </div>
 
-            {/* Party deck selection */}
             {form.dates.length > 0 && (
               <div className="mt-4 border-t border-[var(--color-accent-sage)] pt-4">
                 <p className="mb-2 text-[var(--color-accent-sage)] text-sm font-semibold">
@@ -415,7 +416,6 @@ const BookingForm = () => {
               </div>
             )}
 
-            {/* Pricing summary */}
             {seasonConfig && (
               <div className="text-center text-[var(--color-text)] space-y-1 text-sm mt-4">
                 <p className="text-lg font-semibold text-[var(--color-text)]">
@@ -436,8 +436,8 @@ const BookingForm = () => {
             )}
           </>
         )}
+
         <div className="flex justify-between pt-4">
-          {/* show Back only on steps 2 and earlier */}
           {step > 1 && step < 3 && (
             <button
               onClick={handlePrevStep}
@@ -463,7 +463,6 @@ const BookingForm = () => {
               </button>
             </>
           ) : (
-            // step === 3
             <>
               <button
                 onClick={handlePrevStep}
