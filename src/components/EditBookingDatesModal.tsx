@@ -16,7 +16,6 @@ const EditBookingDatesModal = ({ isOpen, onClose }: Props) => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load season config once
   useEffect(() => {
     if (!isOpen) return;
     (async () => {
@@ -25,7 +24,6 @@ const EditBookingDatesModal = ({ isOpen, onClose }: Props) => {
     })();
   }, [isOpen]);
 
-  // Seed the picker with current booking dates when opening
   useEffect(() => {
     if (!isOpen || !booking) return;
     setTempDates(booking.dates ?? []);
@@ -37,18 +35,14 @@ const EditBookingDatesModal = ({ isOpen, onClose }: Props) => {
     [booking]
   );
 
-  if (!isOpen) return null;
-  if (!booking) return null; // modal only makes sense if a booking exists
+  if (!isOpen || !booking) return null;
 
-  // Price calculator (same rules as in BookingForm)
-  // Uses seasonConfig.weekendRates/weekdayRate + partyDeckRatePerDay.
   const calcPrice = (
     dates: string[],
     hunters: number,
     partyDeckDates: string[]
   ): number => {
     if (!seasonConfig) return 0;
-
     const {
       seasonStart,
       seasonEnd,
@@ -81,7 +75,6 @@ const EditBookingDatesModal = ({ isOpen, onClose }: Props) => {
       const isWeekend = inSeason && (dow0 === 5 || dow0 === 6 || dow0 === 0);
 
       if (isWeekend) {
-        // Try 3-day Fri/Sat/Sun combo
         if (dow0 === 5 && i + 2 < dateObjs.length) {
           const d1 = dateObjs[i + 1];
           const d2 = dateObjs[i + 2];
@@ -106,7 +99,6 @@ const EditBookingDatesModal = ({ isOpen, onClose }: Props) => {
             continue;
           }
         }
-        // Try 2-day Fri+Sat or Sat+Sun combo
         if (i + 1 < dateObjs.length) {
           const next = dateObjs[i + 1];
           const diff = (next.getTime() - current.getTime()) / 86_400_000;
@@ -123,13 +115,11 @@ const EditBookingDatesModal = ({ isOpen, onClose }: Props) => {
             continue;
           }
         }
-        // Single in-season weekend day
         perPersonTotal += weekendRates.singleDay;
         i += 1;
         continue;
       }
 
-      // Not an in-season weekend day
       perPersonTotal += weekdayRate;
       i += 1;
     }
@@ -138,26 +128,23 @@ const EditBookingDatesModal = ({ isOpen, onClose }: Props) => {
     return perPersonTotal * hunters + partyDeckCost;
   };
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (tempDates.length === 0) {
       setError("Please select at least one date.");
       return;
     }
     setSaving(true);
     try {
-      // Keep only deck days that still exist in the new dates selection
       const nextDeckDays = (booking.partyDeckDates ?? []).filter((d) =>
         tempDates.includes(d)
       );
       const nextPrice = calcPrice(tempDates, numberOfHunters, nextDeckDays);
-
       setBooking({
         ...booking,
         dates: tempDates,
         partyDeckDates: nextDeckDays,
         price: nextPrice,
       });
-
       onClose();
     } finally {
       setSaving(false);
@@ -166,19 +153,19 @@ const EditBookingDatesModal = ({ isOpen, onClose }: Props) => {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60">
-      <div className="w-full sm:max-w-2xl bg-[var(--color-card)] text-[var(--color-text)] rounded-t-2xl sm:rounded-2xl shadow-xl">
+      <div className="w-full sm:max-w-2xl bg-white text-[var(--color-footer)] rounded-t-2xl sm:rounded-2xl shadow-xl">
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-footer)]">
-          <h3 className="text-lg font-semibold">Edit Hunt Dates</h3>
+          <h3 className="text-lg font-semibold font-acumin">Edit Hunt Dates</h3>
           <button
             onClick={onClose}
-            className="text-sm text-[var(--color-accent-gold)] hover:underline"
+            className="text-sm text-[var(--color-footer)] hover:underline"
           >
             Close
           </button>
         </div>
 
         <div className="px-4 py-4">
-          <p className="text-sm text-[var(--color-accent-sage)] mb-3">
+          <p className="text-sm text-[var(--color-footer)] mb-3">
             Select or remove dates. Capacity rules are enforced automatically.
           </p>
 
@@ -189,7 +176,7 @@ const EditBookingDatesModal = ({ isOpen, onClose }: Props) => {
           />
 
           {error && (
-            <p className="mt-3 text-sm text-red-400" role="alert">
+            <p className="mt-3 text-sm text-red-600" role="alert">
               {error}
             </p>
           )}
@@ -198,7 +185,7 @@ const EditBookingDatesModal = ({ isOpen, onClose }: Props) => {
         <div className="flex items-center justify-end gap-2 px-4 pb-4">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm rounded-md border border-[var(--color-accent-sage)]"
+            className="px-4 py-2 text-sm rounded-md border border-[var(--color-accent-sage)] text-[var(--color-footer)]"
           >
             Cancel
           </button>

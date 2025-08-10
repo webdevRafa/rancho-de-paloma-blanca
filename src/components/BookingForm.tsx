@@ -474,7 +474,7 @@ const BookingForm = () => {
                 onClick={handleSubmit}
                 className="ml-auto bg-[var(--color-footer)] hover:bg-[var(--color-button-hover)] border border-[var(--color-button-hover)] font-bold text-white px-6 py-3 rounded-md text-sm tracking-wide transition-all"
               >
-                Review & Checkout
+                Add to Cart & Proceed
               </button>
             </>
           )}

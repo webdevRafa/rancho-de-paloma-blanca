@@ -27,21 +27,27 @@
   --font-size-body: 1rem;
 }
 
-/* DayPicker nav buttons (default) */
-.rdp-nav_button {
-  color: var(--color-footer) !important;
+/* Override the color of today's date (removes default blue) */
+.rdp {
+  --rdp-accent-color: white;
+  --rdp-today-color: var(--color-accent-gold);
 }
-.rdp-nav_button svg {
-  color: var(--color-footer) !important;
-  fill: var(--color-footer) !important;
-  stroke: var(--color-footer) !important;
-}
-/* Optional: nicer states */
-.rdp-nav_button:hover {
+.rdp-day_today {
   color: var(--color-accent-gold) !important;
 }
-.rdp-nav_button:disabled {
-  opacity: 0.35 !important;
+.rdp-nav_button {
+  color: white !important;
+}
+.rdp-nav_button svg {
+  color: inherit !important;
+  fill: inherit !important;
+  stroke: inherit !important;
+}
+/* Change the chevron navigation icons to white */
+.rdp-nav_button svg {
+  color: white !important;
+  fill: white !important;  /* For some SVG icons */
+  stroke: white !important; /* For others that use stroke */
 }
 
 

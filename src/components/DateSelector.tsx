@@ -117,65 +117,67 @@ const DateSelector = ({
 
   return (
     <div className="flex justify-center">
-      <DayPicker
-        mode="multiple"
-        selected={selected}
-        onDayClick={handleDayClick}
-        disabled={isDateBlocked}
-        modifiers={{ selected }}
-        modifiersClassNames={{
-          selected: "bg-[var(--color-accent-gold)] text-black",
-          disabled: "opacity-40 cursor-not-allowed",
-          today: "text-[var(--color-accent-gold)]",
-        }}
-        className="p-4 rounded"
-        navLayout="after"
-        components={{
-          Nav: () => {
-            const { previousMonth, nextMonth, goToMonth } = useDayPicker();
-            return (
-              <div className="flex justify-end items-center gap-2 mt-[-35px] mb-4">
-                <button
-                  type="button"
-                  disabled={!previousMonth}
-                  onClick={() => previousMonth && goToMonth(previousMonth)}
-                  className="p-1  text-[var(--color-footer)] hover:text-[var(--color-accent-gold)] disabled:opacity-40"
-                  aria-label="Previous month"
-                >
-                  <svg
-                    width="25"
-                    height="25"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
+      <div className="date-selector">
+        <DayPicker
+          mode="multiple"
+          selected={selected}
+          onDayClick={handleDayClick}
+          disabled={isDateBlocked}
+          modifiers={{ selected }}
+          modifiersClassNames={{
+            selected: "bg-[var(--color-accent-gold)] text-black",
+            disabled: "opacity-40 cursor-not-allowed",
+            today: "text-[var(--color-accent-gold)]",
+          }}
+          className="p-4 rounded"
+          navLayout="after"
+          components={{
+            Nav: () => {
+              const { previousMonth, nextMonth, goToMonth } = useDayPicker();
+              return (
+                <div className="flex justify-end items-center gap-2 mt-[-35px] mb-4">
+                  <button
+                    type="button"
+                    disabled={!previousMonth}
+                    onClick={() => previousMonth && goToMonth(previousMonth)}
+                    className="p-1  text-[var(--color-footer)] hover:text-[var(--color-accent-gold)] disabled:opacity-40"
+                    aria-label="Previous month"
                   >
-                    <polyline points="15 18 9 12 15 6" />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  disabled={!nextMonth}
-                  onClick={() => nextMonth && goToMonth(nextMonth)}
-                  className="p-1 text-[var(--color-footer)] hover:text-[var(--color-accent-gold)] disabled:opacity-40"
-                  aria-label="Next month"
-                >
-                  <svg
-                    width="25"
-                    height="25"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
+                    <svg
+                      width="25"
+                      height="25"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!nextMonth}
+                    onClick={() => nextMonth && goToMonth(nextMonth)}
+                    className="p-1 text-[var(--color-footer)] hover:text-[var(--color-accent-gold)] disabled:opacity-40"
+                    aria-label="Next month"
                   >
-                    <polyline points="9 18 15 12 9 6" />
-                  </svg>
-                </button>
-              </div>
-            );
-          },
-        }}
-      />
+                    <svg
+                      width="25"
+                      height="25"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </button>
+                </div>
+              );
+            },
+          }}
+        />
+      </div>
     </div>
   );
 };
