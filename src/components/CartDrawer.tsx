@@ -21,33 +21,12 @@ const CartDrawer = () => {
   const hasBooking = !!booking && booking.dates?.length > 0;
   const hasMerch = Object.keys(merchItems).length > 0;
 
-  // ---- Hunters input (editable in-drawer) ----
-  const [huntersInput, setHuntersInput] = useState<string>(
-    String(booking?.numberOfHunters ?? 1)
-  );
-
+  // --- party-size edit: draft -> validate -> commit ---
+  const [huntersDraft, setHuntersDraft] = useState<string>("");
   useEffect(() => {
-    // Keep input in sync if booking changes elsewhere
-    setHuntersInput(String(booking?.numberOfHunters ?? 1));
+    setHuntersDraft(String(booking?.numberOfHunters ?? 1));
   }, [booking?.numberOfHunters]);
 
-  const handleHuntersChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const digits = e.target.value.replace(/[^\d]/g, "");
-    setHuntersInput(digits);
-    // update booking live as they type, but coerce to at least 1 if non-empty
-    if (digits !== "" && booking) {
-      const n = Math.max(1, parseInt(digits, 10) || 1);
-      setBooking({ ...booking, numberOfHunters: n });
-    }
-  };
-
-  const commitHunters = () => {
-    const n = Math.max(1, parseInt(huntersInput, 10) || 1);
-    if (booking) setBooking({ ...booking, numberOfHunters: n });
-    if (huntersInput === "") setHuntersInput(String(n));
-  };
-
-  // ---- Load season config for max capacity ----
   const [maxCapacity, setMaxCapacity] = useState<number>(75);
   useEffect(() => {
     (async () => {
@@ -55,13 +34,12 @@ const CartDrawer = () => {
         const cfg = await getSeasonConfig();
         if (cfg?.maxHuntersPerDay) setMaxCapacity(cfg.maxHuntersPerDay);
       } catch {
-        // fall back to 75
+        /* fallback 75 */
       }
     })();
   }, []);
 
-  // ---- Fetch availability for the selected dates ----
-  const [availByDate, setAvailByDate] = useState<Record<string, number>>({}); // {date: huntersBooked}
+  const [availByDate, setAvailByDate] = useState<Record<string, number>>({});
   useEffect(() => {
     const load = async () => {
       if (!hasBooking) {
@@ -73,12 +51,9 @@ const CartDrawer = () => {
         booking!.dates.map(async (iso) => {
           try {
             const snap = await getDoc(doc(db, "availability", iso));
-            if (snap.exists()) {
-              const data = snap.data() as AvailabilityDoc;
-              map[iso] = data.huntersBooked ?? 0;
-            } else {
-              map[iso] = 0; // missing doc = no bookings yet
-            }
+            map[iso] = snap.exists()
+              ? (snap.data() as AvailabilityDoc).huntersBooked ?? 0
+              : 0;
           } catch {
             map[iso] = 0;
           }
@@ -89,25 +64,28 @@ const CartDrawer = () => {
     load();
   }, [hasBooking, booking?.dates]);
 
-  // ---- Compute capacity violations for current hunters/dates ----
+  const draftHuntersNum = useMemo(
+    () => Math.max(1, parseInt(huntersDraft || "1", 10) || 1),
+    [huntersDraft]
+  );
+
+  // per-date check using the current draft number
   const violatingDates = useMemo(() => {
     if (!hasBooking) return [] as string[];
-    const hunters = booking!.numberOfHunters ?? 1;
-    return booking!.dates.filter((d) => {
-      const booked = availByDate[d] ?? 0;
-      return booked + hunters > maxCapacity;
-    });
-  }, [
-    hasBooking,
-    booking?.dates,
-    booking?.numberOfHunters,
-    availByDate,
-    maxCapacity,
-  ]);
+    return booking!.dates.filter(
+      (d) => (availByDate[d] ?? 0) + draftHuntersNum > maxCapacity
+    );
+  }, [hasBooking, booking?.dates, draftHuntersNum, availByDate, maxCapacity]);
 
   const hasViolations = violatingDates.length > 0;
 
-  // ---- Totals (same rules used on Checkout) ----
+  const applyHunters = () => {
+    if (!booking) return;
+    if (hasViolations) return; // do not commit if any date would exceed
+    setBooking({ ...booking, numberOfHunters: draftHuntersNum });
+  };
+
+  // --- pricing (uses COMMITTED booking value, not draft) ---
   const bookingTotal = useMemo(() => {
     if (!hasBooking) return 0;
     const dates = booking!.dates;
@@ -134,7 +112,6 @@ const CartDrawer = () => {
       const current = dateObjs[i];
       const dow = current.getDay();
 
-      // Fri-Sat-Sun 3-day combo
       if (dow === 5 && i + 2 < dateObjs.length) {
         const d1 = dateObjs[i + 1];
         const d2 = dateObjs[i + 2];
@@ -152,7 +129,6 @@ const CartDrawer = () => {
         }
       }
 
-      // Fri+Sat or Sat+Sun 2-day combo
       if (
         i + 1 < dateObjs.length &&
         ((dow === 5 && dateObjs[i + 1].getDay() === 6) ||
@@ -167,7 +143,6 @@ const CartDrawer = () => {
         }
       }
 
-      // Single weekend day vs weekday
       if ([5, 6, 0].includes(dow)) perPersonTotal += baseWeekendRates.singleDay;
       else perPersonTotal += weekdayRate;
 
@@ -202,8 +177,6 @@ const CartDrawer = () => {
       : "Selected Hunt";
 
   const handleGoToCheckout = () => {
-    // Commit hunters to a valid value before navigating
-    commitHunters();
     if (hasViolations) return;
     setIsOpen(false);
     navigate("/checkout");
@@ -244,7 +217,7 @@ const CartDrawer = () => {
                       </button>
                     </div>
 
-                    {/* Hunters editor */}
+                    {/* Party size editor (draft) */}
                     <div className="mt-2 mb-3">
                       <label className="text-xs font-semibold block mb-1">
                         Number of Hunters
@@ -255,12 +228,10 @@ const CartDrawer = () => {
                           onClick={() => {
                             const current = Math.max(
                               1,
-                              parseInt(huntersInput || "1", 10) || 1
+                              parseInt(huntersDraft || "1", 10) || 1
                             );
                             const next = Math.max(1, current - 1);
-                            setHuntersInput(String(next));
-                            if (booking)
-                              setBooking({ ...booking, numberOfHunters: next });
+                            setHuntersDraft(String(next));
                           }}
                           className="px-3 py-1 rounded bg-white border"
                           aria-label="Decrease hunters"
@@ -271,9 +242,15 @@ const CartDrawer = () => {
                           type="number"
                           inputMode="numeric"
                           min={1}
-                          value={huntersInput}
-                          onChange={handleHuntersChange}
-                          onBlur={commitHunters}
+                          value={huntersDraft}
+                          onChange={(e) =>
+                            setHuntersDraft(
+                              e.target.value.replace(/[^\d]/g, "")
+                            )
+                          }
+                          onBlur={() => {
+                            if (huntersDraft === "") setHuntersDraft("1");
+                          }}
                           className="w-20 px-2 py-1 rounded border text-black"
                         />
                         <button
@@ -281,46 +258,55 @@ const CartDrawer = () => {
                           onClick={() => {
                             const current = Math.max(
                               1,
-                              parseInt(huntersInput || "1", 10) || 1
+                              parseInt(huntersDraft || "1", 10) || 1
                             );
-                            const next = current + 1;
-                            setHuntersInput(String(next));
-                            if (booking)
-                              setBooking({ ...booking, numberOfHunters: next });
+                            setHuntersDraft(String(current + 1));
                           }}
                           className="px-3 py-1 rounded bg-white border"
                           aria-label="Increase hunters"
                         >
                           +
                         </button>
+
+                        <button
+                          type="button"
+                          onClick={applyHunters}
+                          disabled={hasViolations}
+                          className={`ml-2 px-3 py-1 rounded text-white text-xs font-semibold ${
+                            hasViolations
+                              ? "bg-gray-400 cursor-not-allowed"
+                              : "bg-[var(--color-button)] hover:bg-[var(--color-button-hover)]"
+                          }`}
+                          title={
+                            hasViolations
+                              ? "One or more days exceed capacity."
+                              : "Apply"
+                          }
+                        >
+                          Apply
+                        </button>
                       </div>
-                      {hasViolations && (
-                        <p className="text-xs text-red-600 mt-2">
-                          Some dates exceed the daily capacity of {maxCapacity}.
-                          Please edit your dates or reduce hunters to continue.
-                        </p>
-                      )}
                     </div>
 
-                    <ul className="text-sm list-disc ml-5 space-y-1">
-                      {/* Dates with per-day warnings */}
+                    {/* Dates list with per-day inline warnings (based on draft) */}
+                    <ul className="text-sm ml-1 space-y-1">
                       {booking!.dates.map((d) => {
-                        const booked = availByDate[d] ?? 0;
-                        const wouldBe =
-                          booked + (booking!.numberOfHunters ?? 1);
-                        const over = wouldBe > maxCapacity;
+                        const over =
+                          (availByDate[d] ?? 0) + draftHuntersNum > maxCapacity;
                         return (
-                          <li key={d} className="flex items-start gap-2">
+                          <li key={d} className="flex items-center gap-2">
                             <span>• {d}</span>
                             {over && (
-                              <span className="ml-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-0.5">
-                                Over capacity. Please pick a different day.
+                              <span className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-0.5">
+                                Exceeds limit — pick a different day
                               </span>
                             )}
                           </li>
                         );
                       })}
-                      <li>Hunters: {booking!.numberOfHunters}</li>
+                      <li>
+                        Hunters: <strong>{booking!.numberOfHunters}</strong>
+                      </li>
                       {!!booking!.partyDeckDates?.length && (
                         <li>
                           Party Deck: {booking!.partyDeckDates.length} × $
@@ -354,16 +340,16 @@ const CartDrawer = () => {
                   <button
                     onClick={handleGoToCheckout}
                     disabled={hasViolations}
-                    title={
-                      hasViolations
-                        ? "Fix capacity conflicts before continuing to checkout."
-                        : undefined
-                    }
                     className={`ml-3 text-center py-3 px-4 rounded-md transition font-semibold ${
                       hasViolations
                         ? "bg-gray-400 text-white cursor-not-allowed"
                         : "bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white"
                     }`}
+                    title={
+                      hasViolations
+                        ? "Fix the days marked 'Exceeds limit' to continue."
+                        : undefined
+                    }
                   >
                     Go to Checkout
                   </button>
@@ -385,7 +371,6 @@ const CartDrawer = () => {
         </AnimatePresence>
       </div>
 
-      {/* Modal lives outside the drawer for proper stacking */}
       {hasBooking && (
         <EditBookingDatesModal
           isOpen={editOpen}
