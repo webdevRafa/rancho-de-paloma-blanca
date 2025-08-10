@@ -3,11 +3,14 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useCart } from "../context/CartContext";
 import { useNavigate } from "react-router-dom";
+import EditBookingDatesModal from "./EditBookingDatesModal";
 
 const CartDrawer = () => {
   const { booking, merchItems } = useCart();
   const [isOpen, setIsOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const navigate = useNavigate();
+
   const hasBooking = !!booking && booking.dates?.length > 0;
   const hasMerch = Object.keys(merchItems).length > 0;
 
@@ -99,86 +102,105 @@ const CartDrawer = () => {
     setIsOpen(false);
     navigate("/checkout");
   };
+
   return (
-    <div className="fixed bottom-0 inset-x-0 z-50 pointer-events-none">
-      <AnimatePresence>
-        {isOpen ? (
-          <motion.div
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={{ duration: 0.4 }}
-            className="bg-neutral-100 max-w-2xl mx-auto rounded-t-lg shadow-xl pointer-events-auto"
-          >
-            <div className="p-4">
-              <div className="flex justify-between items-center mb-2">
-                <h3 className="text-lg font-bold">Cart Summary</h3>
+    <>
+      <div className="fixed bottom-0 inset-x-0 z-50 pointer-events-none">
+        <AnimatePresence>
+          {isOpen ? (
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ duration: 0.4 }}
+              className="bg-neutral-100 max-w-2xl mx-auto rounded-t-lg shadow-xl pointer-events-auto"
+            >
+              <div className="p-4">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="text-lg font-bold">Cart Summary</h3>
+                  <button
+                    onClick={() => setIsOpen(false)}
+                    className="text-sm font-bold text-[var(--color-background)] hover:underline"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                {hasBooking && (
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between">
+                      <p className="font-semibold text-sm mb-1">{huntLabel}</p>
+                      <button
+                        onClick={() => setEditOpen(true)}
+                        className="text-xs underline text-[var(--color-background)] hover:text-black"
+                      >
+                        Edit dates
+                      </button>
+                    </div>
+                    <ul className="text-sm list-disc ml-5 space-y-1">
+                      <li>Dates: {booking!.dates.join(", ")}</li>
+                      <li>Hunters: {booking!.numberOfHunters}</li>
+                      {!!booking!.partyDeckDates?.length && (
+                        <li>
+                          Party Deck: {booking!.partyDeckDates.length} × $
+                          {PARTY_DECK_COST}
+                        </li>
+                      )}
+                      <li>Subtotal: ${bookingTotal}</li>
+                    </ul>
+                  </div>
+                )}
+
+                {hasMerch && (
+                  <div className="mb-4">
+                    <p className="font-semibold text-sm mb-1">Merchandise</p>
+                    <ul className="text-sm list-disc ml-5 space-y-1">
+                      {Object.entries(merchItems).map(([id, item]) => (
+                        <li key={id}>
+                          {item.product.name} × {item.quantity} = $
+                          {item.product.price * item.quantity}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="mt-1">Merch Subtotal: ${merchTotal}</p>
+                  </div>
+                )}
+
+                <p className="mt-2 font-bold text-lg bg-white max-w-[140px] px-2 rounded-sm shadow-sm">
+                  Total: ${total}
+                </p>
+
                 <button
-                  onClick={() => setIsOpen(false)}
-                  className="text-sm font-bold text-[var(--color-background)] hover:underline"
+                  onClick={handleGoToCheckout}
+                  className="mt-4 block text-center bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white py-3 rounded-md transition w-full font-semibold"
                 >
-                  Close
+                  Go to Checkout
                 </button>
               </div>
+            </motion.div>
+          ) : (
+            <motion.button
+              initial={{ y: 100 }}
+              animate={{ y: 0 }}
+              exit={{ y: 100 }}
+              transition={{ duration: 0.3 }}
+              onClick={() => setIsOpen(true)}
+              className="pointer-events-auto mx-auto block bg-[var(--color-accent-gold)] text-[var(--color-footer)] text-sm font-bold py-3 px-6 rounded-t-lg shadow-lg"
+            >
+              View Cart (${total})
+            </motion.button>
+          )}
+        </AnimatePresence>
+      </div>
 
-              {hasBooking && (
-                <div className="mb-4">
-                  <p className="font-semibold text-sm mb-1">{huntLabel}</p>
-                  <ul className="text-sm list-disc ml-5 space-y-1">
-                    <li>Dates: {booking!.dates.join(", ")}</li>
-                    <li>Hunters: {booking!.numberOfHunters}</li>
-                    {!!booking!.partyDeckDates?.length && (
-                      <li>
-                        Party Deck: {booking!.partyDeckDates.length} × $
-                        {PARTY_DECK_COST}
-                      </li>
-                    )}
-                    <li>Subtotal: ${bookingTotal}</li>
-                  </ul>
-                </div>
-              )}
-
-              {hasMerch && (
-                <div className="mb-4">
-                  <p className="font-semibold text-sm mb-1">Merchandise</p>
-                  <ul className="text-sm list-disc ml-5 space-y-1">
-                    {Object.entries(merchItems).map(([id, item]) => (
-                      <li key={id}>
-                        {item.product.name} × {item.quantity} = $
-                        {item.product.price * item.quantity}
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="mt-1">Merch Subtotal: ${merchTotal}</p>
-                </div>
-              )}
-
-              <p className="mt-2 font-bold text-lg bg-white max-w-[140px] px-2 rounded-sm shadow-sm">
-                Total: ${total}
-              </p>
-
-              <button
-                onClick={handleGoToCheckout}
-                className="mt-4 block text-center bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white py-3 rounded-md transition w-full font-semibold"
-              >
-                Go to Checkout
-              </button>
-            </div>
-          </motion.div>
-        ) : (
-          <motion.button
-            initial={{ y: 100 }}
-            animate={{ y: 0 }}
-            exit={{ y: 100 }}
-            transition={{ duration: 0.3 }}
-            onClick={() => setIsOpen(true)}
-            className="pointer-events-auto mx-auto block bg-[var(--color-accent-gold)] text-[var(--color-footer)] text-sm font-bold py-3 px-6 rounded-t-lg shadow-lg"
-          >
-            View Cart (${total})
-          </motion.button>
-        )}
-      </AnimatePresence>
-    </div>
+      {/* Modal lives outside the drawer for proper stacking */}
+      {hasBooking && (
+        <EditBookingDatesModal
+          isOpen={editOpen}
+          onClose={() => setEditOpen(false)}
+        />
+      )}
+    </>
   );
 };
 

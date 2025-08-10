@@ -75,7 +75,9 @@ const Navbar = () => {
               <Link
                 key={link.to}
                 to={link.to}
-                className="hover:bg-[var(--color-background)]/40 rounded-sm p-2 transition text-white"
+                className={`hover:bg-[var(--color-background)]/40 rounded-sm p-2 transition text-white ${
+                  link.label === "Book a Hunt" && "font-bold"
+                }`}
               >
                 {link.label}
               </Link>
