@@ -188,184 +188,196 @@ const CartDrawer = () => {
       <div className="fixed bottom-0 inset-x-0 z-50 pointer-events-none">
         <AnimatePresence>
           {isOpen ? (
-            <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ duration: 0.4 }}
-              className="bg-neutral-100 max-w-2xl mx-auto rounded-t-lg shadow-xl pointer-events-auto"
-            >
-              <div className="p-4">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="text-lg font-bold">Cart Summary</h3>
-                  <button
-                    onClick={() => setIsOpen(false)}
-                    className="text-sm font-bold text-[var(--color-background)] hover:underline"
-                  >
-                    Close
-                  </button>
-                </div>
+            <>
+              {/* Backdrop overlay */}
+              <div
+                className="fixed inset-0 bg-black/30 backdrop-blur-xs z-40"
+                onClick={() => setIsOpen(false)}
+              />
 
-                {hasBooking && (
-                  <div className="mb-4">
-                    <div className="flex items-center justify-between">
-                      <p className="font-semibold text-sm mb-1">{huntLabel}</p>
-                      <button
-                        onClick={() => setEditOpen(true)}
-                        className="text-xs underline text-[var(--color-background)] hover:text-black"
-                      >
-                        Edit dates
-                      </button>
-                    </div>
+              {/* Drawer */}
+              <motion.div
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "100%" }}
+                transition={{ duration: 0.4 }}
+                className="bg-neutral-100 max-w-2xl mx-auto rounded-t-lg shadow-xl pointer-events-auto z-50 relative"
+              >
+                <div className="p-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-lg font-bold">Cart Summary</h3>
+                    <button
+                      onClick={() => setIsOpen(false)}
+                      className="text-sm font-bold text-[var(--color-background)] hover:underline"
+                    >
+                      Close
+                    </button>
+                  </div>
 
-                    {/* Party size editor (draft) */}
-                    <div className="mt-2 mb-3">
-                      <label className="text-xs font-semibold block mb-1">
-                        Number of Hunters
-                      </label>
-                      <div className="flex items-center gap-2">
+                  {hasBooking && (
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between">
+                        <p className="font-semibold text-sm mb-1">
+                          {huntLabel}
+                        </p>
                         <button
-                          type="button"
-                          onClick={() => {
-                            const current = Math.max(
-                              1,
-                              parseInt(huntersDraft || "1", 10) || 1
-                            );
-                            const next = Math.max(1, current - 1);
-                            setHuntersDraft(String(next));
-                          }}
-                          className="px-3 py-1 rounded bg-white border"
-                          aria-label="Decrease hunters"
+                          onClick={() => setEditOpen(true)}
+                          className="text-xs underline text-[var(--color-background)] hover:text-black"
                         >
-                          –
-                        </button>
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          min={1}
-                          value={huntersDraft}
-                          onChange={(e) =>
-                            setHuntersDraft(
-                              e.target.value.replace(/[^\d]/g, "")
-                            )
-                          }
-                          onBlur={() => {
-                            if (huntersDraft === "") setHuntersDraft("1");
-                          }}
-                          className="w-20 px-2 py-1 rounded border text-black"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const current = Math.max(
-                              1,
-                              parseInt(huntersDraft || "1", 10) || 1
-                            );
-                            setHuntersDraft(String(current + 1));
-                          }}
-                          className="px-3 py-1 rounded bg-white border"
-                          aria-label="Increase hunters"
-                        >
-                          +
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={applyHunters}
-                          disabled={hasViolations}
-                          className={`ml-2 px-3 py-1 rounded text-white text-xs font-semibold ${
-                            hasViolations
-                              ? "bg-gray-400 cursor-not-allowed"
-                              : "bg-[var(--color-button)] hover:bg-[var(--color-button-hover)]"
-                          }`}
-                          title={
-                            hasViolations
-                              ? "One or more days exceed capacity."
-                              : "Apply"
-                          }
-                        >
-                          Apply
+                          Edit dates
                         </button>
                       </div>
-                    </div>
 
-                    {/* Dates list with per-day inline warnings (based on draft) */}
-                    <ul className="text-sm ml-1 space-y-1">
-                      {booking!.dates.map((d) => {
-                        const over =
-                          (availByDate[d] ?? 0) + draftHuntersNum > maxCapacity;
-                        return (
-                          <li key={d} className="flex items-center gap-2">
-                            <span className="bg-[var(--color-footer)] text-white p-1 shadow-md">
-                              {formatLongDate(d)}
-                            </span>
-                            {over && (
-                              <span className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-0.5">
-                                Exceeds limit — pick a different day
+                      {/* Party size editor (draft) */}
+                      <div className="mt-2 mb-3">
+                        <label className="text-xs font-semibold block mb-1">
+                          Number of Hunters
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const current = Math.max(
+                                1,
+                                parseInt(huntersDraft || "1", 10) || 1
+                              );
+                              const next = Math.max(1, current - 1);
+                              setHuntersDraft(String(next));
+                            }}
+                            className="px-3 py-1 rounded bg-white border"
+                            aria-label="Decrease hunters"
+                          >
+                            –
+                          </button>
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min={1}
+                            value={huntersDraft}
+                            onChange={(e) =>
+                              setHuntersDraft(
+                                e.target.value.replace(/[^\d]/g, "")
+                              )
+                            }
+                            onBlur={() => {
+                              if (huntersDraft === "") setHuntersDraft("1");
+                            }}
+                            className="w-20 px-2 py-1 rounded border text-black"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const current = Math.max(
+                                1,
+                                parseInt(huntersDraft || "1", 10) || 1
+                              );
+                              setHuntersDraft(String(current + 1));
+                            }}
+                            className="px-3 py-1 rounded bg-white border"
+                            aria-label="Increase hunters"
+                          >
+                            +
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={applyHunters}
+                            disabled={hasViolations}
+                            className={`ml-2 px-3 py-1 rounded text-white text-xs font-semibold ${
+                              hasViolations
+                                ? "bg-gray-400 cursor-not-allowed"
+                                : "bg-[var(--color-button)] hover:bg-[var(--color-button-hover)]"
+                            }`}
+                            title={
+                              hasViolations
+                                ? "One or more days exceed capacity."
+                                : "Apply"
+                            }
+                          >
+                            Apply
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Dates list with per-day inline warnings (based on draft) */}
+                      <ul className="text-sm ml-1 space-y-1">
+                        {booking!.dates.map((d) => {
+                          const over =
+                            (availByDate[d] ?? 0) + draftHuntersNum >
+                            maxCapacity;
+                          return (
+                            <li key={d} className="flex items-center gap-2">
+                              <span className="bg-[var(--color-footer)] text-white p-1 shadow-md">
+                                {formatLongDate(d)}
                               </span>
-                            )}
+                              {over && (
+                                <span className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-0.5">
+                                  Exceeds limit — pick a different day
+                                </span>
+                              )}
+                            </li>
+                          );
+                        })}
+                        <li className="mt-3 bg-[var(--color-button)]/10 max-w-[120px] p-1">
+                          Hunters: <strong>{booking!.numberOfHunters}</strong>
+                        </li>
+                        <p className="bg-[var(--color-button)]/10 max-w-[120px] p-1 mb-2">
+                          Days: <strong>{booking.dates.length}</strong>
+                        </p>
+                        {!!booking!.partyDeckDates?.length && (
+                          <li>
+                            Party Deck: {booking!.partyDeckDates.length} × $
+                            {PARTY_DECK_COST}
                           </li>
-                        );
-                      })}
-                      <li className="mt-3 bg-[var(--color-button)]/10 max-w-[120px] p-1">
-                        Hunters: <strong>{booking!.numberOfHunters}</strong>
-                      </li>
-                      <p className="bg-[var(--color-button)]/10 max-w-[120px] p-1 mb-2">
-                        Days: <strong>{booking.dates.length}</strong>
+                        )}
+                        <li className="bg-white max-w-[200px] text-[var(--color-footer)] p-1 shadow-sm text-md font-bold">
+                          Booking Subtotal: ${bookingTotal}
+                        </li>
+                      </ul>
+                    </div>
+                  )}
+
+                  {hasMerch && (
+                    <div className="mb-4">
+                      <p className="font-semibold text-sm mb-1">Merchandise</p>
+                      <ul className="text-sm list-disc ml-5 space-y-1">
+                        {Object.entries(merchItems).map(([id, item]) => (
+                          <li key={id}>
+                            {item.product.name} × {item.quantity} = $
+                            {item.product.price * item.quantity}
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="mt-1 bg-white max-w-[200px] text-[var(--color-footer)] p-1 shadow-sm text-sm font-bold">
+                        Merch Subtotal: ${merchTotal}
                       </p>
-                      {!!booking!.partyDeckDates?.length && (
-                        <li>
-                          Party Deck: {booking!.partyDeckDates.length} × $
-                          {PARTY_DECK_COST}
-                        </li>
-                      )}
-                      <li className="bg-white max-w-[200px] text-[var(--color-footer)] p-1 shadow-sm text-md font-bold">
-                        Booking Subtotal: ${bookingTotal}
-                      </li>
-                    </ul>
-                  </div>
-                )}
+                    </div>
+                  )}
 
-                {hasMerch && (
-                  <div className="mb-4">
-                    <p className="font-semibold text-sm mb-1">Merchandise</p>
-                    <ul className="text-sm list-disc ml-5 space-y-1">
-                      {Object.entries(merchItems).map(([id, item]) => (
-                        <li key={id}>
-                          {item.product.name} × {item.quantity} = $
-                          {item.product.price * item.quantity}
-                        </li>
-                      ))}
-                    </ul>
-                    <p className="mt-1 bg-white max-w-[200px] text-[var(--color-footer)] p-1 shadow-sm text-sm font-bold">
-                      Merch Subtotal: ${merchTotal}
+                  <div className="mt-3 flex items-center justify-between">
+                    <p className="font-bold text-lg bg-[var(--color-accent-gold)] px-2 rounded-sm shadow-sm">
+                      Total: ${total}
                     </p>
+                    <button
+                      onClick={handleGoToCheckout}
+                      disabled={hasViolations}
+                      className={`ml-3 text-center py-3 px-4 rounded-md transition font-semibold ${
+                        hasViolations
+                          ? "bg-gray-400 text-white cursor-not-allowed"
+                          : "bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white"
+                      }`}
+                      title={
+                        hasViolations
+                          ? "Fix the days marked 'Exceeds limit' to continue."
+                          : undefined
+                      }
+                    >
+                      Go to Checkout
+                    </button>
                   </div>
-                )}
-
-                <div className="mt-3 flex items-center justify-between">
-                  <p className="font-bold text-lg bg-[var(--color-accent-gold)] px-2 rounded-sm shadow-sm">
-                    Total: ${total}
-                  </p>
-                  <button
-                    onClick={handleGoToCheckout}
-                    disabled={hasViolations}
-                    className={`ml-3 text-center py-3 px-4 rounded-md transition font-semibold ${
-                      hasViolations
-                        ? "bg-gray-400 text-white cursor-not-allowed"
-                        : "bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white"
-                    }`}
-                    title={
-                      hasViolations
-                        ? "Fix the days marked 'Exceeds limit' to continue."
-                        : undefined
-                    }
-                  >
-                    Go to Checkout
-                  </button>
                 </div>
-              </div>
-            </motion.div>
+              </motion.div>
+            </>
           ) : (
             <motion.button
               initial={{ y: 100 }}
