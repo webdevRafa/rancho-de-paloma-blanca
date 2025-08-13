@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "rancho-de-paloma-blanca"
-  }
+    "default": "rancho-de-paloma-blanca",
+    "rancho": "rancho-de-paloma-blanca"
+  },
+  "targets": {},
+  "etags": {}
 }

@@ -259,7 +259,7 @@ const CheckoutPage = () => {
                 : "bg-[var(--color-button)] hover:bg-[var(--color-button-hover)]"
             }`}
           >
-            {isSubmitting ? "Processing..." : "Complete Checkout"}
+            {isSubmitting ? "Processing..." : "Confirm & Continue to Checkout"}
           </button>
         </>
       )}

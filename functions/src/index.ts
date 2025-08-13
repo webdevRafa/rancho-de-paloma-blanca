@@ -1,305 +1,483 @@
-// functions/index.ts — Deluxe payments integration (Firebase v2 + Express)
+// functions/src/index.ts
+/**
+ * Rancho de Paloma Blanca — Cloud Functions v2 (Node 22)
+ * - createDeluxePayment: builds a Deluxe-hosted payment link and returns paymentUrl
+ * - deluxeWebhook: handles Deluxe notifications; marks order paid; increments capacity
+ * - getDeluxePaymentStatus, cancelDeluxePayment (optional helpers)
+ */
 
 import * as admin from "firebase-admin";
-import express from "express";
-import cors from "cors";
-import bodyParser from "body-parser";
 import { onRequest } from "firebase-functions/v2/https";
+import { setGlobalOptions, logger } from "firebase-functions/v2";
+import { defineSecret } from "firebase-functions/params";
 
+// --- Firebase Admin ---
 admin.initializeApp();
 const db = admin.firestore();
 
-const app = express();
-app.use(cors({ origin: true }));
-// NOTE: DO NOT add app.use(express.json()) globally.
-// We need RAW body on the webhook route for signature verification.
-
-// -----------------------------------------------------------------------------
-// POST /api/createDeluxePayment
-// Reads orders/{orderId}, recomputes total server-side, creates a Deluxe
-// Hosted Payment session, returns paymentUrl (stubbed until keys arrive).
-// Attach JSON parser ONLY here to avoid breaking the webhook raw body.
-// -----------------------------------------------------------------------------
-app.post("/api/createDeluxePayment", express.json(), async (req, res) => {
-  try {
-    const { orderId } = req.body as { orderId?: string };
-    if (!orderId) return res.status(400).json({ error: "Missing orderId" });
-
-    const orderRef = db.collection("orders").doc(orderId);
-    const snap = await orderRef.get();
-    if (!snap.exists) return res.status(404).json({ error: "Order not found" });
-
-    const order = snap.data() as any;
-
-    // IMPORTANT: never trust client totals — recompute here.
-    const serverTotal = recomputeTotal(order);
-    if (!Number.isFinite(serverTotal) || serverTotal <= 0) {
-      return res.status(400).json({ error: "Invalid total" });
-    }
-
-    // TODO: Replace this stub with the real Deluxe API call once you have keys.
-    // Example:
-    // const token = await getDeluxeToken();
-    // const resp = await fetch(process.env.DELUXE_HPF_CREATE_URL!, {
-    //   method: "POST",
-    //   headers: {
-    //     "Content-Type": "application/json",
-    //     Authorization: `Bearer ${token}`,
-    //   },
-    //   body: JSON.stringify({
-    //     merchantId: process.env.DELUXE_CLIENT_ID,
-    //     amount: serverTotal,
-    //     currency: "USD",
-    //     reference: orderId, // CRITICAL for webhook correlation
-    //     successUrl: "https://YOUR_DOMAIN/dashboard?paid=1",
-    //     cancelUrl: "https://YOUR_DOMAIN/dashboard?cancelled=1",
-    //     // optional: lineItems
-    //   }),
-    // });
-    // const data = await resp.json();
-    // if (!resp.ok || !data?.paymentUrl) throw new Error("Deluxe error");
-    // const paymentUrl = data.paymentUrl;
-
-    const paymentUrl = `https://sandbox.deluxe.example/checkout?ref=${encodeURIComponent(
-      orderId
-    )}&amt=${serverTotal}`;
-
-    // Persist last computed server total (and normalize total) for audits
-    await orderRef.set({ serverTotal, total: serverTotal }, { merge: true });
-
-    return res.status(200).json({ paymentUrl });
-  } catch (e: any) {
-    console.error("createDeluxePayment error:", e);
-    return res.status(500).json({ error: "Server error" });
-  }
+// --- Global options (v2 uses `memory`, not `memoryMiB`) ---
+setGlobalOptions({
+  region: "us-central1",
+  timeoutSeconds: 60,
+  memory: "512MiB",
 });
 
-// -----------------------------------------------------------------------------
-// POST /api/deluxeWebhook
-// Deluxe will POST here. We verify signature (stub), ensure idempotency,
-// set orders/{orderId} -> paid, and apply availability/party-deck updates
-// inside a Firestore transaction. Also writes bookings/{orderId} snapshot.
-// IMPORTANT: Webhook must use RAW body for signature verification.
-// -----------------------------------------------------------------------------
-app.post(
-  "/api/deluxeWebhook",
-  bodyParser.raw({ type: "*/*" }),
-  async (req, res) => {
-    try {
-      // 1) Verify signature against RAW bytes (implement when keys arrive)
-      const signature = req.get("X-Deluxe-Signature"); // confirm exact header name with Deluxe
-      const raw = req.body as Buffer;
+// --- Deluxe secrets ---
+const DELUXE_ACCESS_TOKEN = defineSecret("DELUXE_ACCESS_TOKEN");
+const DELUXE_MID = defineSecret("DELUXE_MID");
+const DELUXE_SANDBOX_CLIENT_ID = defineSecret("DELUXE_SANDBOX_CLIENT_ID");
+const DELUXE_SANDBOX_CLIENT_SECRET = defineSecret("DELUXE_SANDBOX_CLIENT_SECRET");
 
-      if (
-        !verifyDeluxeSignature(
-          signature,
-          raw,
-          process.env.DELUXE_WEBHOOK_SECRET || ""
-        )
-      ) {
-        return res.status(400).send("Invalid signature");
+// --- Constants ---
+const DELUXE_BASE_URL = "https://api.deluxe.com/dpp/v1/gateway";
+
+const FRONTEND_URLS = [
+  "https://ranchodepalomablanca.com", // prod
+  "http://localhost:5173",            // dev
+];
+
+const WEBHOOK_FUNCTION_NAME = "deluxeWebhook"; // used to build callback URL dynamically
+
+// --- Types (align with frontend: keep 'cancelled' spelling) ---
+type OrderStatus = "pending" | "paid" | "cancelled";
+type Currency = "USD";
+
+interface OrderDoc {
+  id?: string;
+  status: OrderStatus;
+  total?: number;
+  grandTotal?: number;
+  amountCents?: number;
+  currency?: Currency;
+  createdAt?: admin.firestore.Timestamp | Date;
+  booking?: {
+    dates?: string[];
+    partySize?: number;
+    partyDeck?: boolean;
+  };
+  customer?: {
+    email?: string;
+    name?: string;
+    phone?: string;
+  };
+  merch?: Array<{ sku: string; name: string; qty: number; price?: number }>;
+  payment?: {
+    provider?: "deluxe";
+    paymentId?: string;
+    linkId?: string;
+    raw?: any;
+  };
+}
+
+// --- Lightweight CORS helper ---
+function applyCors(req: any, res: any) {
+  const headerOrigin = (req.headers?.origin as string) || "";
+  const origin = FRONTEND_URLS.includes(headerOrigin) ? headerOrigin : FRONTEND_URLS[0];
+  res.set("Access-Control-Allow-Origin", origin);
+  res.set("Vary", "Origin");
+  res.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  if (req.method === "OPTIONS") {
+    res.status(204).send("");
+    return true;
+  }
+  return false;
+}
+
+// --- Utils ---
+function currencyFromOrder(order: OrderDoc): Currency {
+  return (order.currency as Currency) || "USD";
+}
+
+function amountFromOrder(order: OrderDoc): number {
+  if (typeof order.amountCents === "number") return order.amountCents / 100;
+  const dollars =
+    typeof order.total === "number"
+      ? order.total
+      : typeof order.grandTotal === "number"
+      ? order.grandTotal
+      : 0;
+  return Number(dollars.toFixed(2));
+}
+
+function extractPaymentUrl(obj: any): string | undefined {
+  return (
+    obj?.paymentUrl ||
+    obj?.url ||
+    obj?.link ||
+    obj?.redirectUrl ||
+    obj?.checkoutUrl ||
+    obj?.data?.paymentUrl ||
+    obj?.data?.url ||
+    obj?.data?.link
+  );
+}
+
+function buildSuccessUrl(originBase: string, orderId: string) {
+  return `${originBase}/checkout/success?orderId=${encodeURIComponent(orderId)}`;
+}
+function buildCancelUrl(originBase: string, orderId: string) {
+  return `${originBase}/checkout/cancel?orderId=${encodeURIComponent(orderId)}`;
+}
+
+// v2 Cloud Functions public URL (preferred over raw Cloud Run URL)
+function guessWebhookUrl(projectId: string, region = "us-central1") {
+  if (!projectId) return "";
+  return `https://${region}-${projectId}.cloudfunctions.net/${WEBHOOK_FUNCTION_NAME}`;
+}
+
+// --- Deluxe API client ---
+async function deluxeFetch(
+  path: string,
+  method: "GET" | "POST",
+  body: any,
+  secrets: { token: string; mid?: string }
+) {
+  const url = `${DELUXE_BASE_URL}${path}`;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    Authorization: `Bearer ${secrets.token}`,
+  };
+  if (secrets.mid) headers["MID"] = secrets.mid;
+
+  const resp = await fetch(url, {
+    method,
+    headers,
+    body: method === "POST" ? JSON.stringify(body) : undefined,
+  });
+
+  const text = await resp.text();
+  let json: any;
+  try {
+    json = text ? JSON.parse(text) : {};
+  } catch {
+    json = { raw: text };
+  }
+
+  if (!resp.ok) {
+    const msg = `Deluxe ${method} ${path} failed: ${resp.status} ${resp.statusText}`;
+    logger.error(msg, { url, status: resp.status, json });
+    throw new Error(msg);
+  }
+
+  return json;
+}
+
+// --- Firestore helpers ---
+async function getOrder(orderId: string): Promise<admin.firestore.DocumentSnapshot<OrderDoc>> {
+  const ref = db.collection("orders").doc(orderId) as admin.firestore.DocumentReference<OrderDoc>;
+  const snap = await ref.get();
+  if (!snap.exists) throw new Error(`Order ${orderId} not found`);
+  return snap;
+}
+
+async function markOrderPaid(
+  orderRef: admin.firestore.DocumentReference<OrderDoc>,
+  payment: { provider: "deluxe"; paymentId?: string; linkId?: string; raw?: any }
+) {
+  await db.runTransaction(async (tx) => {
+    const doc = await tx.get(orderRef);
+    if (!doc.exists) throw new Error("Order does not exist");
+    const data = doc.data() as OrderDoc;
+    if (data.status === "paid") return; // idempotent
+
+    tx.update(orderRef, {
+      status: "paid",
+      "payment.provider": "deluxe",
+      "payment.paymentId": payment.paymentId || admin.firestore.FieldValue.delete(),
+      "payment.linkId": payment.linkId || admin.firestore.FieldValue.delete(),
+      "payment.raw": payment.raw || admin.firestore.FieldValue.delete(),
+      paidAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    } as Partial<OrderDoc> & Record<string, any>);
+
+    const booking = data.booking;
+    if (booking?.dates?.length && booking.partySize && booking.partySize > 0) {
+      for (const dateStr of booking.dates) {
+        const availRef = db.collection("availability").doc(dateStr);
+        tx.set(
+          availRef,
+          {
+            date: dateStr,
+            huntersBooked: admin.firestore.FieldValue.increment(booking.partySize),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
+    }
+  });
+}
+
+// --- HTTP: Create Deluxe Hosted Checkout Link ---
+export const createDeluxePayment = onRequest(
+  {
+    secrets: [DELUXE_ACCESS_TOKEN, DELUXE_MID, DELUXE_SANDBOX_CLIENT_ID, DELUXE_SANDBOX_CLIENT_SECRET],
+  },
+  async (req, res) => {
+    if (applyCors(req, res)) return;
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "Method not allowed" });
+      return;
+    }
+
+    try {
+      const { orderId, successUrl, cancelUrl } = (req.body || {}) as {
+        orderId?: string;
+        successUrl?: string;
+        cancelUrl?: string;
+      };
+      if (!orderId) {
+        res.status(400).json({ error: "Missing orderId" });
+        return;
       }
 
-      // 2) Parse event
-      const event = JSON.parse(raw.toString("utf8"));
-      const eventId: string | undefined = event?.id;
-      const type: string | undefined = event?.type;
+      const snap = await getOrder(orderId);
+      const order = { id: snap.id, ...(snap.data() as OrderDoc) };
 
-      // You must pass orderId as "reference" when creating the HPF session
-      const orderId: string | undefined = event?.data?.reference;
-      const paymentId: string | undefined = event?.data?.paymentId;
+      const amount = amountFromOrder(order);
+      const currency = currencyFromOrder(order);
+      if (!amount || amount <= 0) {
+        res.status(400).json({ error: "Order amount is missing or invalid" });
+        return;
+      }
 
-      if (!eventId || !orderId) return res.status(200).send("No-op");
+      // origin selection for return URLs
+      const headerOrigin = (req.headers?.origin as string) || "";
+      const origin = FRONTEND_URLS.includes(headerOrigin) ? headerOrigin : FRONTEND_URLS[0];
 
-      const orderRef = db.collection("orders").doc(orderId);
-      const evtRef = orderRef.collection("paymentEvents").doc(eventId);
+      const webhookUrl = guessWebhookUrl(process.env.GCLOUD_PROJECT || "", "us-central1");
+      const success = successUrl || buildSuccessUrl(origin, orderId);
+      const cancel = cancelUrl || buildCancelUrl(origin, orderId);
 
-      // 3) Idempotency: if we've processed this event, bail
-      if ((await evtRef.get()).exists) return res.status(200).send("OK");
+      const payload = {
+        amount: { amount, currency },
+        reference: orderId,
+        description: `Rancho de Paloma Blanca Order ${orderId}`,
+        customer: {
+          email: order.customer?.email,
+          name: order.customer?.name,
+          phone: order.customer?.phone,
+        },
+        successUrl: success,
+        cancelUrl: cancel,
+        callbackUrl: webhookUrl,
+        metadata: {
+          orderId,
+          hasBooking: !!order.booking?.dates?.length,
+          partySize: order.booking?.partySize || 0,
+        },
+        merchant: DELUXE_MID.value() ? { mid: DELUXE_MID.value() } : undefined,
+        items:
+          order.merch?.map((m) => ({
+            name: m.name,
+            sku: m.sku,
+            quantity: m.qty,
+            price: m.price,
+          })) || [],
+      };
 
-      await evtRef.set({
-        type,
-        receivedAt: admin.firestore.FieldValue.serverTimestamp(),
-        payload: event,
+      const json = await deluxeFetch("/paymentlinks", "POST", payload, {
+        token: DELUXE_ACCESS_TOKEN.value(),
+        mid: DELUXE_MID.value(),
       });
 
-      // 4) Handle success (adjust 'type' to Deluxe's actual event name)
-      if (type === "payment.succeeded") {
-        await db.runTransaction(async (tx) => {
-          const { maxHuntersPerDay: cap } = await getActiveSeasonConfig();
-
-          
-          const oSnap = await tx.get(orderRef);
-          if (!oSnap.exists) return;
-
-          const o = oSnap.data() as any;
-
-          // Skip if already paid (defensive)
-          if (o.status === "paid") return;
-
-          // 4a) Mark order paid
-          tx.update(orderRef, {
-            status: "paid",
-            paidAt: admin.firestore.FieldValue.serverTimestamp(),
-            paymentId: paymentId ?? null,
-          });
-
-          // 4b) Apply booking effects (capacity + party deck) atomically
-          if (o?.booking?.dates?.length) {
-            const numHunters = safeInt(o?.booking?.numberOfHunters, 1);
-
-            // Hunters capacity per day
-            for (const iso of o.booking.dates as string[]) {
-              const dayRef = db.collection("availability").doc(iso);
-              const daySnap = await tx.get(dayRef);
-              const curr = daySnap.exists
-                ? (daySnap.data() as any)
-                : { id: iso, huntersBooked: 0, partyDeckBooked: false };
-
-              const next = safeInt(curr.huntersBooked, 0) + numHunters;
-              if (next > cap) {
-                throw new Error(`Capacity exceeded for ${iso} (${next}/${cap})`);
-              }
-
-              tx.set(
-                dayRef,
-                {
-                  ...curr,
-                  id: iso,
-                  huntersBooked: next,
-                  timestamp: isoToMidnightUTC(iso), // ensure future queries by timestamp work
-                },
-                { merge: true }
-              );
-            }
-
-            // Party deck (unique per day)
-            for (const iso of (o.booking.partyDeckDates ?? []) as string[]) {
-              const dayRef = db.collection("availability").doc(iso);
-              const daySnap = await tx.get(dayRef);
-              const curr = daySnap.exists
-                ? (daySnap.data() as any)
-                : { id: iso, huntersBooked: 0, partyDeckBooked: false };
-
-              if (curr.partyDeckBooked) {
-                throw new Error(`Party deck already booked for ${iso}`);
-              }
-
-              tx.set(
-                dayRef,
-                {
-                  ...curr,
-                  id: iso,
-                  partyDeckBooked: true,
-                  timestamp: isoToMidnightUTC(iso), // keep it in sync
-                },
-                { merge: true }
-              );
-            }
-
-            // 4c) Optional: write canonical bookings snapshot for ops/reporting
-            tx.set(
-              db.collection("bookings").doc(orderId),
-              {
-                ...o.booking,
-                orderId,
-                status: "paid",
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
-              },
-              { merge: true }
-            );
-          }
-        });
+      const paymentUrl = extractPaymentUrl(json);
+      if (!paymentUrl) {
+        logger.error("No paymentUrl returned from Deluxe", { json });
+        res.status(502).json({ error: "Deluxe did not return a payment URL", debug: json });
+        return;
       }
 
-      return res.status(200).send("OK");
-    } catch (e: any) {
-      console.error("deluxeWebhook error:", e);
-      // If it's a transient error, you can return 500 to request retries.
-      // If it's a logic error (e.g., capacity exceeded), 200 prevents floods.
-      return res.status(200).send("OK");
+      await snap.ref.set(
+        {
+          payment: {
+            provider: "deluxe",
+            linkId: json?.id || json?.linkId || null,
+            raw: {
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              linkResponse: json,
+            },
+          },
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        } as Partial<OrderDoc> & Record<string, any>,
+        { merge: true }
+      );
+
+      res.status(200).json({ provider: "deluxe", paymentUrl });
+      return;
+    } catch (err: any) {
+      logger.error("createDeluxePayment failed", { error: err?.message, stack: err?.stack });
+      res.status(500).json({ error: "Internal error", detail: err?.message });
+      return;
     }
   }
 );
 
-// Export a single HTTPS endpoint for the Express app
-export const api = onRequest({ region: "us-central1" }, app);
+// --- HTTP: Deluxe Webhook Receiver ---
+export const deluxeWebhook = onRequest(
+  { secrets: [DELUXE_ACCESS_TOKEN, DELUXE_MID] },
+  async (req, res) => {
+    if (req.method === "GET") {
+      res.status(200).send("OK");
+      return;
+    }
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "Method not allowed" });
+      return;
+    }
 
-// -----------------------------------------------------------------------------
-// Helpers (fill in when you have Deluxe keys / finalize pricing logic)
-// -----------------------------------------------------------------------------
+    try {
+      const body = req.body || {};
+      logger.info("Deluxe webhook received", {
+        keys: Object.keys(body || {}),
+        headers: { "content-type": req.headers["content-type"], "user-agent": req.headers["user-agent"] },
+      });
 
-/**
- * Recompute the true server-side total from the Order snapshot.
- * Mirror your CheckoutPage pricing EXACTLY: booking bundles, off-season vs
- * seasonal, party deck surcharge, plus merch subtotal (qty * price snapshot).
- */
-function recomputeTotal(order: any): number {
-  let total = 0;
+      const orderId: string | undefined =
+        body?.metadata?.orderId ||
+        body?.reference ||
+        body?.orderId ||
+        body?.order?.id ||
+        body?.data?.metadata?.orderId ||
+        body?.data?.reference;
 
-  if (order?.booking?.price) {
-    total += safeMoney(order.booking.price);
-  }
+      const paymentId: string | undefined =
+        body?.paymentId || body?.id || body?.data?.id || body?.transactionId;
 
-  // merchItems: { [productId]: { product: { name, price }, quantity } }
-  if (order?.merchItems && typeof order.merchItems === "object") {
-    for (const pid of Object.keys(order.merchItems)) {
-      const item = order.merchItems[pid];
-      const price = safeMoney(item?.product?.price);
-      const qty = safeInt(item?.quantity, 0);
-      total += price * qty;
+      const eventType: string | undefined =
+        body?.type || body?.event || body?.eventType || body?.notificationType;
+
+      const statusRaw: string | undefined =
+        body?.status || body?.data?.status || body?.paymentStatus || body?.result;
+
+      if (!orderId) {
+        logger.error("Webhook missing orderId-like identifier", { body });
+        res.status(200).json({ received: true, ignored: true, reason: "missing orderId" });
+        return;
+      }
+
+      const normalized = String(statusRaw || eventType || "").toLowerCase();
+      const looksSuccessful =
+        normalized.includes("success") ||
+        normalized.includes("approved") ||
+        normalized.includes("paid") ||
+        normalized.includes("completed") ||
+        normalized === "sale" ||
+        normalized === "captured";
+
+      const orderRef = db.collection("orders").doc(orderId) as admin.firestore.DocumentReference<OrderDoc>;
+
+      if (looksSuccessful) {
+        await markOrderPaid(orderRef, { provider: "deluxe", paymentId, raw: body });
+        res.status(200).json({ ok: true });
+        return;
+      }
+
+      const looksFailed =
+        normalized.includes("fail") ||
+        normalized.includes("declin") ||
+        normalized.includes("void") ||
+        normalized.includes("refund");
+
+      if (looksFailed) {
+        await orderRef.set(
+          {
+            status: "cancelled", // keep frontend union happy
+            payment: { provider: "deluxe", paymentId: paymentId || null, raw: body },
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          } as Partial<OrderDoc> & Record<string, any>,
+          { merge: true }
+        );
+        res.status(200).json({ ok: true });
+        return;
+      }
+
+      await orderRef.set(
+        {
+          payment: { provider: "deluxe", paymentId: paymentId || null, raw: body },
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        } as Partial<OrderDoc> & Record<string, any>,
+        { merge: true }
+      );
+
+      res.status(200).json({ received: true, noChange: true });
+      return;
+    } catch (err: any) {
+      logger.error("deluxeWebhook error", { error: err?.message, stack: err?.stack });
+      res.status(500).json({ error: "Webhook processing failed" });
+      return;
     }
   }
+);
 
-  // Fallback to stored total if needed (keeps flow unblocked)
-  if ((!Number.isFinite(total) || total <= 0) && Number(order?.total) > 0) {
-    total = safeMoney(order.total);
+// --- OPTIONAL: Query payment status (debug tool) ---
+export const getDeluxePaymentStatus = onRequest(
+  { secrets: [DELUXE_ACCESS_TOKEN, DELUXE_MID] },
+  async (req, res) => {
+    if (applyCors(req, res)) return;
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "Method not allowed" });
+      return;
+    }
+
+    try {
+      const { paymentId, reference } = req.body || {};
+      if (!paymentId && !reference) {
+        res.status(400).json({ error: "Provide paymentId or reference" });
+        return;
+      }
+
+      const payload = paymentId ? { paymentId } : { reference };
+      const json = await deluxeFetch("/payments/search", "POST", payload, {
+        token: DELUXE_ACCESS_TOKEN.value(),
+        mid: DELUXE_MID.value(),
+      });
+
+      res.status(200).json({ provider: "deluxe", result: json });
+      return;
+    } catch (err: any) {
+      logger.error("getDeluxePaymentStatus failed", { error: err?.message });
+      res.status(500).json({ error: "Internal error", detail: err?.message });
+      return;
+    }
   }
+);
 
-  return Math.round(total); // keep consistent (dollars vs cents) with Deluxe
-}
+// --- OPTIONAL: Cancel a payment (if your flow needs it) ---
+export const cancelDeluxePayment = onRequest(
+  { secrets: [DELUXE_ACCESS_TOKEN, DELUXE_MID] },
+  async (req, res) => {
+    if (applyCors(req, res)) return;
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "Method not allowed" });
+      return;
+    }
 
-/** Verify Deluxe webhook signature (HMAC or RSA — implement per docs). */
-function verifyDeluxeSignature(
-  signature: string | undefined,
-  raw: Buffer,
-  secret: string
-): boolean {
-  // TODO: Implement when Deluxe provides the exact scheme:
-  // - If HMAC (shared secret): compute HMAC(raw) and compare with signature.
-  // - If RSA/ECDSA: verify with their public key.
-  // Return true now so you can test plumbing end-to-end.
-  return true;
-}
+    try {
+      const { paymentId } = req.body || {};
+      if (!paymentId) {
+        res.status(400).json({ error: "Missing paymentId" });
+        return;
+      }
 
-// If Deluxe uses OAuth2 client credentials, implement this.
-// async function getDeluxeToken(): Promise<string> {
-//   // TODO: call Deluxe auth endpoint with DELUXE_CLIENT_ID/SECRET
-//   return "stub";
-// }
+      const json = await deluxeFetch("/payments/cancel", "POST", { paymentId }, {
+        token: DELUXE_ACCESS_TOKEN.value(),
+        mid: DELUXE_MID.value(),
+      });
 
-// Convert YYYY-MM-DD to a midnight UTC Firestore Timestamp
-function isoToMidnightUTC(iso: string): admin.firestore.Timestamp {
-  return admin.firestore.Timestamp.fromDate(new Date(`${iso}T00:00:00Z`));
-}
+      res.status(200).json({ ok: true, provider: "deluxe", result: json });
+      return;
+    } catch (err: any) {
+      logger.error("cancelDeluxePayment failed", { error: err?.message });
+      res.status(500).json({ error: "Internal error", detail: err?.message });
+      return;
+    }
+  }
+);
 
-// Safe number helpers
-function safeMoney(v: any): number {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
-function safeInt(v: any, fallback = 0): number {
-  const n = parseInt(String(v), 10);
-  return Number.isFinite(n) ? n : fallback;
-}
-
-
-async function getActiveSeasonConfig(): Promise<{ maxHuntersPerDay: number }> {
-  const snap = await db.collection("seasonConfig").doc("active").get();
-  const data = snap.exists ? (snap.data() as any) : null;
-  const maxHuntersPerDay =
-    Number(data?.maxHuntersPerDay) && data.maxHuntersPerDay > 0
-      ? Number(data.maxHuntersPerDay)
-      : 75;
-  return { maxHuntersPerDay };
-}
+// --- Simple health check ---
+export const apiHealth = onRequest({}, async (_req, res) => {
+  res.status(200).send("ok");
+});

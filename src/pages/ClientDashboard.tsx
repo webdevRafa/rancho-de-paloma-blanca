@@ -103,12 +103,14 @@ const ClientDashboard = () => {
           >
             Continue Checkout
           </button>
-          <button
-            onClick={checkAndCreateUser}
-            className="mt-4 text-sm underline hover:text-[var(--color-accent-gold)]"
-          >
-            Create My Account
-          </button>
+          {!user && (
+            <button
+              onClick={checkAndCreateUser}
+              className="mt-4 text-sm underline hover:text-[var(--color-accent-gold)]"
+            >
+              Create My Account
+            </button>
+          )}
         </nav>
       </aside>
 

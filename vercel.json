@@ -1,9 +1,42 @@
 {
-    "rewrites": [
-      {
-        "source": "/(.*)",
-        "destination": "/index.html"
-      }
-    ]
-  }
-  
+  "rewrites": [
+    {
+      "source": "/api/createDeluxePayment",
+      "destination": "https://us-central1-rancho-de-paloma-blanca.cloudfunctions.net/createDeluxePayment"
+    },
+    {
+      "source": "/api/cancelDeluxePayment",
+      "destination": "https://us-central1-rancho-de-paloma-blanca.cloudfunctions.net/cancelDeluxePayment"
+    },
+    {
+      "source": "/api/getDeluxePaymentStatus",
+      "destination": "https://us-central1-rancho-de-paloma-blanca.cloudfunctions.net/getDeluxePaymentStatus"
+    },
+    {
+      "source": "/api/health",
+      "destination": "https://us-central1-rancho-de-paloma-blanca.cloudfunctions.net/apiHealth"
+    },
+    {
+      "source": "/api/deluxe/webhook",
+      "destination": "https://us-central1-rancho-de-paloma-blanca.cloudfunctions.net/deluxeWebhook"
+    },
+
+
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+
+
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization" }
+      ]
+    }
+  ]
+}
