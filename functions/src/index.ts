@@ -29,7 +29,7 @@ const DELUXE_SANDBOX_CLIENT_ID = defineSecret("DELUXE_SANDBOX_CLIENT_ID");
 const DELUXE_SANDBOX_CLIENT_SECRET = defineSecret("DELUXE_SANDBOX_CLIENT_SECRET");
 
 // --- Constants ---
-const DELUXE_BASE_URL = "https://api.deluxe.com/dpp/v1/gateway";
+const DELUXE_BASE_URL = "https://sandbox.api.deluxe.com";
 
 const FRONTEND_URLS = [
   "https://ranchodepalomablanca.com", // prod

@@ -4,6 +4,8 @@ import { db } from "../firebase/firebaseConfig";
 import { doc, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import CustomerInfoForm from "../components/CustomerInfoForm";
+import type { CustomerInfo } from "../components/CustomerInfoForm";
 
 const CheckoutPage = () => {
   const { merchItems, booking, resetCart, isHydrated } = useCart();
@@ -13,6 +15,13 @@ const CheckoutPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [hasTriedSubmitting, setHasTriedSubmitting] = useState(false);
+  const [customer, setCustomer] = useState<CustomerInfo>({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: booking?.phone || "",
+    billingAddress: {},
+  });
 
   const ORDER_ID_KEY = "rdp_order_id";
   const [orderId] = useState<string>(() => {
@@ -150,9 +159,17 @@ const CheckoutPage = () => {
         userId: user.uid,
         ...(hasBooking ? { booking } : {}),
         ...(hasMerch ? { merchItems } : {}),
-        total,
+        currency: "USD",
         status: "pending",
         createdAt: serverTimestamp(),
+        customer: {
+          firstName: customer.firstName.trim(),
+          lastName: customer.lastName.trim(),
+          email: customer.email.trim(),
+          phone: customer.phone?.trim() || "",
+          // optional billing data saved for future use (if you decide to pass to Deluxe)
+          billingAddress: customer.billingAddress,
+        },
       });
 
       const res = await fetch("/api/createDeluxePayment", {
@@ -198,6 +215,10 @@ const CheckoutPage = () => {
           Your cart is empty. Add bookings or merch before checking out.
         </p>
       )}
+      {/* NEW: Show payer info form above the totals */}
+      <div className="mb-8">
+        <CustomerInfoForm value={customer} onChange={setCustomer} />
+      </div>
 
       {hasBooking && (
         <div className="mb-8">

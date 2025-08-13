@@ -84,17 +84,52 @@ export interface PendingOrder {
 }
 
 export type OrderStatus = "pending" | "paid" | "cancelled";
+export type OrderBooking = Omit<NewBooking, "createdAt"> & {
+  price?: number; // subtotal for the booking portion
+};
 
 export interface Order {
-  id?: string; // Optional when writing, required when reading
+  id?: string;
   userId: string;
   status: OrderStatus;
   total: number;
+  currency?: "USD" | "CAD";   // default to "USD" if omitted
   createdAt?: Timestamp;
 
-  // Optional booking info (only present if user booked a hunt)
-  booking?: Omit<NewBooking, "createdAt">;
+  // Optional booking info
+  booking?: OrderBooking;
 
-  // Optional merch info (only present if user bought merch)
+  // Optional merch
   merchItems?: Record<string, MerchCartItem>;
+
+  // NEW: optional customer block (lets backend avoid name-splitting logic)
+  customer?: OrderCustomer;
+
+  // NEW: optional itemization (nice for Deluxe Level 3, not required)
+  level3?: Level3Item[];
+
+  // Where we store Deluxe refs after link creation
+  deluxe?: {
+    linkId?: string | null;
+    paymentId?: string | null;
+    paymentUrl?: string | null;
+    createdAt?: any;
+    updatedAt?: any;
+    lastEvent?: any;
+  };
+}
+export interface OrderCustomer {
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phone?: string;
+}
+export interface Level3Item {
+  skuCode?: string;
+  quantity: number;
+  price: number;              // per-unit price
+  description?: string;
+  unitOfMeasure?: string;     // e.g. "Each"
+  itemDiscountAmount?: number;
+  itemDiscountRate?: number;
 }
