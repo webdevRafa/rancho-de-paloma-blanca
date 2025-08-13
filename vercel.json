@@ -21,7 +21,7 @@
       "destination": "https://us-central1-rancho-de-paloma-blanca.cloudfunctions.net/deluxeWebhook"
     },
 
-
+  
     {
       "source": "/(.*)",
       "destination": "/index.html"
