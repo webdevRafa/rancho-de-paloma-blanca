@@ -160,6 +160,7 @@ const CheckoutPage = () => {
         ...(hasBooking ? { booking } : {}),
         ...(hasMerch ? { merchItems } : {}),
         currency: "USD",
+        total,
         status: "pending",
         createdAt: serverTimestamp(),
         customer: {

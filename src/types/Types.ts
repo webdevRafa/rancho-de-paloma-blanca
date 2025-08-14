@@ -84,6 +84,14 @@ export interface PendingOrder {
 }
 
 export type OrderStatus = "pending" | "paid" | "cancelled";
+export interface PaymentLinkMeta {
+  provider: "Deluxe";
+  paymentLinkId?: string;  // from Deluxe response
+  paymentUrl?: string;     // from Deluxe response
+  createdAt?: Date;        // or firestore Timestamp
+  expiry?: string;         // e.g., "9 DAYS" or resolved date if you compute it
+}
+
 export type OrderBooking = Omit<NewBooking, "createdAt"> & {
   price?: number; // subtotal for the booking portion
 };
@@ -97,7 +105,7 @@ export interface Order {
   createdAt?: Timestamp;
 
   // Optional booking info
-  booking?: OrderBooking;
+  booking?: Omit<NewBooking, "createdAt">;
 
   // Optional merch
   merchItems?: Record<string, MerchCartItem>;
@@ -107,7 +115,8 @@ export interface Order {
 
   // NEW: optional itemization (nice for Deluxe Level 3, not required)
   level3?: Level3Item[];
-
+  paymentLink?: PaymentLinkMeta;
+  
   // Where we store Deluxe refs after link creation
   deluxe?: {
     linkId?: string | null;
@@ -118,11 +127,23 @@ export interface Order {
     lastEvent?: any;
   };
 }
+export interface BillingAddress {
+  line1?: string;
+  line2?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  country?: "US" | "CA" | string;
+}
+
+
+
 export interface OrderCustomer {
   firstName: string;
   lastName: string;
   email?: string;
   phone?: string;
+  billingAddress?: BillingAddress;
 }
 export interface Level3Item {
   skuCode?: string;
@@ -132,4 +153,89 @@ export interface Level3Item {
   unitOfMeasure?: string;     // e.g. "Each"
   itemDiscountAmount?: number;
   itemDiscountRate?: number;
+}
+
+// --- Deluxe Payment Links: Request/Response ---
+
+export type DppCurrency = "USD" | "CAD";
+
+export interface DppAmount {
+  amount: number;       // whole currency units (e.g., 200 = $200.00)
+  currency: DppCurrency;
+}
+
+export interface DppOrderData {
+  orderId: string;
+}
+
+export interface DppLevel3Item {
+  skuCode: string;             // map from Product.skuCode
+  quantity: number;            // integer
+  price: number;               // per-item price (units, not cents)
+  description?: string;        // product name or line description
+  unitOfMeasure?: string;      // e.g., "Each", "Dozen"
+  itemDiscountAmount?: number; // absolute discount on item line
+  itemDiscountRate?: number;   // fraction (e.g., 0.1 for 10%)
+}
+
+export interface DppCustomDataItem {
+  name: string;
+  value: string;
+}
+
+export type DppDeliveryMethod = "ReturnOnly"; // extend later if using email delivery etc.
+
+export interface DppPaymentLinkRequest {
+  amount: DppAmount;
+  firstName: string;
+  lastName: string;
+  orderData: DppOrderData;
+  paymentLinkExpiry: string;              // e.g., "9 DAYS"
+  acceptPaymentMethod: Array<"Card">;     // can extend if you enable more methods
+  deliveryMethod: DppDeliveryMethod;
+
+  // Optional fields you may include
+  level3?: DppLevel3Item[];
+  customData?: DppCustomDataItem[];
+  acceptBillingAddress?: boolean;
+  requiredBillingAddress?: boolean;
+  acceptPhone?: boolean;
+  requiredPhone?: boolean;
+  confirmationMessage?: string;
+}
+
+// Deluxe success response for /paymentlinks
+export interface DppPaymentLinkResponse {
+  paymentLinkId: string;
+  paymentUrl: string;
+}
+
+// Common error shape you can narrow later if their docs specify
+export interface DppErrorResponse {
+  error?: string;
+  message?: string;
+  code?: string;
+  [key: string]: unknown;
+}
+
+
+// Cloud Function contract types
+export interface CreateDeluxePaymentRequest {
+  orderId: string;
+  successUrl?: string;
+  cancelUrl?: string;
+}
+
+export interface CreateDeluxePaymentResponse {
+  provider: "Deluxe";
+  paymentUrl: string;
+  paymentLinkId?: string; // if you choose to also return it
+}
+
+export interface DeluxeWebhookEvent<T = unknown> {
+  id?: string;
+  type?: string;          // e.g., "Transaction"
+  createdAt?: string;     // ISO if present
+  data?: T;               // raw payload from Deluxe
+  // you can refine T once you pin down their schemas
 }
