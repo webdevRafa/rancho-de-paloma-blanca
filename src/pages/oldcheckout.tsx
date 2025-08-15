@@ -24,7 +24,7 @@ const CheckoutPage = () => {
   });
 
   const ORDER_ID_KEY = "rdp_order_id";
-  const [orderId, setOrderId] = useState<string>(() => {
+  const [orderId] = useState<string>(() => {
     return localStorage.getItem(ORDER_ID_KEY) || crypto.randomUUID();
   });
 
@@ -69,49 +69,42 @@ const CheckoutPage = () => {
     const hunters = booking!.numberOfHunters || 0;
     const deckDays = booking!.partyDeckDates || [];
 
-    // Load season/weekend pricing from our requirements:
-    // - Off-season: $125/day per person
-    // - Season weekends: special bundles:
-    //   * Single Fri/Sat/Sun: $200/day
-    //   * 2-consecutive days (Fri+Sat or Sat+Sun): $350
-    //   * 3-day (Fri–Sun): $450
-    // Weekdays (Mon–Thu) during season are $200/day as “weekend rate” is only Fri–Sun.
-    // (This mirrors the logic you already had.)
-
-    const weekdayRate = 125; // off-season & non-weekend fallback (outside bundle)
+    const weekdayRate = 125;
     const baseWeekendRates = {
       singleDay: 200,
       twoConsecutiveDays: 350,
-      threeDayFriSatSun: 450,
+      threeDayCombo: 450,
     };
 
-    // Sort unique ISO dates to be safe
-    const sorted = [...new Set(dates)].sort();
-
-    // Convert to Date for day-of-week logic
-    const dateObjs = sorted.map((iso) => {
-      const [yyyy, mm, dd] = iso.split("-");
-      return new Date(Number(yyyy), Number(mm) - 1, Number(dd));
-    });
+    const dateObjs = dates
+      .map((d) => {
+        const [y, m, d2] = d.split("-").map(Number);
+        return new Date(y, m - 1, d2);
+      })
+      .sort((a, b) => a.getTime() - b.getTime());
 
     let perPersonTotal = 0;
-
-    for (let i = 0; i < dateObjs.length; ) {
+    let i = 0;
+    while (i < dateObjs.length) {
       const current = dateObjs[i];
-      const dow = current.getDay(); // 0=Sun, 5=Fri, 6=Sat
+      const dow = current.getDay();
 
-      // Fri–Sun 3-day combo (Fri, Sat, Sun)
-      if (
-        i + 2 < dateObjs.length &&
-        dow === 5 &&
-        dateObjs[i + 1].getDay() === 6 &&
-        dateObjs[i + 2].getDay() === 0 &&
-        (dateObjs[i + 1].getTime() - current.getTime()) / 86400000 === 1 &&
-        (dateObjs[i + 2].getTime() - dateObjs[i + 1].getTime()) / 86400000 === 1
-      ) {
-        perPersonTotal += baseWeekendRates.threeDayFriSatSun;
-        i += 3;
-        continue;
+      // Fri-Sat-Sun 3-day combo
+      if (dow === 5 && i + 2 < dateObjs.length) {
+        const d1 = dateObjs[i + 1];
+        const d2 = dateObjs[i + 2];
+        const diff1 = (d1.getTime() - current.getTime()) / 86400000;
+        const diff2 = (d2.getTime() - d1.getTime()) / 86400000;
+        if (
+          diff1 === 1 &&
+          diff2 === 1 &&
+          d1.getDay() === 6 &&
+          d2.getDay() === 0
+        ) {
+          perPersonTotal += baseWeekendRates.threeDayCombo;
+          i += 3;
+          continue;
+        }
       }
 
       // Fri+Sat or Sat+Sun 2-day combo
@@ -155,35 +148,11 @@ const CheckoutPage = () => {
       if (!user) throw new Error("Please sign in with Google first.");
       if (!hasBooking && !hasMerch) throw new Error("Your cart is empty.");
 
-      let currentOrderId = orderId;
-      let orderRef = doc(db, "orders", currentOrderId);
-      let existing = await getDoc(orderRef);
-
+      const orderRef = doc(db, "orders", orderId);
+      const existing = await getDoc(orderRef);
       if (existing.exists()) {
-        const data = existing.data() as any;
-        const status = data?.status || "pending";
-
-        // If we already stored a payment URL on this order, reuse it.
-        const savedUrl =
-          data?.paymentLink?.paymentUrl ||
-          data?.deluxe?.paymentUrl ||
-          data?.paymentUrl;
-
-        if (savedUrl && status === "pending") {
-          window.location.href = savedUrl;
-          return;
-        }
-
-        // If the order is not payable anymore, rotate to a fresh ID.
-        if (status === "paid" || status === "cancelled") {
-          const freshId = crypto.randomUUID();
-          setOrderId(freshId);
-          localStorage.setItem(ORDER_ID_KEY, freshId);
-          currentOrderId = freshId;
-          orderRef = doc(db, "orders", currentOrderId);
-          existing = await getDoc(orderRef);
-        }
-        // Fall through to (re)create or update the order and request a new link.
+        navigate("/dashboard?status=pending");
+        return;
       }
 
       await setDoc(orderRef, {
@@ -207,7 +176,7 @@ const CheckoutPage = () => {
       const res = await fetch("/api/createDeluxePayment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId: currentOrderId }),
+        body: JSON.stringify({ orderId }),
       });
 
       let data;
@@ -220,41 +189,14 @@ const CheckoutPage = () => {
       if (!res.ok) throw new Error(data?.error || "Deluxe API failed");
       if (!data.paymentUrl) throw new Error("Missing payment URL");
 
-      // Save the URL to the order for idempotent reuse.
-      try {
-        await setDoc(
-          orderRef,
-          {
-            paymentLink: {
-              paymentUrl: data.paymentUrl,
-              paymentLinkId: data.paymentLinkId || data.id || null,
-            },
-            deluxe: {
-              paymentUrl: data.paymentUrl,
-              paymentLinkId: data.paymentLinkId || data.id || null,
-            },
-          },
-          { merge: true }
-        );
-      } catch {
-        /* non-fatal */
-      }
-
       // Clear cart & redirect
       localStorage.removeItem(ORDER_ID_KEY);
       resetCart();
       window.location.href = data.paymentUrl;
     } catch (err: any) {
-      // Clear potentially-stale order id so next attempt gets a fresh one.
-      try {
-        localStorage.removeItem(ORDER_ID_KEY);
-      } catch {}
-
       console.error(err);
       setErrorMsg(err.message || "Checkout failed.");
       navigate("/dashboard?error=checkout-failed");
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -270,38 +212,23 @@ const CheckoutPage = () => {
       </h1>
 
       {!hasBooking && !hasMerch && (
-        <p className="text-center text-gray-700">
-          Your cart is empty. Please add a hunt or merchandise to continue.
+        <p className="text-center text-sm text-red-400 mb-8">
+          Your cart is empty. Add bookings or merch before checking out.
         </p>
       )}
-
-      {!!errorMsg && (
-        <div className="mb-4 p-3 rounded bg-red-100 text-red-700 border border-red-300">
-          {errorMsg}
-        </div>
-      )}
+      {/* NEW: Show payer info form above the totals */}
+      <div className="mb-8">
+        <CustomerInfoForm value={customer} onChange={setCustomer} />
+      </div>
 
       {hasBooking && (
-        <div className="mb-6">
-          <h2 className="text-xl font-acumin bg-[var(--color-footer)] text-white px-3 py-2 rounded">
+        <div className="mb-8">
+          <h2 className="text-xl mb-2 font-acumin bg-[var(--color-footer)] text-white max-w-[200px] p-1">
             {huntLabel}
           </h2>
-          <div className="mt-3 space-y-1 text-sm">
-            <p>
-              Party Size:{" "}
-              <span className="font-semibold">
-                {booking!.numberOfHunters} hunter
-                {booking!.numberOfHunters > 1 ? "s" : ""}
-              </span>
-            </p>
-            <div>
-              Dates:
-              <ul className="list-disc ml-6">
-                {booking!.dates.map((d) => (
-                  <li key={d}>{formatFriendlyDate(d)}</li>
-                ))}
-              </ul>
-            </div>
+          <div className="bg-neutral-100 p-3">
+            <p>Dates: {booking!.dates.map(formatFriendlyDate).join(", ")}</p>
+            <p>Hunters: {booking!.numberOfHunters}</p>
             {!!booking!.partyDeckDates?.length && (
               <p>
                 Party Deck: {booking!.partyDeckDates.length} × $
@@ -317,39 +244,38 @@ const CheckoutPage = () => {
 
       {hasMerch && (
         <div className="mb-8">
-          <h2 className="text-xl mb-2 font-acumin bg-[var(--color-footer)] text-white px-3 py-2 rounded">
+          <h2 className="text-xl mb-2 font-acumin bg-[var(--color-footer)] text-white max-w-[200px] p-1">
             Merchandise
           </h2>
-          <ul className="divide-y">
-            {Object.values(merchItems).map((item) => (
-              <li
-                key={item.product.id}
-                className="py-2 flex justify-between text-sm"
-              >
-                <span>
-                  {item.product.name} × {item.quantity}
-                </span>
-                <span>${item.product.price * item.quantity}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2 font-semibold">Merch Subtotal: ${merchSubtotal}</p>
+          <div className="bg-neutral-100 p-3">
+            <ul className="list-disc ml-5 space-y-1">
+              {Object.entries(merchItems).map(([id, item]) => (
+                <li key={id}>
+                  {item.product.name} — {item.quantity} × ${item.product.price}{" "}
+                  = ${item.product.price * item.quantity}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 font-semibold">
+              Merch Subtotal: ${merchSubtotal}
+            </p>
+          </div>
         </div>
       )}
 
       {(hasBooking || hasMerch) && (
         <>
-          <div className="mb-6 border-t pt-4">
-            <h3 className="text-lg font-semibold">Total</h3>
-            <p className="text-2xl font-bold">${total}</p>
-          </div>
-
-          <CustomerInfoForm value={customer} onChange={setCustomer} />
+          <h2 className="text-2xl font-bold mt-4 text-center font-acumin">
+            Total Due: ${total}
+          </h2>
+          {errorMsg && (
+            <p className="text-sm text-red-400 text-center mt-4">{errorMsg}</p>
+          )}
 
           <button
             onClick={handleCompleteCheckout}
             disabled={isSubmitting || hasTriedSubmitting}
-            className={`mt-6 w-full text-white font-semibold py-3 rounded transition ${
+            className={`block w-full mt-6 max-w-[300px] mx-auto text-sm text-white py-3 px-6 rounded-md transition-all duration-200 ${
               isSubmitting || hasTriedSubmitting
                 ? "bg-gray-600 cursor-not-allowed"
                 : "bg-[var(--color-button)] hover:bg-[var(--color-button-hover)]"

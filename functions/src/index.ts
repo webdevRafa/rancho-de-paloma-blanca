@@ -31,13 +31,16 @@ const DELUXE_MID = defineSecret("DELUXE_MID");
 const DELUXE_SANDBOX_CLIENT_ID = defineSecret("DELUXE_SANDBOX_CLIENT_ID");
 const DELUXE_SANDBOX_CLIENT_SECRET = defineSecret("DELUXE_SANDBOX_CLIENT_SECRET");
 
-// --- Constants ---
-const DELUXE_BASE_URL = "https://sandbox.api.deluxe.com";
-const OAUTH_URL = `${DELUXE_BASE_URL}/secservices/oauth2/v2/token`;
+// ✅ Use separate host + gateway base
+const DELUXE_HOST = "https://sandbox.api.deluxe.com"; // swap to https://api.deluxe.com for prod
+const DELUXE_GATEWAY_BASE = `${DELUXE_HOST}/dpp/v1/gateway`;
 
-// ✅ Gateway base and payment links endpoint
-const GATEWAY_BASE = `${DELUXE_BASE_URL}/dpp/v1/gateway`;
-const PAYMENTLINKS_URL = `${GATEWAY_BASE}/paymentlinks`;
+// ✅ OAuth is on the host, NOT the gateway base
+const OAUTH_URL = `${DELUXE_HOST}/secservices/oauth2/v2/token`;
+
+// ✅ Payment Links lives under the gateway base
+const PAYMENTLINKS_URL = `${DELUXE_GATEWAY_BASE}/paymentlinks`;
+
 
 const FRONTEND_URLS = [
   "https://ranchodepalomablanca.com", // prod
@@ -321,42 +324,36 @@ function buildCancelUrl(originBase: string, orderId: string) {
 
 
 // --- Deluxe API client ---
+// --- Deluxe API client ---
 async function deluxeFetch(
   path: string,
   method: "GET" | "POST",
   body: any,
-  secrets: { token: string; mid?: string }
+  auth: { bearer: string; partnerToken: string } // <-- rename to auth
 ) {
-  const url = `${DELUXE_BASE_URL}${path}`;
+  const url = `${DELUXE_GATEWAY_BASE}${path.startsWith("/") ? path : `/${path}`}`;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
-    Authorization: `Bearer ${secrets.token}`,
+    Authorization: `Bearer ${auth.bearer}`,
+    PartnerToken: auth.partnerToken,
   };
-  if (secrets.mid) headers["MID"] = secrets.mid;
 
   const resp = await fetch(url, {
     method,
     headers,
-    body: method === "POST" ? JSON.stringify(body) : undefined,
+    body: method === "POST" ? JSON.stringify(body ?? {}) : undefined,
   });
 
-  const text = await resp.text();
-  let json: any;
-  try {
-    json = text ? JSON.parse(text) : {};
-  } catch {
-    json = { raw: text };
-  }
-
+  const { json, text } = await safeParse(resp);
   if (!resp.ok) {
-    const msg = `Deluxe ${method} ${path} failed: ${resp.status} ${resp.statusText}`;
-    logger.error(msg, { url, status: resp.status, json });
+    const msg = json?.message || json?.error || text || `Deluxe ${method} ${path} failed: ${resp.status}`;
+    logger.error("Deluxe gateway error", { url, status: resp.status, json, text });
     throw new Error(msg);
   }
-
-  return json;
+  return json ?? {};
 }
+
 
 // --- Firestore helpers ---
 
@@ -626,8 +623,9 @@ export const deluxeWebhook = onRequest(
 );
 
 // --- OPTIONAL: Query payment status (debug tool) ---
+// --- OPTIONAL: Query payment status (debug tool) ---
 export const getDeluxePaymentStatus = onRequest(
-  { secrets: [DELUXE_ACCESS_TOKEN, DELUXE_MID] },
+  { secrets: [DELUXE_ACCESS_TOKEN, DELUXE_MID, DELUXE_SANDBOX_CLIENT_ID, DELUXE_SANDBOX_CLIENT_SECRET] },
   async (req, res) => {
     if (applyCors(req, res)) return;
     if (req.method !== "POST") {
@@ -641,26 +639,31 @@ export const getDeluxePaymentStatus = onRequest(
         res.status(400).json({ error: "Provide paymentId or reference" });
         return;
       }
-
       const payload = paymentId ? { paymentId } : { reference };
+
+      // ✅ get Bearer via OAuth
+      const bearer = await getBearerToken(
+        DELUXE_SANDBOX_CLIENT_ID.value(),
+        DELUXE_SANDBOX_CLIENT_SECRET.value()
+      );
+
+      // ✅ pass { bearer, partnerToken } to deluxeFetch
       const json = await deluxeFetch("/payments/search", "POST", payload, {
-        token: DELUXE_ACCESS_TOKEN.value(),
-        mid: DELUXE_MID.value(),
+        bearer,
+        partnerToken: DELUXE_ACCESS_TOKEN.value(),
       });
 
       res.status(200).json({ provider: "deluxe", result: json });
-      return;
     } catch (err: any) {
       logger.error("getDeluxePaymentStatus failed", { error: err?.message });
       res.status(500).json({ error: "Internal error", detail: err?.message });
-      return;
     }
   }
 );
 
 // --- OPTIONAL: Cancel a payment (if your flow needs it) ---
 export const cancelDeluxePayment = onRequest(
-  { secrets: [DELUXE_ACCESS_TOKEN, DELUXE_MID] },
+  { secrets: [DELUXE_ACCESS_TOKEN, DELUXE_MID, DELUXE_SANDBOX_CLIENT_ID, DELUXE_SANDBOX_CLIENT_SECRET] },
   async (req, res) => {
     if (applyCors(req, res)) return;
     if (req.method !== "POST") {
@@ -675,20 +678,24 @@ export const cancelDeluxePayment = onRequest(
         return;
       }
 
+      const bearer = await getBearerToken(
+        DELUXE_SANDBOX_CLIENT_ID.value(),
+        DELUXE_SANDBOX_CLIENT_SECRET.value()
+      );
+
       const json = await deluxeFetch("/payments/cancel", "POST", { paymentId }, {
-        token: DELUXE_ACCESS_TOKEN.value(),
-        mid: DELUXE_MID.value(),
+        bearer,
+        partnerToken: DELUXE_ACCESS_TOKEN.value(),
       });
 
       res.status(200).json({ ok: true, provider: "deluxe", result: json });
-      return;
     } catch (err: any) {
       logger.error("cancelDeluxePayment failed", { error: err?.message });
       res.status(500).json({ error: "Internal error", detail: err?.message });
-      return;
     }
   }
 );
+
 
 // --- Simple health check ---
 export const apiHealth = onRequest({}, async (_req, res) => {
