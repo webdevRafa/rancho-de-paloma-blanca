@@ -183,37 +183,81 @@ interface OrderDoc {
     raw?: any;
   };
 }
+type TokenCache = { token: string; exp: number };
 
-let tokenCache: { token: string; exp: number } | null = null;
+let tokenCache: TokenCache | null = null;
 
-async function getBearerToken(clientId: string, clientSecret: string): Promise<string> {
+export async function getBearerToken(clientId: string, clientSecret: string): Promise<string> {
   const now = Date.now();
   if (tokenCache && now < tokenCache.exp) return tokenCache.token;
 
+  // ---- Attempt 1: RFC6749 client auth via Basic header ----
   const basic = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
-  const body = new URLSearchParams({ grant_type: "client_credentials" });
+  const form = new URLSearchParams({ grant_type: "client_credentials" });
 
-  const resp: any = await fetch(OAUTH_URL, {
+  let resp = await fetch(OAUTH_URL, {
     method: "POST",
     headers: {
       Authorization: `Basic ${basic}`,
       "Content-Type": "application/x-www-form-urlencoded",
       Accept: "application/json",
     },
-    body,
+    body: form,
   });
 
-  const { json, text } = await safeParse(resp);
+  let raw = await resp.text();
+
   if (!resp.ok) {
-    const msg = json?.error_description || json?.error || text || `OAuth failed with ${resp.status}`;
-    throw new Error(`Deluxe OAuth error: ${msg}`);
+    logger.warn("OAuth (Basic) failed", { status: resp.status, snippet: raw?.slice(0, 200) });
+
+    // ---- Attempt 2: creds in x-www-form-urlencoded BODY (some tenants require this) ----
+    resp = await fetch(OAUTH_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Accept: "application/json",
+      },
+      body: new URLSearchParams({
+        grant_type: "client_credentials",
+        client_id: clientId,
+        client_secret: clientSecret,
+      }),
+    });
+
+    raw = await resp.text();
+
+    if (!resp.ok) {
+      logger.error("OAuth (Body creds) failed", { status: resp.status, snippet: raw?.slice(0, 200) });
+      const code =
+        resp.status >= 500 ? `oauth_failed_${resp.status}` :
+        resp.status === 400 || resp.status === 401 ? "oauth_bad_creds" :
+        `oauth_failed_${resp.status}`;
+      throw new Error(code);
+    }
   }
 
-  const token = json?.access_token as string;
+  // ---- Parse the token ----
+  let json: any;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    logger.error("OAuth returned non-JSON", { snippet: raw?.slice(0, 200) });
+    throw new Error("oauth_invalid_json");
+  }
+
+  const token = json?.access_token as string | undefined;
   const expiresIn = Number(json?.expires_in ?? 3600);
-  tokenCache = { token, exp: now + Math.max(0, expiresIn - 60) * 1000 }; // refresh 60s early
+  if (!token) {
+    logger.error("OAuth missing access_token", { jsonKeys: Object.keys(json || {}) });
+    throw new Error("oauth_no_access_token");
+  }
+
+  // cache with 60s early refresh
+  tokenCache = { token, exp: now + Math.max(0, expiresIn - 60) * 1000 };
   return token;
 }
+
+
 
 
 
@@ -395,12 +439,13 @@ async function markOrderPaid(
   });
 }
 
+
 // --- HTTP: Create Deluxe Hosted Checkout Link ---
 export const createDeluxePayment = onRequest(
   {
     secrets: [DELUXE_ACCESS_TOKEN, DELUXE_MID, DELUXE_SANDBOX_CLIENT_ID, DELUXE_SANDBOX_CLIENT_SECRET],
   },
-  async (req, res) => {
+  async (req, res): Promise<void> => {
     try {
       if (applyCors(req, res)) return;
       if (req.method !== "POST") {
@@ -414,27 +459,45 @@ export const createDeluxePayment = onRequest(
         return;
       }
 
-      // 1) Fetch order
+      // 1) Fetch order + derive fields
       const order = await getOrder(orderId);
       const amount = amountFromOrder(order);
       const { firstName, lastName } = nameFromOrder(order);
       const level3 = level3FromOrder(order);
 
-      // 2) Auth headers
+      // Guard against zero/undefined amounts
+      if (!amount?.amount || amount.amount <= 0) {
+        logger.error("Invalid amount for order", { orderId: order.id, amount, orderTotal: order.total });
+        res.status(400).json({ error: "invalid_amount" });
+        return;
+      }
+
+      // 2) Auth (unchanged)
       const partnerToken = DELUXE_ACCESS_TOKEN.value(); // PartnerToken header (merchant UUID)
       const bearer = await getBearerToken(
         DELUXE_SANDBOX_CLIENT_ID.value(),
         DELUXE_SANDBOX_CLIENT_SECRET.value()
       );
-      // derive an allowed frontend origin
-const headerOrigin = (req.headers?.origin as string) || "";
-const originBase = FRONTEND_URLS.includes(headerOrigin) ? headerOrigin : FRONTEND_URLS[0];
 
-// build fallbacks if client didn’t send urls
-const success = successUrl ?? buildSuccessUrl(originBase, order.id!);
-const cancel = cancelUrl ?? buildCancelUrl(originBase, order.id!);
+      // Config logs (no secrets)
+      logger.info("Deluxe config", {
+        host: DELUXE_HOST,
+        gatewayBase: DELUXE_GATEWAY_BASE,
+        oauthUrl: OAUTH_URL,
+        paymentLinksUrl: PAYMENTLINKS_URL,
+        path: "/paymentlinks",
+      });
+      logger.info("Deluxe auth headers (masked)", {
+        partnerTokenSuffix: (partnerToken || "").slice(-6),
+      });
 
-      // 3) Build /paymentlinks body
+      // 3) Build success/cancel URLs (always include)
+      const headerOrigin = (req.headers?.origin as string) || "";
+      const originBase = FRONTEND_URLS.includes(headerOrigin) ? headerOrigin : FRONTEND_URLS[0];
+      const success = successUrl ?? buildSuccessUrl(originBase, order.id!);
+      const cancel = cancelUrl ?? buildCancelUrl(originBase, order.id!);
+
+      // 4) Build /paymentlinks body
       const body: DppPaymentLinkRequest = {
         amount,
         firstName,
@@ -446,19 +509,25 @@ const cancel = cancelUrl ?? buildCancelUrl(originBase, order.id!);
         ...(level3?.length ? { level3 } : {}),
         customData: [
           { name: "site", value: "Rancho de Paloma Blanca" },
-          ...(successUrl ? [{ name: "successUrl", value: success }] : []),
-          ...(cancelUrl ? [{ name: "cancelUrl", value: cancel }] : []),
+          { name: "successUrl", value: success },
+          { name: "cancelUrl", value: cancel },
         ],
-        // If you want the hosted page to collect these:
         // acceptBillingAddress: true,
         // requiredBillingAddress: false,
         // acceptPhone: true,
         // requiredPhone: false,
       };
 
-      // 4) POST to Deluxe
-      const url = PAYMENTLINKS_URL;
-      const resp: any = await fetch(url, {
+      // Log the exact URL we’ll call
+      logger.info("Calling Deluxe /paymentlinks", {
+        url: PAYMENTLINKS_URL,
+        host: new URL(PAYMENTLINKS_URL).host,
+        path: new URL(PAYMENTLINKS_URL).pathname,
+        preview: { orderId: order.id, amount: amount.amount, currency: amount.currency },
+      });
+
+      // 5) POST to Deluxe
+      const resp: any = await fetch(PAYMENTLINKS_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -470,26 +539,35 @@ const cancel = cancelUrl ?? buildCancelUrl(originBase, order.id!);
       });
 
       const { json, text } = await safeParse(resp);
+
       if (!resp.ok) {
         logger.error("Deluxe /paymentlinks error", { status: resp.status, json, text });
         const message =
           (json && (json.message || json.error || json.code)) ||
           text ||
           `Deluxe /paymentlinks failed with ${resp.status}`;
-        res.status(502).json({ error: "deluxe_paymentlinks_failed", message });
+        // Normalize error key
+        res.status(502).json({ error: "deluxe_payment_failed", message, status: resp.status });
         return;
       }
 
       const data = json as DppPaymentLinkResponse;
       const paymentUrl = data?.paymentUrl ?? extractPaymentUrl(json);
 
-      if (!data?.paymentLinkId || !data?.paymentUrl) {
+      if (!data?.paymentLinkId || !paymentUrl) {
         logger.error("Deluxe /paymentlinks missing fields", { json, text });
         res.status(502).json({ error: "invalid_deluxe_response", payload: json ?? text ?? null });
         return;
       }
 
-      // 5) Persist to Firestore
+      // Success log
+      logger.info("Deluxe /paymentlinks ok", {
+        status: resp.status,
+        paymentLinkId: data.paymentLinkId,
+        paymentUrlPreview: (paymentUrl || "").slice(0, 120),
+      });
+
+      // 6) Persist to Firestore
       await db.collection("orders").doc(orderId).set(
         {
           paymentLink: {
@@ -508,12 +586,11 @@ const cancel = cancelUrl ?? buildCancelUrl(originBase, order.id!);
         },
         { merge: true }
       );
-      
-      
-  // 6) Return to client
+
+      // 7) Return to client
       const out: CreateDeluxePaymentResponse = {
         provider: "Deluxe",
-        paymentUrl: data.paymentUrl,
+        paymentUrl,
         paymentLinkId: data.paymentLinkId,
       };
       res.status(200).json(out);
@@ -521,9 +598,11 @@ const cancel = cancelUrl ?? buildCancelUrl(originBase, order.id!);
     } catch (err: any) {
       logger.error("createDeluxePayment failed", { error: err?.message, stack: err?.stack });
       res.status(500).json({ error: "internal", message: err?.message || "Unknown error" });
+      return;
     }
   }
 );
+
 
 // --- HTTP: Deluxe Webhook Receiver ---
 export const deluxeWebhook = onRequest(
