@@ -31,21 +31,23 @@ const DELUXE_MID = defineSecret("DELUXE_MID");
 const DELUXE_SANDBOX_CLIENT_ID = defineSecret("DELUXE_SANDBOX_CLIENT_ID");
 const DELUXE_SANDBOX_CLIENT_SECRET = defineSecret("DELUXE_SANDBOX_CLIENT_SECRET");
 
-// ✅ Use separate host + gateway base
-const DELUXE_HOST = "https://sandbox.api.deluxe.com"; // swap to https://api.deluxe.com for prod
-const DELUXE_GATEWAY_BASE = `${DELUXE_HOST}/dpp/v1/gateway`;
 
-// ✅ OAuth is on the host, NOT the gateway base
-const OAUTH_URL = `${DELUXE_HOST}/secservices/oauth2/v2/token`;
+const OAUTH_HOST = "https://sandbox.api.deluxe.com";   // keep sandbox for token
+const GATEWAY_HOST = "https://api.deluxe.com";         // use prod gateway for links
 
-// ✅ Payment Links lives under the gateway base
-const PAYMENTLINKS_URL = `${DELUXE_GATEWAY_BASE}/paymentlinks`;
+const OAUTH_URL = `${OAUTH_HOST}/secservices/oauth2/v2/token`;
+const GATEWAY_BASE = `${GATEWAY_HOST}/dpp/v1/gateway`;
+const PAYMENTLINKS_URL = `${GATEWAY_BASE}/paymentlinks`;
 
 
 const FRONTEND_URLS = [
   "https://ranchodepalomablanca.com", // prod
   "https://www.ranchodepalomablanca.com",
   "http://localhost:5173",            // dev
+  "http://localhost:5174",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5174",
+
 ];
 
 
@@ -375,7 +377,7 @@ async function deluxeFetch(
   body: any,
   auth: { bearer: string; partnerToken: string } // <-- rename to auth
 ) {
-  const url = `${DELUXE_GATEWAY_BASE}${path.startsWith("/") ? path : `/${path}`}`;
+  const url = `${GATEWAY_BASE}${path.startsWith("/") ? path : `/${path}`}`;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
@@ -465,14 +467,13 @@ export const createDeluxePayment = onRequest(
       const { firstName, lastName } = nameFromOrder(order);
       const level3 = level3FromOrder(order);
 
-      // Guard against zero/undefined amounts
       if (!amount?.amount || amount.amount <= 0) {
         logger.error("Invalid amount for order", { orderId: order.id, amount, orderTotal: order.total });
         res.status(400).json({ error: "invalid_amount" });
         return;
       }
 
-      // 2) Auth (unchanged)
+      // 2) Auth (UNCHANGED)
       const partnerToken = DELUXE_ACCESS_TOKEN.value(); // PartnerToken header (merchant UUID)
       const bearer = await getBearerToken(
         DELUXE_SANDBOX_CLIENT_ID.value(),
@@ -481,8 +482,8 @@ export const createDeluxePayment = onRequest(
 
       // Config logs (no secrets)
       logger.info("Deluxe config", {
-        host: DELUXE_HOST,
-        gatewayBase: DELUXE_GATEWAY_BASE,
+        host: GATEWAY_HOST,
+        gatewayBase: GATEWAY_BASE,
         oauthUrl: OAUTH_URL,
         paymentLinksUrl: PAYMENTLINKS_URL,
         path: "/paymentlinks",
@@ -491,13 +492,13 @@ export const createDeluxePayment = onRequest(
         partnerTokenSuffix: (partnerToken || "").slice(-6),
       });
 
-      // 3) Build success/cancel URLs (always include)
+      // 3) Success/cancel URLs
       const headerOrigin = (req.headers?.origin as string) || "";
       const originBase = FRONTEND_URLS.includes(headerOrigin) ? headerOrigin : FRONTEND_URLS[0];
       const success = successUrl ?? buildSuccessUrl(originBase, order.id!);
       const cancel = cancelUrl ?? buildCancelUrl(originBase, order.id!);
 
-      // 4) Build /paymentlinks body
+      // 4) Build /paymentlinks body (UNCHANGED)
       const body: DppPaymentLinkRequest = {
         amount,
         firstName,
@@ -512,88 +513,111 @@ export const createDeluxePayment = onRequest(
           { name: "successUrl", value: success },
           { name: "cancelUrl", value: cancel },
         ],
-        // acceptBillingAddress: true,
-        // requiredBillingAddress: false,
-        // acceptPhone: true,
-        // requiredPhone: false,
       };
 
-      // Log the exact URL we’ll call
-      logger.info("Calling Deluxe /paymentlinks", {
-        url: PAYMENTLINKS_URL,
-        host: new URL(PAYMENTLINKS_URL).host,
-        path: new URL(PAYMENTLINKS_URL).pathname,
-        preview: { orderId: order.id, amount: amount.amount, currency: amount.currency },
-      });
+      // 5) Try multiple endpoint candidates until one works
+      const CANDIDATES = [
+        // PROD gateway first
+        "https://api.deluxe.com/dpp/v1/gateway/paymentlinks",
+        "https://api.deluxe.com/dpp/v1/gateway/paymentlinks/",
+        // PROD non-gateway (some tenants expose this path)
+        "https://api.deluxe.com/dpp/v1/paymentlinks",
+        "https://api.deluxe.com/dpp/v1/paymentlinks/",
+        // SANDBOX gateway
+        "https://sandbox.api.deluxe.com/dpp/v1/gateway/paymentlinks",
+        "https://sandbox.api.deluxe.com/dpp/v1/gateway/paymentlinks/",
+        // SANDBOX non-gateway
+        "https://sandbox.api.deluxe.com/dpp/v1/paymentlinks",
+        "https://sandbox.api.deluxe.com/dpp/v1/paymentlinks/",
+      ];
 
-      // 5) POST to Deluxe
-      const resp: any = await fetch(PAYMENTLINKS_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          Authorization: `Bearer ${bearer}`,
-          PartnerToken: partnerToken,
-        },
-        body: JSON.stringify(body),
-      });
+      const headers = {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: `Bearer ${bearer}`,
+        PartnerToken: partnerToken,
+      };
 
-      const { json, text } = await safeParse(resp);
+      type AttemptResult = { ok: boolean; url: string; status: number; json: any; text: string | null };
 
-      if (!resp.ok) {
-        logger.error("Deluxe /paymentlinks error", { status: resp.status, json, text });
-        const message =
-          (json && (json.message || json.error || json.code)) ||
-          text ||
-          `Deluxe /paymentlinks failed with ${resp.status}`;
-        // Normalize error key
-        res.status(502).json({ error: "deluxe_payment_failed", message, status: resp.status });
+      async function attempt(url: string): Promise<AttemptResult> {
+        logger.info("Calling Deluxe /paymentlinks", {
+          url,
+          host: new URL(url).host,
+          path: new URL(url).pathname,
+          preview: { orderId: order.id, amount: amount.amount, currency: amount.currency },
+        });
+        const resp: any = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
+        const { json, text } = await safeParse(resp);
+        // HTML 404 is a routing issue, not payload — log distinctly
+        if (resp.status === 404 && typeof text === "string" && text.includes("<html")) {
+          logger.warn("HTML 404 from gateway", { url });
+        } else if (!resp.ok) {
+          logger.error("Deluxe /paymentlinks error (non-404)", { url, status: resp.status, json, text });
+        }
+        return { ok: resp.ok, url, status: resp.status, json, text };
+      }
+
+      let last: AttemptResult | null = null;
+      for (const url of CANDIDATES) {
+        const r = await attempt(url);
+        last = r;
+        if (!r.ok) continue;
+
+        // Success — validate response shape
+        const data = (r.json as DppPaymentLinkResponse) || {};
+        const paymentUrl = data?.paymentUrl ?? extractPaymentUrl(r.json);
+
+        if (!data?.paymentLinkId || !paymentUrl) {
+          logger.error("Deluxe /paymentlinks missing fields", { url: r.url, json: r.json, text: r.text });
+          break; // Treat as failure so we surface a clear error rather than looping further
+        }
+
+        // Success log
+        logger.info("Deluxe /paymentlinks ok", {
+          via: r.url,
+          status: r.status,
+          paymentLinkId: data.paymentLinkId,
+          paymentUrlPreview: (paymentUrl || "").slice(0, 120),
+        });
+
+        // 6) Persist to Firestore
+        await db.collection("orders").doc(orderId).set(
+          {
+            paymentLink: {
+              provider: "Deluxe",
+              paymentLinkId: data.paymentLinkId,
+              paymentUrl,
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              expiry: "9 DAYS",
+            },
+            deluxe: {
+              linkId: data.paymentLinkId,
+              paymentUrl,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              lastEvent: "link_created",
+            },
+          },
+          { merge: true }
+        );
+
+        // 7) Return to client
+        const out: CreateDeluxePaymentResponse = {
+          provider: "Deluxe",
+          paymentUrl,
+          paymentLinkId: data.paymentLinkId,
+        };
+        res.status(200).json(out);
         return;
       }
 
-      const data = json as DppPaymentLinkResponse;
-      const paymentUrl = data?.paymentUrl ?? extractPaymentUrl(json);
-
-      if (!data?.paymentLinkId || !paymentUrl) {
-        logger.error("Deluxe /paymentlinks missing fields", { json, text });
-        res.status(502).json({ error: "invalid_deluxe_response", payload: json ?? text ?? null });
-        return;
-      }
-
-      // Success log
-      logger.info("Deluxe /paymentlinks ok", {
-        status: resp.status,
-        paymentLinkId: data.paymentLinkId,
-        paymentUrlPreview: (paymentUrl || "").slice(0, 120),
+      // If we reach here, all candidates failed
+      res.status(502).json({
+        error: "deluxe_payment_failed",
+        message: "All gateway candidates failed (404 HTML or non-OK).",
+        tried: CANDIDATES,
+        lastStatus: last?.status ?? null,
       });
-
-      // 6) Persist to Firestore
-      await db.collection("orders").doc(orderId).set(
-        {
-          paymentLink: {
-            provider: "Deluxe",
-            paymentLinkId: data.paymentLinkId,
-            paymentUrl,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            expiry: "9 DAYS",
-          },
-          deluxe: {
-            linkId: data.paymentLinkId,
-            paymentUrl,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            lastEvent: "link_created",
-          },
-        },
-        { merge: true }
-      );
-
-      // 7) Return to client
-      const out: CreateDeluxePaymentResponse = {
-        provider: "Deluxe",
-        paymentUrl,
-        paymentLinkId: data.paymentLinkId,
-      };
-      res.status(200).json(out);
       return;
     } catch (err: any) {
       logger.error("createDeluxePayment failed", { error: err?.message, stack: err?.stack });
@@ -602,6 +626,8 @@ export const createDeluxePayment = onRequest(
     }
   }
 );
+
+
 
 
 // --- HTTP: Deluxe Webhook Receiver ---
