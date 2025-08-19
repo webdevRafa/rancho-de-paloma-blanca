@@ -30,6 +30,26 @@ export type CustomerInfo = {
   };
 };
 
+/** Recursively remove any fields with value `undefined`. Firestore rejects `undefined` values. */
+function pruneUndefinedDeep<T>(obj: T): T {
+  if (Array.isArray(obj)) {
+    return obj.map((v) => pruneUndefinedDeep(v)) as unknown as T;
+  }
+  if (
+    obj &&
+    typeof obj === "object" &&
+    (obj as any).constructor?.name === "Object"
+  ) {
+    const out: Record<string, any> = {};
+    for (const [k, v] of Object.entries(obj as any)) {
+      if (v === undefined) continue;
+      out[k] = pruneUndefinedDeep(v as any);
+    }
+    return out as unknown as T;
+  }
+  return obj;
+}
+
 export type SeasonConfig = {
   /** inclusive ISO yyyy-mm-dd start of the season */
   seasonStart: string;
@@ -516,7 +536,7 @@ export default function CheckoutPage() {
     // Build up a base OrderDoc. We always include createdAt on initial
     // creation and updatedAt on subsequent updates to aid sorting in the
     // dashboard.
-    const base: OrderDoc = {
+    let base: OrderDoc = {
       userId: user?.uid || "anon",
       status: "pending",
       total: amount,
@@ -565,6 +585,7 @@ export default function CheckoutPage() {
         },
       },
     };
+    base = pruneUndefinedDeep(base);
     if (!snap.exists()) {
       await setDoc(ref, base, { merge: true });
     } else {
@@ -659,11 +680,22 @@ export default function CheckoutPage() {
         const txt = await jwtResp.text();
         throw new Error(`JWT error ${jwtResp.status}: ${txt}`);
       }
-      const { jwt } = await jwtResp.json();
+      const jwtJson = await jwtResp.json();
+      const { jwt, embeddedBase } = jwtJson as {
+        jwt: string;
+        embeddedBase?: string;
+      };
       if (!jwt) throw new Error("JWT missing from response");
 
-      // (4) Load the Deluxe SDK script corresponding to the environment.
-      await loadDeluxeSdk();
+      // (4) Load the Deluxe SDK script corresponding to the environment. Use
+      // the embeddedBase returned by our backend when available to force
+      // sandbox or production mode. Passing a src to loadDeluxeSdk ensures
+      // consistency regardless of hostname. If embeddedBase is undefined
+      // (for backward compatibility), fall back to auto-detection.
+      const scriptSrc = embeddedBase
+        ? `${embeddedBase}/embedded/javascripts/deluxe.js`
+        : undefined;
+      await loadDeluxeSdk(scriptSrc);
       setSdkReady(true);
 
       // (5) Initialize the payment instance. The configuration includes

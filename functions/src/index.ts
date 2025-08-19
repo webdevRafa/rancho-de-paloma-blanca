@@ -336,7 +336,17 @@ app.post("/api/createEmbeddedJwt", async (req, res) => {
       .digest("base64url");
 
     const token = `${signingInput}.${signature}`;
-    res.json({ jwt: token, exp });
+    // Expose the environment and base domain used for Embedded SDK. This helps
+    // the frontend load the correct Deluxe SDK (sandbox vs production) when
+    // rendering payments. Without this, the client may default to the
+    // production script based on hostname, which can lead to 404 errors in
+    // sandbox testing.
+    res.json({
+      jwt: token,
+      exp,
+      embeddedBase: embeddedBase(),
+      env: useSandbox() ? "sandbox" : "production",
+    });
   } catch (err: any) {
     logger.error("createEmbeddedJwt error", err);
     res.status(500).json({ error: "jwt-failed", message: err?.message || String(err) });
