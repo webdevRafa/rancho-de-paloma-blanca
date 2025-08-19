@@ -1,131 +1,112 @@
-// functions/src/index.ts
 /**
- * Rancho de Paloma Blanca — Cloud Functions v2 (Node 22)
- * INDEX.TS V3.1 — Deluxe Payment Links (Sandbox) — NO node-fetch
+ * Rancho de Paloma Blanca — Cloud Functions (Node 22, Functions v2)
+ * Embedded Payments + Hosted Links + Refunds + Webhook
  *
- * This version uses the global `fetch` available in Node 18+ / 22 runtimes.
- * No import of "node-fetch" is required.
+ * Endpoints (mounted under /api):
+ *   GET  /api/health
+ *   GET  /api/getEmbeddedMerchantStatus
+ *   POST /api/createEmbeddedJwt
+ *   POST /api/createDeluxePayment
+ *   POST /api/refundDeluxePayment
+ *   POST /api/deluxe/webhook
  *
- * Endpoints:
- *   OAuth (sandbox):  https://sandbox.api.deluxe.com/secservices/oauth2/v2/token
- *   Gateway base:     https://sandbox.api.deluxe.com/dpp/v1/gateway
- *   Payment Links:    https://sandbox.api.deluxe.com/dpp/v1/gateway/paymentlinks
+ * Requirements:
+ *   - Firebase project secrets (set via `firebase functions:secrets:set`):
+ *       DELUXE_CLIENT_ID           (OAuth client id)            // for hosted links & gateway
+ *       DELUXE_CLIENT_SECRET       (OAuth client secret)        // for hosted links & gateway
+ *       DELUXE_MID                 (Merchant ID / MID GUID)     // informational
+ *       DELUXE_ACCESS_TOKEN        (PartnerToken GUID)          // header: PartnerToken
+ *       DELUXE_EMBEDDED_SECRET     (HS256 secret for JWT)       // embedded payments JWT signing
  *
- * Functions provided (unchanged list):
- *  - createDeluxePayment
- *  - deluxeWebhook
- *  - getDeluxePaymentStatus
- *  - cancelDeluxePayment
- *  - apiHealth
+ *   - Optional env var to switch sandbox/production:
+ *       process.env.DELUXE_USE_SANDBOX = "true" | "false" (default "true")
+ *
+ * Notes:
+ *   - Uses global `fetch` (Node 22). Do NOT import node-fetch.
+ *   - All Deluxe **gateway** calls use https://sandbox.api.deluxe.com or https://api.deluxe.com
+ *   - Deluxe **embedded SDK & merchant status** live on https://payments2.deluxe.com or https://payments.deluxe.com
  */
 
-// NOTE: Do NOT import "node-fetch" — we rely on global fetch in Node 22.
-// import fetch from "node-fetch";
-
 import * as admin from "firebase-admin";
-import { onRequest } from "firebase-functions/v2/https";
+import express from "express";
+import cors from "cors";
+import crypto from "crypto";
+
 import { setGlobalOptions, logger } from "firebase-functions/v2";
+import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 
-// ------------------------- Firebase Admin -------------------------
-admin.initializeApp();
+// ---- Firebase init ----
+try {
+  admin.app();
+} catch {
+  admin.initializeApp();
+}
 const db = admin.firestore();
 
-// ------------------------- Global Options -------------------------
 setGlobalOptions({
   region: "us-central1",
   memory: "512MiB",
   timeoutSeconds: 60,
-  maxInstances: 10,
 });
 
-// ------------------------- Secrets -------------------------
-export const DELUXE_ACCESS_TOKEN = defineSecret("DELUXE_ACCESS_TOKEN"); // PartnerToken (merchant UUID)
-export const DELUXE_MID = defineSecret("DELUXE_MID");                   // optional
-export const DELUXE_SANDBOX_CLIENT_ID = defineSecret("DELUXE_SANDBOX_CLIENT_ID");
-export const DELUXE_SANDBOX_CLIENT_SECRET = defineSecret("DELUXE_SANDBOX_CLIENT_SECRET");
+// ---- Secrets ----
+const DELUXE_CLIENT_ID = defineSecret("DELUXE_CLIENT_ID");
+const DELUXE_CLIENT_SECRET = defineSecret("DELUXE_CLIENT_SECRET");
+const DELUXE_ACCESS_TOKEN = defineSecret("DELUXE_ACCESS_TOKEN"); // PartnerToken header value
+const DELUXE_MID = defineSecret("DELUXE_MID");                   // informational
+const DELUXE_EMBEDDED_SECRET = defineSecret("DELUXE_EMBEDDED_SECRET"); // HS256 signing secret
 
-// ------------------------- Deluxe Constants -------------------------
-const OAUTH_HOST = "https://sandbox.api.deluxe.com";
-const OAUTH_PATH = "/secservices/oauth2/v2/token";
-const OAUTH_URL = `${OAUTH_HOST}${OAUTH_PATH}`;
-
-// Sandbox gateway base confirmed for Rafael
-const GATEWAY_BASE = "https://sandbox.api.deluxe.com/dpp/v1/gateway";
-
-// A very lightweight wrapper to ensure TS doesn't complain if DOM lib isn't present
-const fetchFn = (...args: any[]) => (globalThis as any).fetch(...(args as any));
-
-// ------------------------- Types (minimal) -------------------------
-type OrderStatus = "pending" | "paid" | "cancelled";
-type DppCurrency = "USD" | "CAD";
-type DppDeliveryMethod = "ReturnOnly" | "Email" | "Sms" | string;
-
-interface BillingAddress {
-  line1?: string;
-  line2?: string;
-  city?: string;
-  state?: string;
-  postalCode?: string;
-  country?: string;
+// ---- Hosts ----
+function useSandbox(): boolean {
+  const flag = (process.env.DELUXE_USE_SANDBOX ?? "true").toLowerCase();
+  return flag !== "false"; // default true
+}
+function gatewayBase(): string {
+  return useSandbox()
+    ? "https://sandbox.api.deluxe.com"
+    : "https://api.deluxe.com";
+}
+function embeddedBase(): string {
+  return useSandbox()
+    ? "https://payments2.deluxe.com"
+    : "https://payments.deluxe.com";
 }
 
-interface OrderCustomer {
-  firstName: string;
-  lastName: string;
-  email?: string;
-  phone?: string;
-  billingAddress?: BillingAddress;
+// ---- Helpers ----
+
+// OAuth bearer for gateway endpoints (paymentlinks/refunds/etc.)
+async function getGatewayBearer(): Promise<string> {
+  const tokenUrl = `${gatewayBase()}/secservices/oauth2/v2/token`;
+  const params = new URLSearchParams({
+    grant_type: "client_credentials",
+  });
+
+  const resp = await fetch(tokenUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/json",
+      Authorization:
+        "Basic " +
+        Buffer.from(
+          `${DELUXE_CLIENT_ID.value()}:${DELUXE_CLIENT_SECRET.value()}`
+        ).toString("base64"),
+    },
+    body: params.toString(),
+  });
+
+  if (!resp.ok) {
+    const t = await resp.text().catch(() => "");
+    throw new Error(`OAuth failed (${resp.status}): ${t || resp.statusText}`);
+  }
+  const json = (await resp.json()) as { access_token?: string };
+  if (!json.access_token) throw new Error("OAuth: missing access_token");
+  return json.access_token as string;
 }
 
-interface Level3Item {
-  skuCode?: string;
-  quantity: number;
-  price: number; // per unit, whole currency units, NOT cents
-  description?: string;
-  unitOfMeasure?: string;
-  itemDiscountAmount?: number;
-  itemDiscountRate?: number;
-}
-
-interface Order {
-  id?: string;
-  userId: string;
-  status: OrderStatus;
-  total: number;
-  currency?: DppCurrency;
-  createdAt?: FirebaseFirestore.Timestamp;
-  booking?: any;
-  merchItems?: Record<string, any>;
-  customer?: OrderCustomer;
-  level3?: Level3Item[];
-  paymentLink?: {
-    provider: "Deluxe";
-    paymentLinkId?: string;
-    paymentUrl?: string;
-    createdAt?: any;
-    expiry?: string;
-  };
-  deluxe?: {
-    linkId?: string | null;
-    paymentId?: string | null;
-    paymentUrl?: string | null;
-    createdAt?: any;
-    updatedAt?: any;
-    lastEvent?: any;
-  };
-}
-
-interface DppAmount {
-  amount: number;     // whole currency units (e.g., 200 = $200.00)
-  currency: DppCurrency;
-}
-
-interface DppOrderData {
-  orderId: string;
-}
-
-interface DppLevel3Item {
+// Build Level 3 lines from order doc if available (optional)
+type Level3Item = {
   skuCode: string;
   quantity: number;
   price: number;
@@ -133,499 +114,415 @@ interface DppLevel3Item {
   unitOfMeasure?: string;
   itemDiscountAmount?: number;
   itemDiscountRate?: number;
-}
+};
 
-interface DppCustomDataItem {
-  name: string;
-  value: string;
-}
-
-interface DppPaymentLinkRequest {
-  amount: DppAmount;
-  firstName: string;
-  lastName: string;
-  orderData: DppOrderData;
-  paymentLinkExpiry: string;
-  acceptPaymentMethod: Array<"Card" | "ACH">;
-  deliveryMethod: DppDeliveryMethod;
-
-  // Optional:
-  level3?: DppLevel3Item[];
-  customData?: DppCustomDataItem[];
-  acceptBillingAddress?: boolean;
-  requiredBillingAddress?: boolean;
-  acceptPhone?: boolean;
-  requiredPhone?: boolean;
-  confirmationMessage?: string;
-}
-
-interface DppPaymentLinkResponse {
-  paymentLinkId: string;
-  paymentUrl: string;
-}
-
-
-// ------------------------- Utilities -------------------------
-const CORS_ALLOW_ORIGIN = "*";
-function applyCors(req: any, res: any): boolean {
-  res.set("Access-Control-Allow-Origin", CORS_ALLOW_ORIGIN);
-  res.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  if (req.method === "OPTIONS") {
-    res.status(204).send("");
-    return true;
-  }
-  return false;
-}
-
-async function safeParse(resp: any): Promise<{ json: any | null; text: string | null }> {
-  const ct = resp?.headers?.get?.("content-type") || "";
-  let text: string | null = null;
-  try {
-    if (ct.includes("application/json")) {
-      const json = await resp.json();
-      return { json, text: null };
-    }
-    text = await resp.text();
-  } catch {
-    // ignore
-  }
-  let json: any = null;
-  try {
-    if (text) json = JSON.parse(text);
-  } catch {
-    // ignore
-  }
-  return { json, text };
-}
-
-type TokenCache = { token: string; exp: number };
-let tokenCache: TokenCache | null = null;
-
-async function getBearerToken(clientId: string, clientSecret: string): Promise<string> {
-  const now = Date.now();
-  if (tokenCache && now < tokenCache.exp) return tokenCache.token;
-
-  const basic = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
-  const body = new URLSearchParams({ grant_type: "client_credentials" });
-
-  const resp = await fetchFn(OAUTH_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${basic}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-      Accept: "application/json",
-    },
-    body,
-  });
-
-  const raw = await safeParse(resp);
-  if (!resp.ok) {
-    logger.error("Deluxe OAuth failed", { status: resp.status, ...raw });
-    throw new Error(`OAuth failed (${resp.status})`);
-  }
-
-  const token = (raw.json?.access_token || raw.json?.accessToken || "").toString();
-  const ttl = Number(raw.json?.expires_in ?? 3600);
-  tokenCache = { token, exp: now + (ttl - 60) * 1000 }; // refresh 60s early
-  return token;
-}
-
-function currencyFromOrder(order: Order): DppCurrency {
-  return (order.currency as DppCurrency) || "USD";
-}
-
-function amountFromOrder(order: Order): DppAmount {
-  return {
-    amount: Number(order.total || 0), // whole units (NOT cents)
-    currency: currencyFromOrder(order),
+// Minimal shape of our Order document
+type OrderDoc = {
+  id?: string;
+  userId?: string;
+  status?: "pending" | "paid" | "cancelled";
+  total: number;
+  currency?: "USD" | "CAD";
+  createdAt?: admin.firestore.Timestamp;
+  // optional structured line items (preferred for Level3)
+  level3?: Level3Item[];
+  // optional customer snapshot
+  customer?: {
+    firstName?: string;
+    lastName?: string;
+    name?: string;
+    email?: string;
+    phone?: string;
+    billingAddress?: {
+      address?: string;
+      city?: string;
+      state?: string;
+      zipCode?: string;
+      countryCode?: string;
+    };
   };
+  // optional booking info to increment capacity post‑payment
+  booking?: {
+    dates: string[]; // YYYY-MM-DD
+    numberOfHunters: number;
+    partyDeckDates?: string[];
+  };
+  // optional merch map (not required here)
+  merchItems?: Record<
+    string,
+    { skuCode?: string; name?: string; price?: number; quantity?: number }
+  >;
+  // Deluxe metadata
+  paymentLink?: {
+    paymentLinkId?: string;
+    paymentUrl?: string;
+    lastAttempt?: admin.firestore.FieldValue | number | Date | null;
+  };
+  deluxe?: Record<string, unknown>;
+};
+
+function splitName(name?: string): { firstName: string; lastName: string } {
+  if (!name?.trim()) return { firstName: "Guest", lastName: "User" };
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return { firstName: parts[0], lastName: "Customer" };
+  return { firstName: parts.slice(0, -1).join(" "), lastName: parts.at(-1)! };
 }
 
-function nameFromOrder(order: Order): { firstName: string; lastName: string } {
-  const cust = order.customer;
-  if (cust?.firstName && cust?.lastName) return { firstName: cust.firstName, lastName: cust.lastName };
-  const full = (order.booking?.name as string) || "";
-  const parts = full.trim().split(/\s+/);
-  const firstName = parts[0] || "Guest";
-  const lastName = parts.slice(1).join(" ") || "Customer";
-  return { firstName, lastName };
+// Build Payment Links request body
+function buildPaymentLinkBody(order: OrderDoc, opts: {
+  orderId: string;
+  successUrl?: string;
+  cancelUrl?: string;
+}) {
+  const currency = order.currency ?? "USD";
+  const amount = order.total;
+  const { firstName, lastName } =
+    (order.customer?.firstName || order.customer?.lastName)
+      ? { firstName: order.customer?.firstName ?? "Guest", lastName: order.customer?.lastName ?? "User" }
+      : splitName(order.customer?.name);
+
+  const body: any = {
+    amount: { amount, currency },
+    firstName,
+    lastName,
+    orderData: { orderId: opts.orderId },
+    paymentLinkExpiry: "9 DAYS",
+    acceptPaymentMethod: ["Card"],
+    deliveryMethod: "ReturnOnly",
+  };
+
+  if (order.level3 && Array.isArray(order.level3) && order.level3.length) {
+    body.level3 = order.level3;
+  }
+
+  const customData: { name: string; value: string }[] = [];
+  if (opts.successUrl) customData.push({ name: "successUrl", value: String(opts.successUrl) });
+  if (opts.cancelUrl) customData.push({ name: "cancelUrl", value: String(opts.cancelUrl) });
+  if (order.customer?.email) customData.push({ name: "email", value: String(order.customer.email) });
+  if (customData.length) body.customData = customData;
+
+  return body;
 }
 
-function level3FromOrder(order: Order): DppLevel3Item[] | undefined {
-  if (!order.level3 || order.level3.length === 0) return undefined;
-  // Filter to only valid lines for Deluxe schema
-  return order.level3
-    .filter((l) => typeof l.quantity === "number" && typeof l.price === "number" && l.quantity > 0 && l.price >= 0)
-    .map((l) => ({
-      skuCode: l.skuCode || "LINE",
-      quantity: l.quantity,
-      price: l.price,
-      description: l.description,
-      unitOfMeasure: l.unitOfMeasure,
-      itemDiscountAmount: l.itemDiscountAmount,
-      itemDiscountRate: l.itemDiscountRate,
-    }));
+// Increment capacity after payment (webhook)
+async function incrementCapacityFromOrder(order: OrderDoc) {
+  const booking = order.booking;
+  if (!booking?.dates?.length || !booking.numberOfHunters) return;
+  const n = booking.numberOfHunters;
+  const batch = db.batch();
+  for (const date of booking.dates) {
+    const ref = db.collection("availability").doc(date);
+    batch.set(
+      ref,
+      {
+        huntersBooked: admin.firestore.FieldValue.increment(n),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+  }
+  await batch.commit();
 }
 
-async function getOrder(orderId: string): Promise<Order & { id: string }> {
-  const ref = db.collection("orders").doc(orderId);
-  const snap = await ref.get();
-  if (!snap.exists) throw new Error(`Order ${orderId} not found`);
-  return { id: snap.id, ...(snap.data() as Order) };
-}
+// ---- Express App ----
+const app = express();
+app.use(cors({ origin: true }));
+app.use(express.json());
 
-function extractPaymentUrl(obj: any): string | undefined {
-  return (
-    obj?.paymentUrl ||
-    obj?.url ||
-    obj?.link ||
-    obj?.redirectUrl ||
-    obj?.checkoutUrl ||
-    obj?.data?.paymentUrl ||
-    obj?.data?.url ||
-    obj?.data?.link
-  );
-}
+// Health
+app.get("/api/health", (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({ status: "ok" });
+});
 
-// ------------------------- createDeluxePayment -------------------------
-export const createDeluxePayment = onRequest(
-  {
-    secrets: [DELUXE_ACCESS_TOKEN, DELUXE_MID, DELUXE_SANDBOX_CLIENT_ID, DELUXE_SANDBOX_CLIENT_SECRET],
-  },
-  async (req, res) => {
-    if (applyCors(req, res)) return;
-    if (req.method !== "POST") {
-      res.status(405).json({ error: "Method not allowed" });
+// Merchant status (ACH enabled?)
+app.get("/api/getEmbeddedMerchantStatus", async (_req, res) => {
+  try {
+    const bearer = await getGatewayBearer();
+    const url = `${gatewayBase()}/dpp/v1/gateway/merchants/paymentmethods`;
+    const r = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${bearer}`,
+        PartnerToken: DELUXE_ACCESS_TOKEN.value(),
+        Accept: "application/json",
+      },
+    });
+    if (!r.ok) {
+      const t = await r.text().catch(() => "");
+      throw new Error(`paymentmethods failed (${r.status}): ${t || r.statusText}`);
+    }
+    const json = await r.json();
+    // Expect array like ["cc", "ach", "applePay", ...]
+    const methods: string[] = Array.isArray(json?.paymentMethods)
+      ? json.paymentMethods
+      : Array.isArray(json) ? json : [];
+    const achEnabled = methods.includes("ach");
+    res.json({ achEnabled, methods });
+  } catch (err: any) {
+    logger.error("getEmbeddedMerchantStatus error", err);
+    // Default safe fallback: cards only
+    res.json({ achEnabled: false, methods: ["cc"] });
+  }
+});
+
+
+// Embedded: create short-lived JWT for Deluxe SDK
+app.post("/api/createEmbeddedJwt", async (req, res) => {
+  try {
+    const { amount, currency = "USD", orderId, customer, products, summary } =
+      (req.body || {}) as {
+        amount: number;
+        currency?: "USD" | "CAD";
+        orderId?: string;
+        customer?: any;
+        products?: any[];
+        summary?: { hide?: boolean; hideTotals?: boolean };
+      };
+
+    if (typeof amount !== "number" || amount <= 0) {
+      res.status(400).json({ error: "invalid-amount" });
       return;
     }
 
-    try {
-      const { orderId, successUrl, cancelUrl } = (req.body || {}) as {
-        orderId?: string;
-        successUrl?: string;
-        cancelUrl?: string;
-      };
-      if (!orderId) {
-        res.status(400).json({ error: "Missing orderId" });
-        return;
+    // If an orderId is supplied, verify it exists and prefer its total for the JWT amount.
+    let finalAmount = amount;
+    let verifiedOrder: OrderDoc | null = null;
+    if (orderId) {
+      try {
+        const ref = db.collection("orders").doc(String(orderId));
+        const snap = await ref.get();
+        if (snap.exists) {
+          verifiedOrder = { id: snap.id, ...(snap.data() as OrderDoc) };
+          if (typeof verifiedOrder.total === "number" && verifiedOrder.total > 0) {
+            finalAmount = verifiedOrder.total;
+          }
+        } else {
+          logger.warn("createEmbeddedJwt: orderId provided but not found", { orderId });
+        }
+      } catch (e) {
+        logger.warn("createEmbeddedJwt: order lookup failed", { orderId, err: String(e) });
       }
+    }
 
-      // 1) Load order
-      const order = await getOrder(orderId);
-      const amount = amountFromOrder(order);
-      const { firstName, lastName } = nameFromOrder(order);
-      const level3 = level3FromOrder(order);
+    const now = Math.floor(Date.now() / 1000);
+    const exp = now + 10 * 60; // 10 minutes
 
-      // 2) OAuth bearer + PartnerToken header
-      const clientId = DELUXE_SANDBOX_CLIENT_ID.value();
-      const clientSecret = DELUXE_SANDBOX_CLIENT_SECRET.value();
-      const partnerToken = DELUXE_ACCESS_TOKEN.value() || DELUXE_MID.value();
-      if (!clientId || !clientSecret || !partnerToken) {
-        res.status(500).json({ error: "Missing Deluxe credentials" });
-        return;
-      }
-      const bearer = await getBearerToken(clientId, clientSecret);
+    const payload: Record<string, any> = {
+      iss: "RDPB-Functions",
+      iat: now,
+      exp,
+      // Required by Deluxe Embedded SDK
+      accessToken: DELUXE_ACCESS_TOKEN.value(), // Partner GUID
+      amount: finalAmount,                       // whole currency units
+      currency,
+      // Optional values surfaced in the panel (when supported)
+      customer,
+      products,
+      summary,
+      // Helpful context for reconciliation
+      orderId: orderId ?? verifiedOrder?.id ?? null,
+      env: useSandbox() ? "sandbox" : "production",
+      embeddedBase: embeddedBase(),
+    };
 
-      // 3) Build Payment Link request (ReturnOnly so we get URL back)
-      const body: DppPaymentLinkRequest = {
-        amount,
-        firstName,
-        lastName,
-        orderData: { orderId: order.id! },
-        paymentLinkExpiry: "9 DAYS",
-        acceptPaymentMethod: ["Card"],
-        deliveryMethod: "ReturnOnly",
-        ...(level3 ? { level3 } : {}),
-        ...(successUrl || cancelUrl
-          ? {
-              customData: [
-                ...(successUrl ? [{ name: "successUrl", value: successUrl }] : []),
-                ...(cancelUrl ? [{ name: "cancelUrl", value: cancelUrl }] : []),
-              ],
-            }
-          : {}),
-      };
+    const header = { alg: "HS256", typ: "JWT" };
+    const base64url = (obj: object) =>
+      Buffer.from(JSON.stringify(obj)).toString("base64url");
 
-      const url = `${GATEWAY_BASE}/paymentlinks`;
-      const headers = {
+    const signingInput = `${base64url(header)}.${base64url(payload)}`;
+    const signature = crypto
+      .createHmac("sha256", DELUXE_EMBEDDED_SECRET.value())
+      .update(signingInput)
+      .digest("base64url");
+
+    const token = `${signingInput}.${signature}`;
+    res.json({ jwt: token, exp });
+  } catch (err: any) {
+    logger.error("createEmbeddedJwt error", err);
+    res.status(500).json({ error: "jwt-failed", message: err?.message || String(err) });
+  }
+});
+
+// Hosted Links: create a payment link as fallback
+app.post("/api/createDeluxePayment", async (req, res) => {
+  try {
+    const { orderId, successUrl, cancelUrl } = req.body || {};
+    if (!orderId) {
+      res.status(400).json({ error: "Missing orderId" });
+      return;
+    }
+
+    const orderRef = db.collection("orders").doc(String(orderId));
+    const snap = await orderRef.get();
+    if (!snap.exists) {
+      res.status(404).json({ error: "Order not found" });
+      return;
+    }
+    const order = { id: snap.id, ...(snap.data() as OrderDoc) };
+
+    const bearer = await getGatewayBearer();
+    const body = buildPaymentLinkBody(order, { orderId: snap.id, successUrl, cancelUrl });
+
+    const url = `${gatewayBase()}/dpp/v1/gateway/paymentlinks`;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: {
         Authorization: `Bearer ${bearer}`,
-        PartnerToken: partnerToken as string,
+        PartnerToken: DELUXE_ACCESS_TOKEN.value(),
         "Content-Type": "application/json",
         Accept: "application/json",
-      } as Record<string, string>;
+      },
+      body: JSON.stringify(body),
+    });
 
-      logger.info("Calling Deluxe /paymentlinks (SANDBOX, no node-fetch)", {
-        url,
-        preview: { orderId: order.id, amount: amount.amount, currency: amount.currency },
-      });
+    const text = await resp.text();
+    let json: any = {};
+    try { json = text ? JSON.parse(text) : {}; } catch { /* non-JSON error body */ }
 
-      const resp = await fetchFn(url, { method: "POST", headers, body: JSON.stringify(body) });
-      const parsed = await safeParse(resp);
-
-      if (!resp.ok) {
-        // Distinguish a routing 404 HTML (often wrong path/host)
-        if (resp.status === 404 && typeof parsed.text === "string" && parsed.text.includes("<html")) {
-          logger.error("Deluxe /paymentlinks returned HTML 404 — check path/host", {
-            status: resp.status,
-            textPreview: parsed.text.slice(0, 300),
-          });
-        } else {
-          logger.error("Deluxe /paymentlinks failed", { status: resp.status, ...parsed });
-        }
-        res.status(502).json({ error: "Deluxe payment link failed", status: resp.status, details: parsed });
-        return;
-      }
-
-      const data = parsed.json as DppPaymentLinkResponse;
-      const paymentUrl = extractPaymentUrl(data);
-      if (!paymentUrl) {
-        logger.error("Deluxe /paymentlinks OK but no paymentUrl in response", { data });
-        res.status(502).json({ error: "Missing paymentUrl in Deluxe response" });
-        return;
-      }
-
-      // 4) Persist link refs on the order (non-blocking if desired)
-      try {
-        const ref = db.collection("orders").doc(order.id!);
-        await ref.set(
-          {
-            paymentLink: {
-              provider: "Deluxe",
-              paymentLinkId: (data as any).paymentLinkId || null,
-              paymentUrl,
-              createdAt: admin.firestore.FieldValue.serverTimestamp(),
-              expiry: "9 DAYS",
-            },
-            deluxe: {
-              linkId: (data as any).paymentLinkId || null,
-              paymentUrl,
-              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            },
-          },
-          { merge: true }
-        );
-      } catch (err: any) {
-        logger.warn("Failed to persist paymentLink info to Firestore (continuing)", { error: err?.message });
-      }
-
-      res.status(200).json({
-        provider: "Deluxe",
-        paymentUrl,
-        paymentLinkId: (data as any).paymentLinkId,
-      });
-    } catch (err: any) {
-      logger.error("createDeluxePayment error", { error: err?.message, stack: err?.stack });
-      res.status(500).json({ error: "Internal error creating Deluxe payment link" });
+    if (!resp.ok) {
+      logger.error("paymentlinks failed", { status: resp.status, body: text });
+      res.status(resp.status).json({ error: "paymentlinks-failed", status: resp.status, body: json || text });
+      return;
     }
+
+    const paymentUrl: string | undefined = json?.paymentUrl;
+    const paymentLinkId: string | undefined = json?.paymentLinkId;
+    if (!paymentUrl) {
+      res.status(502).json({ error: "No paymentUrl in response", response: json });
+      return;
+    }
+
+    await orderRef.set(
+      {
+        paymentLink: {
+          paymentLinkId,
+          paymentUrl,
+          lastAttempt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        deluxe: {
+          lastPaymentLinkRequest: body,
+          lastPaymentLinkResponse: json,
+        },
+      },
+      { merge: true }
+    );
+
+    res.json({ paymentUrl, paymentLinkId });
+  } catch (err: any) {
+    logger.error("createDeluxePayment error", err);
+    res.status(500).json({ error: "createDeluxePayment-failed", message: err?.message || String(err) });
   }
-);
+});
 
-// ------------------------- deluxeWebhook -------------------------
-export const deluxeWebhook = onRequest(
-  {
-    secrets: [DELUXE_ACCESS_TOKEN, DELUXE_MID],
-  },
-  async (req, res) => {
-    if (req.method === "GET") {
-      res.status(200).send("ok");
+// Refunds (compliance): POST /refunds
+// Body: { amount, currency?, paymentId?, transactionId?, reason? }
+app.post("/api/refundDeluxePayment", async (req, res) => {
+  try {
+    const { amount, currency = "USD", paymentId, transactionId, reason } =
+      (req.body || {}) as {
+        amount?: number;
+        currency?: "USD" | "CAD";
+        paymentId?: string;
+        transactionId?: string; // aka originalTransactionId
+        reason?: string;
+      };
+
+    if (!amount || amount <= 0) {
+      res.status(400).json({ error: "invalid-amount" });
       return;
     }
-    if (req.method !== "POST") {
-      res.status(405).json({ error: "Method not allowed" });
+    if (!paymentId && !transactionId) {
+      res.status(400).json({ error: "paymentId-or-transactionId-required" });
       return;
     }
 
-    try {
-      const event = req.body || {};
-      const type = event?.type || event?.eventType || event?.name || "unknown";
-      const orderId =
-        event?.orderId ||
-        event?.data?.orderId ||
-        event?.order?.id ||
-        event?.metadata?.orderId ||
-        event?.customData?.orderId ||
-        null;
+    const bearer = await getGatewayBearer();
+    const url = `${gatewayBase()}/dpp/v1/gateway/refunds`;
+    const body: any = {
+      amount: { amount, currency },
+    };
+    if (paymentId) body.paymentId = paymentId;
+    if (transactionId) body.originalTransactionId = transactionId;
+    if (reason) body.reason = reason;
 
-      const paymentId =
-        event?.paymentId ||
-        event?.data?.paymentId ||
-        event?.id ||
-        event?.transactionId ||
-        null;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${bearer}`,
+        PartnerToken: DELUXE_ACCESS_TOKEN.value(),
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(body),
+    });
 
-      const status =
-        event?.status || event?.data?.status || event?.transactionStatus || event?.paymentStatus || "unknown";
+    const text = await resp.text();
+    let json: any = {};
+    try { json = text ? JSON.parse(text) : {}; } catch {}
 
-      logger.info("deluxeWebhook received", { type, orderId, paymentId, status });
+    if (!resp.ok) {
+      logger.error("refunds failed", { status: resp.status, body: text });
+      res.status(resp.status).json({ error: "refunds-failed", status: resp.status, body: json || text });
+      return;
+    }
 
-      if (!orderId) {
-        logger.warn("Webhook without resolvable orderId");
-        res.status(200).json({ ok: true }); // avoid retries if they don't send orderId
-        return;
-      }
+    res.json(json);
+  } catch (err: any) {
+    logger.error("refundDeluxePayment error", err);
+    res.status(500).json({ error: "refund-failed", message: err?.message || String(err) });
+  }
+});
 
-      const ref = db.collection("orders").doc(String(orderId));
+// Webhook: mark orders paid & increment capacity
+app.post("/api/deluxe/webhook", async (req, res) => {
+  try {
+    const evt = req.body || {};
+    // Expected (varies by Deluxe configuration); we look for an orderId reference
+    const orderId: string | undefined =
+      evt?.orderData?.orderId ||
+      evt?.customData?.find?.((x: any) => x?.name === "orderId")?.value;
+
+    const status: string | undefined = evt?.status || evt?.transactionStatus || evt?.paymentStatus;
+    const approved = typeof status === "string" && /approved|captured|paid/i.test(status);
+
+    if (orderId && approved) {
+      const ref = db.collection("orders").doc(orderId);
       const snap = await ref.get();
-      if (!snap.exists) {
-        logger.warn("Webhook refers to unknown order", { orderId });
-        res.status(200).json({ ok: true });
-        return;
-      }
-
-      // Simple success heuristic — refine with exact enums once provided
-      const lowered = String(status).toLowerCase();
-      const succeeded = lowered.includes("approved") || lowered.includes("success");
-
-      if (succeeded) {
+      if (snap.exists) {
+        const order = { id: snap.id, ...(snap.data() as OrderDoc) };
         await ref.set(
           {
             status: "paid",
             deluxe: {
-              paymentId: paymentId || null,
-              lastEvent: event,
-              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              lastWebhook: evt,
             },
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           },
           { merge: true }
         );
-        // TODO: increment per-day capacity here when you finalize field names.
-      } else if (lowered.includes("void") || lowered.includes("refund")) {
-        await ref.set(
-          {
-            status: "cancelled",
-            deluxe: {
-              paymentId: paymentId || null,
-              lastEvent: event,
-              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            },
-          },
-          { merge: true }
-        );
-        // TODO: roll back capacity if appropriate
-      } else {
-        // Just store the event for visibility
-        await ref.set(
-          {
-            deluxe: {
-              paymentId: paymentId || null,
-              lastEvent: event,
-              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            },
-          },
-          { merge: true }
-        );
+        await incrementCapacityFromOrder(order);
       }
-
-      res.status(200).json({ ok: true });
-    } catch (err: any) {
-      logger.error("deluxeWebhook error", { error: err?.message });
-      res.status(200).json({ ok: true }); // reply 200 to avoid retries until schema is locked down
+    } else {
+      logger.warn("Webhook received without resolvable orderId or unpaid status", { orderId, status });
     }
+
+    res.json({ ok: true });
+  } catch (err: any) {
+    logger.error("webhook error", err);
+    res.status(200).json({ ok: false }); // avoid retries storm; inspect logs
   }
-);
-
-// ------------------------- getDeluxePaymentStatus -------------------------
-export const getDeluxePaymentStatus = onRequest(
-  {
-    secrets: [DELUXE_ACCESS_TOKEN, DELUXE_MID, DELUXE_SANDBOX_CLIENT_ID, DELUXE_SANDBOX_CLIENT_SECRET],
-  },
-  async (req, res) => {
-    if (applyCors(req, res)) return;
-    if (req.method !== "POST") {
-      res.status(405).json({ error: "Method not allowed" });
-      return;
-    }
-
-    try {
-      const { paymentId, orderId } = (req.body || {}) as { paymentId?: string; orderId?: string };
-      if (!paymentId && !orderId) {
-        res.status(400).json({ error: "Provide paymentId or orderId" });
-        return;
-      }
-
-      const clientId = DELUXE_SANDBOX_CLIENT_ID.value();
-      const clientSecret = DELUXE_SANDBOX_CLIENT_SECRET.value();
-      const partnerToken = DELUXE_ACCESS_TOKEN.value() || DELUXE_MID.value();
-      const bearer = await getBearerToken(clientId, clientSecret);
-
-      const url = `${GATEWAY_BASE}/payments/search`;
-      const headers = {
-        Authorization: `Bearer ${bearer}`,
-        PartnerToken: partnerToken as string,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      } as Record<string, string>;
-
-      const body: Record<string, any> = {};
-      if (paymentId) body.paymentId = paymentId;
-      if (orderId) body.orderId = orderId;
-
-      const resp = await fetchFn(url, { method: "POST", headers, body: JSON.stringify(body) });
-      const parsed = await safeParse(resp);
-      if (!resp.ok) {
-        logger.error("Deluxe /payments/search failed", { status: resp.status, ...parsed });
-        res.status(resp.status).json(parsed.json || { error: parsed.text || "Unknown error" });
-        return;
-      }
-      res.status(200).json(parsed.json ?? { ok: true });
-    } catch (err: any) {
-      logger.error("getDeluxePaymentStatus error", { error: err?.message });
-      res.status(500).json({ error: "Failed to query payment status" });
-    }
-  }
-);
-
-// ------------------------- cancelDeluxePayment -------------------------
-export const cancelDeluxePayment = onRequest(
-  {
-    secrets: [DELUXE_ACCESS_TOKEN, DELUXE_MID, DELUXE_SANDBOX_CLIENT_ID, DELUXE_SANDBOX_CLIENT_SECRET],
-  },
-  async (req, res) => {
-    if (applyCors(req, res)) return;
-    if (req.method !== "POST") {
-      res.status(405).json({ error: "Method not allowed" });
-      return;
-    }
-
-    try {
-      const { paymentId } = (req.body || {}) as { paymentId?: string };
-      if (!paymentId) {
-        res.status(400).json({ error: "Missing paymentId" });
-        return;
-      }
-
-      const clientId = DELUXE_SANDBOX_CLIENT_ID.value();
-      const clientSecret = DELUXE_SANDBOX_CLIENT_SECRET.value();
-      const partnerToken = DELUXE_ACCESS_TOKEN.value() || DELUXE_MID.value();
-      const bearer = await getBearerToken(clientId, clientSecret);
-
-      const url = `${GATEWAY_BASE}/payments/cancel`;
-      const headers = {
-        Authorization: `Bearer ${bearer}`,
-        PartnerToken: partnerToken as string,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      } as Record<string, string>;
-
-      const body = { paymentId };
-
-      const resp = await fetchFn(url, { method: "POST", headers, body: JSON.stringify(body) });
-      const parsed = await safeParse(resp);
-      if (!resp.ok) {
-        logger.error("Deluxe /payments/cancel failed", { status: resp.status, ...parsed });
-        res.status(resp.status).json(parsed.json || { error: parsed.text || "Unknown error" });
-        return;
-      }
-      res.status(200).json(parsed.json ?? { ok: true });
-    } catch (err: any) {
-      logger.error("cancelDeluxePayment error", { error: err?.message });
-      res.status(500).json({ error: "Failed to cancel payment" });
-    }
-  }
-);
-
-// ------------------------- apiHealth -------------------------
-export const apiHealth = onRequest(async (_req, res) => {
-  res.status(200).send("ok");
 });
+
+// ---- Export single onRequest that proxies to Express app ----
+export const api = onRequest(
+  {
+    secrets: [
+      DELUXE_CLIENT_ID,
+      DELUXE_CLIENT_SECRET,
+      DELUXE_ACCESS_TOKEN,
+      DELUXE_MID,
+      DELUXE_EMBEDDED_SECRET,
+    ],
+  },
+  (req, res) => app(req, res)
+);
