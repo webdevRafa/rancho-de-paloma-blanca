@@ -698,10 +698,9 @@ export default function CheckoutPage() {
       await loadDeluxeSdk(scriptSrc);
       setSdkReady(true);
 
-      // (5) Initialize the payment instance. The configuration includes
-      // country/currency codes, the requested payment methods and wallet
-      // networks, and 3DS capabilities. The Google Pay environment is
-      // automatically selected based on the hostname by loadDeluxeSdk.
+      // (5) Initialize the payment instance.  Pass only the
+      // configuration options supported by Deluxe.  Google Pay
+      // environment is determined based on the hostname.
       const hostname = window.location.hostname;
       const isProd = hostname && !/^(localhost|127\.|\[::1\])/.test(hostname);
       const config = {
@@ -713,13 +712,15 @@ export default function CheckoutPage() {
         merchantCapabilities: ["supports3DS"],
         allowedCardAuthMethods: ["PAN_ONLY", "CRYPTOGRAM_3DS"],
       } as any;
-      const instance = await window.EmbeddedPayments!.init(jwt, config);
-      instanceRef.current = instance;
 
-      // (6) Register event handlers. On successful payment we update the order
-      // document with the last event then navigate to the dashboard. On
-      // cancellation or failure we surface an error to the user.
-      await instance.setEventHandlers({
+      // Deluxe's init() returns an object with a setEventHandlers() method.
+      // Call setEventHandlers() and await its promise to obtain the
+      // initialized instance.  Once resolved, assign to our ref and
+      // invoke render() on the global EmbeddedPayments object.  The
+      // instance itself does not expose a render() method per the
+      // official examples.
+      const initReturn = window.EmbeddedPayments!.init(jwt, config);
+      const instance = await initReturn.setEventHandlers({
         onTxnSuccess: async (_gateway: any, data: any) => {
           try {
             const ref = doc(db, "orders", orderId);
@@ -759,15 +760,16 @@ export default function CheckoutPage() {
           console.warn("[Deluxe] Token failed", data);
         },
       });
+      // Store the instance reference for cleanup
+      instanceRef.current = instance;
 
-      // (7) Render the payment panel. Style options are included here to
-      // demonstrate customization of the wallets section. Note that the
-      // containerId must match the DOM id defined in EMBEDDED_CONTAINER_ID.
-      instance.render({
+      // Now render the panel.  Use the global EmbeddedPayments.render() call
+      // per the Deluxe example.  Ensure option names are spelled correctly.
+      window.EmbeddedPayments!.render({
         containerId: EMBEDDED_CONTAINER_ID,
         paymentpanelstyle: "light",
         walletsbgcolor: "#000",
-        walletsborderradius: "10px",
+        walletsborderadius: "10px",
         walletspadding: "10px",
         walletsgap: "10px",
       });

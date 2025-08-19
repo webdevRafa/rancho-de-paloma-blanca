@@ -68,9 +68,7 @@ function gatewayBase(): string {
     : "https://api.deluxe.com";
 }
 function embeddedBase(): string {
-  return useSandbox()
-    ? "https://payments2.deluxe.com"
-    : "https://payments.deluxe.com";
+  return "https://payments2.deluxe.com";
 }
 
 // ---- Helpers ----
@@ -307,22 +305,28 @@ app.post("/api/createEmbeddedJwt", async (req, res) => {
     const now = Math.floor(Date.now() / 1000);
     const exp = now + 10 * 60; // 10 minutes
 
+    // Build the JWT payload for Deluxe Embedded Payments.  The payload
+    // must only include supported claims; unknown fields can lead to
+    // validation errors in the Deluxe SDK.  Do not include our internal
+    // environment hints (e.g. `env`, `embeddedBase`) directly in the
+    // payload.  Instead, expose them separately in the response (see
+    // below) so the frontend can decide which script to load.  Deluxe
+    // supports either `currency` or `currencyCode`; we use
+    // `currencyCode` here to align with their examples.
     const payload: Record<string, any> = {
       iss: "RDPB-Functions",
       iat: now,
       exp,
-      // Required by Deluxe Embedded SDK
-      accessToken: DELUXE_ACCESS_TOKEN.value(), // Partner GUID
-      amount: finalAmount,                       // whole currency units
-      currency,
-      // Optional values surfaced in the panel (when supported)
-      customer,
-      products,
-      summary,
-      // Helpful context for reconciliation
+      // Required claims
+      accessToken: DELUXE_ACCESS_TOKEN.value(),
+      amount: finalAmount,
+      currencyCode: currency,
+      // Optional claims (omit if undefined)
+      ...(customer ? { customer } : {}),
+      ...(products ? { products } : {}),
+      ...(summary ? { summary } : {}),
+      // Include orderId for reconciliation; null if not present
       orderId: orderId ?? verifiedOrder?.id ?? null,
-      env: useSandbox() ? "sandbox" : "production",
-      embeddedBase: embeddedBase(),
     };
 
     const header = { alg: "HS256", typ: "JWT" };
@@ -342,8 +346,12 @@ app.post("/api/createEmbeddedJwt", async (req, res) => {
     // production script based on hostname, which can lead to 404 errors in
     // sandbox testing.
     res.json({
+      // Signed token for the Embedded SDK
       jwt: token,
       exp,
+      // Expose environment hints outside of the JWT payload so the
+      // frontend can decide which Deluxe script to load.  These values
+      // are NOT included in the token itself.
       embeddedBase: embeddedBase(),
       env: useSandbox() ? "sandbox" : "production",
     });
