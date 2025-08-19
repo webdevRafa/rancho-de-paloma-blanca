@@ -1,30 +1,19 @@
 {
-  "functions": [
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
     {
-      "source": "functions",
-      "codebase": "default",
-      "ignore": ["node_modules", ".git", "firebase-debug.log", "firebase-debug.*.log", "*.local"],
-      "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run build"]
+      "source": "/api/(.*)",
+      "destination": "https://api-XXXXXXXX-uc.a.run.app/api/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
-  "hosting": {
-    "public": "dist",
-    "rewrites": [
-      { "source": "/api/createDeluxePayment", "function": { "functionId": "createDeluxePayment", "region": "us-central1", "codebase": "default" } },
-      { "source": "/api/deluxeWebhook",       "function": { "functionId": "deluxeWebhook",       "region": "us-central1", "codebase": "default" } },
-      { "source": "/api/getDeluxePaymentStatus","function": { "functionId": "getDeluxePaymentStatus","region": "us-central1", "codebase": "default" } },
-      { "source": "/api/cancelDeluxePayment", "function": { "functionId": "cancelDeluxePayment", "region": "us-central1", "codebase": "default" } },
-      { "source": "/api/health",              "function": { "functionId": "apiHealth",           "region": "us-central1", "codebase": "default" } },
-      { "source": "**", "destination": "/index.html" }
-    ],
-    "headers": [
-      { "source": "**/*.@(js|css|woff|woff2|png|jpg|jpeg|webp|svg)", "headers": [{ "key": "Cache-Control", "value": "public,max-age=31536000,immutable" }] },
-      { "source": "index.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }
-    ]
-  },
-  "emulators": {
-    "functions": { "port": 5001 },
-    "hosting": { "port": 5000 },
-    "ui": { "enabled": true }
-  }
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "no-store" }]
+    }
+  ]
 }
