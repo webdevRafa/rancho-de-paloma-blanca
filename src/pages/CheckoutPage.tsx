@@ -183,35 +183,48 @@ const EMBEDDED_CONTAINER_ID = "embeddedpayments";
  */
 function loadDeluxeSdk(src?: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    // If the SDK is already attached, resolve immediately.
-    if (window.EmbeddedPayments) return resolve();
+    const finish = () => {
+      const start = Date.now();
+      (function waitForGlobal() {
+        // resolve only after the SDK has attached the global
+        if ((window as any).EmbeddedPayments) return resolve();
+        if (Date.now() - start > 2000) {
+          return reject(new Error("Deluxe SDK loaded but global not found"));
+        }
+        requestAnimationFrame(waitForGlobal);
+      })();
+    };
 
-    // Determine which script URL to load if none is provided. We consider
-    // localhost, 127.x.x.x and ::1 as development hosts.
+    // global already present
+    if ((window as any).EmbeddedPayments) return resolve();
+
+    // if src provided, we must use it; else fall back to hostname heuristic
     const hostname = window.location.hostname;
     const isProd = hostname && !/^(localhost|127\.|\[::1\])/.test(hostname);
-    const defaultSrc = isProd
+    const fallback = isProd
       ? "https://payments.deluxe.com/embedded/javascripts/deluxe.js"
       : "https://payments2.deluxe.com/embedded/javascripts/deluxe.js";
-    const url = src || defaultSrc;
+    const url = src || fallback;
 
-    // If a script with the same src is already present, listen for its load/error.
+    // if the same script tag already exists, hook into it
     const existing = document.querySelector(
       `script[src="${url}"]`
     ) as HTMLScriptElement | null;
     if (existing) {
-      existing.addEventListener("load", () => resolve());
-      existing.addEventListener("error", () =>
-        reject(new Error("Failed to load Deluxe SDK"))
+      existing.addEventListener("load", finish, { once: true });
+      existing.addEventListener(
+        "error",
+        () => reject(new Error("Failed to load Deluxe SDK")),
+        { once: true }
       );
       return;
     }
-    // Otherwise create a new script element.
+
     const script = document.createElement("script");
     script.src = url;
     script.async = true;
     script.referrerPolicy = "no-referrer";
-    script.onload = () => resolve();
+    script.onload = finish;
     script.onerror = () => reject(new Error("Failed to load Deluxe SDK"));
     document.head.appendChild(script);
   });
@@ -605,7 +618,8 @@ export default function CheckoutPage() {
    */
   const startEmbeddedPayment = useCallback(async () => {
     setErrorMsg("");
-    // Basic validation: ensure minimal customer info is present
+
+    // basic validation
     if (!customer.firstName || !customer.lastName || !customer.email) {
       setErrorMsg(
         "Please complete your customer information before starting payment."
@@ -616,15 +630,13 @@ export default function CheckoutPage() {
       setErrorMsg("Amount must be greater than zero to initiate payment.");
       return;
     }
+
     setIsSubmitting(true);
     try {
-      // (1) Persist/merge the order
+      // (1) ensure/merge order
       await ensureOrder();
 
-      // (2) Determine which payment methods to request. We default to only credit
-      // card payments. If the API indicates ACH is enabled for the merchant
-      // account we include it as well. Errors in this call are logged but do
-      // not block the payment flow.
+      // (2) optional: merchant status (best-effort only)
       let paymentMethods: ("cc" | "ach")[] = ["cc"];
       try {
         const statusResp = await fetch("/api/getEmbeddedMerchantStatus");
@@ -636,10 +648,7 @@ export default function CheckoutPage() {
         console.warn("Failed to fetch merchant status", err);
       }
 
-      // (3) Request a short-lived JWT from our backend. The backend is
-      // responsible for signing the JWT using the Deluxe secret and embedding
-      // relevant order details. Should the request fail we propagate the
-      // error message.
+      // (3) get short-lived JWT from backend
       const jwtResp = await fetch("/api/createEmbeddedJwt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -680,46 +689,38 @@ export default function CheckoutPage() {
         const txt = await jwtResp.text();
         throw new Error(`JWT error ${jwtResp.status}: ${txt}`);
       }
-      const jwtJson = await jwtResp.json();
-      const { jwt, embeddedBase } = jwtJson as {
+      const { jwt, embeddedBase } = (await jwtResp.json()) as {
         jwt: string;
         embeddedBase?: string;
       };
       if (!jwt) throw new Error("JWT missing from response");
 
-      // (4) Load the Deluxe SDK script corresponding to the environment. Use
-      // the embeddedBase returned by our backend when available to force
-      // sandbox or production mode. Passing a src to loadDeluxeSdk ensures
-      // consistency regardless of hostname. If embeddedBase is undefined
-      // (for backward compatibility), fall back to auto-detection.
+      // (4) load SDK from the server-specified base (forces sandbox/production correctly)
       const scriptSrc = embeddedBase
         ? `${embeddedBase}/embedded/javascripts/deluxe.js`
         : undefined;
       await loadDeluxeSdk(scriptSrc);
+
+      const EP = (window as any).EmbeddedPayments;
+      if (!EP || typeof EP.init !== "function") {
+        throw new Error("Deluxe SDK not initialized (global missing)");
+      }
       setSdkReady(true);
 
-      // (5) Initialize the payment instance.  Pass only the
-      // configuration options supported by Deluxe.  Google Pay
-      // environment is determined based on the hostname.
-      const hostname = window.location.hostname;
-      const isProd = hostname && !/^(localhost|127\.|\[::1\])/.test(hostname);
+      // choose wallets env from embeddedBase
+      const isSandbox = (embeddedBase || "").includes("payments2.");
       const config = {
         countryCode: "US",
         currencyCode: "USD",
         paymentMethods,
         supportedNetworks: ["visa", "masterCard", "amex", "discover"],
-        googlePayEnv: isProd ? "PRODUCTION" : "TEST",
+        googlePayEnv: isSandbox ? "TEST" : "PRODUCTION",
         merchantCapabilities: ["supports3DS"],
         allowedCardAuthMethods: ["PAN_ONLY", "CRYPTOGRAM_3DS"],
       } as any;
 
-      // Deluxe's init() returns an object with a setEventHandlers() method.
-      // Call setEventHandlers() and await its promise to obtain the
-      // initialized instance.  Once resolved, assign to our ref and
-      // invoke render() on the global EmbeddedPayments object.  The
-      // instance itself does not expose a render() method per the
-      // official examples.
-      const initReturn = window.EmbeddedPayments!.init(jwt, config);
+      // (5) init, attach handlers, render
+      const initReturn = EP.init(jwt, config);
       const instance = await initReturn.setEventHandlers({
         onTxnSuccess: async (_gateway: any, data: any) => {
           try {
@@ -760,12 +761,14 @@ export default function CheckoutPage() {
           console.warn("[Deluxe] Token failed", data);
         },
       });
-      // Store the instance reference for cleanup
       instanceRef.current = instance;
 
-      // Now render the panel.  Use the global EmbeddedPayments.render() call
-      // per the Deluxe example.  Ensure option names are spelled correctly.
-      window.EmbeddedPayments!.render({
+      // make sure the container exists before rendering
+      if (!document.getElementById(EMBEDDED_CONTAINER_ID)) {
+        throw new Error(`Missing container #${EMBEDDED_CONTAINER_ID}`);
+      }
+
+      EP.render({
         containerId: EMBEDDED_CONTAINER_ID,
         paymentpanelstyle: "light",
         walletsbgcolor: "#000",
