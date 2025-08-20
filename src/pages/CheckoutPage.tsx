@@ -183,30 +183,35 @@ const EMBEDDED_CONTAINER_ID = "embeddedpayments";
  */
 function loadDeluxeSdk(src?: string): Promise<void> {
   return new Promise((resolve, reject) => {
+    const url =
+      src || "https://payments2.deluxe.com/embedded/javascripts/deluxe.js";
+
+    // Remove conflicting copies (e.g., prod vs sandbox)
+    try {
+      const all = Array.from(
+        document.querySelectorAll(
+          'script[src*="deluxe.com/embedded/javascripts/deluxe.js"]'
+        )
+      ) as HTMLScriptElement[];
+      for (const s of all) {
+        if (s.src !== url) s.parentElement?.removeChild(s);
+      }
+    } catch {}
+
     const finish = () => {
-      const start = Date.now();
-      (function waitForGlobal() {
-        // resolve only after the SDK has attached the global
+      const started = Date.now();
+      const max = 10000; // 10s
+      (function tick() {
         if ((window as any).EmbeddedPayments) return resolve();
-        if (Date.now() - start > 2000) {
+        if (Date.now() - started > max) {
           return reject(new Error("Deluxe SDK loaded but global not found"));
         }
-        requestAnimationFrame(waitForGlobal);
+        setTimeout(tick, 50);
       })();
     };
 
-    // global already present
     if ((window as any).EmbeddedPayments) return resolve();
 
-    // if src provided, we must use it; else fall back to hostname heuristic
-    const hostname = window.location.hostname;
-    const isProd = hostname && !/^(localhost|127\.|\[::1\])/.test(hostname);
-    const fallback = isProd
-      ? "https://payments.deluxe.com/embedded/javascripts/deluxe.js"
-      : "https://payments2.deluxe.com/embedded/javascripts/deluxe.js";
-    const url = src || fallback;
-
-    // if the same script tag already exists, hook into it
     const existing = document.querySelector(
       `script[src="${url}"]`
     ) as HTMLScriptElement | null;
@@ -215,7 +220,9 @@ function loadDeluxeSdk(src?: string): Promise<void> {
       existing.addEventListener(
         "error",
         () => reject(new Error("Failed to load Deluxe SDK")),
-        { once: true }
+        {
+          once: true,
+        }
       );
       return;
     }
@@ -223,7 +230,8 @@ function loadDeluxeSdk(src?: string): Promise<void> {
     const script = document.createElement("script");
     script.src = url;
     script.async = true;
-    script.referrerPolicy = "no-referrer";
+    script.defer = true;
+    script.crossOrigin = "anonymous";
     script.onload = finish;
     script.onerror = () => reject(new Error("Failed to load Deluxe SDK"));
     document.head.appendChild(script);
@@ -619,6 +627,10 @@ export default function CheckoutPage() {
   const startEmbeddedPayment = useCallback(async () => {
     setErrorMsg("");
 
+    // Wallet flags (cards are always allowed as baseline)
+    let applePayEnabled = false;
+    let googlePayEnabled = false;
+
     // basic validation
     if (!customer.firstName || !customer.lastName || !customer.email) {
       setErrorMsg(
@@ -633,26 +645,55 @@ export default function CheckoutPage() {
 
     setIsSubmitting(true);
     try {
+      // (0) clean up any previous instance before starting anew
+      try {
+        const inst = instanceRef.current;
+        if (inst?.destroy) inst.destroy();
+        else if (inst?.unmount) inst.unmount();
+        instanceRef.current = null;
+      } catch {}
+
       // (1) ensure/merge order
       await ensureOrder();
 
       // (2) optional: merchant status (best-effort only)
+      // Start with cards only; enable ACH / wallets if backend says so.
       let paymentMethods: ("cc" | "ach")[] = ["cc"];
       try {
         const statusResp = await fetch("/api/getEmbeddedMerchantStatus");
         if (statusResp.ok) {
           const status = await statusResp.json();
-          if (status?.achEnabled) paymentMethods = ["cc", "ach"];
+
+          // ACH toggles (support both shapes)
+          if (status?.achEnabled === true) paymentMethods = ["cc", "ach"];
+          if (
+            Array.isArray(status?.methods) &&
+            status.methods.includes("ach")
+          ) {
+            if (!paymentMethods.includes("ach")) paymentMethods.push("ach");
+          }
+
+          // Wallet flags (support both shapes)
+          applePayEnabled =
+            !!status?.applePayEnabled ||
+            (Array.isArray(status?.methods) &&
+              status.methods.includes("applePay"));
+          googlePayEnabled =
+            !!status?.googlePayEnabled ||
+            (Array.isArray(status?.methods) &&
+              status.methods.includes("googlePay"));
         }
       } catch (err) {
         console.warn("Failed to fetch merchant status", err);
+        // best-effort only; continue with cards baseline
       }
 
-      // (3) get short-lived JWT from backend
+      // (3) get short-lived JWT from backend (include orderId)
       const jwtResp = await fetch("/api/createEmbeddedJwt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          orderId,
           amount,
           currency: "USD",
           customer: {
@@ -686,8 +727,10 @@ export default function CheckoutPage() {
         }),
       });
       if (!jwtResp.ok) {
-        const txt = await jwtResp.text();
-        throw new Error(`JWT error ${jwtResp.status}: ${txt}`);
+        const txt = await jwtResp.text().catch(() => "");
+        throw new Error(
+          `JWT error ${jwtResp.status}: ${txt || jwtResp.statusText}`
+        );
       }
       const { jwt, embeddedBase } = (await jwtResp.json()) as {
         jwt: string;
@@ -712,11 +755,14 @@ export default function CheckoutPage() {
       const config = {
         countryCode: "US",
         currencyCode: "USD",
-        paymentMethods,
+        paymentMethods, // ["cc"] baseline, "ach" added if enabled
         supportedNetworks: ["visa", "masterCard", "amex", "discover"],
         googlePayEnv: isSandbox ? "TEST" : "PRODUCTION",
         merchantCapabilities: ["supports3DS"],
         allowedCardAuthMethods: ["PAN_ONLY", "CRYPTOGRAM_3DS"],
+        // Hide wallet buttons unless explicitly enabled
+        hideApplePayButton: !applePayEnabled,
+        hideGooglePayButton: !googlePayEnabled,
       } as any;
 
       // (5) init, attach handlers, render

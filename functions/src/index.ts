@@ -234,34 +234,59 @@ app.get("/api/health", (_req, res) => {
 });
 
 // Merchant status (ACH enabled?)
-app.get("/api/getEmbeddedMerchantStatus", async (_req, res) => {
+// Merchant status (Embedded): POST payments{2}.deluxe.com/embedded/merchantStatus with HS256 JWT
+// Merchant status (Embedded): POST payments{2}.deluxe.com/embedded/merchantStatus with HS256 JWT
+app.get("/api/getEmbeddedMerchantStatus", async (_req, res): Promise<void> => {
   try {
-    const bearer = await getGatewayBearer();
-    const url = `${gatewayBase()}/dpp/v1/gateway/merchants/paymentmethods`;
+    const now = Math.floor(Date.now() / 1000);
+    const exp = now + 5 * 60;
+
+    const header = { alg: "HS256", typ: "JWT" };
+    const base64url = (obj: object) => Buffer.from(JSON.stringify(obj)).toString("base64url");
+
+    const payload = {
+      accessToken: DELUXE_ACCESS_TOKEN.value(),
+      iat: now,
+      exp,
+    };
+
+    const signingInput = `${base64url(header)}.${base64url(payload)}`;
+    const signature = crypto
+      .createHmac("sha256", DELUXE_EMBEDDED_SECRET.value())
+      .update(signingInput)
+      .digest("base64url");
+
+    const token = `${signingInput}.${signature}`;
+
+    const url = `${embeddedBase()}/embedded/merchantStatus`;
     const r = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${bearer}`,
-        PartnerToken: DELUXE_ACCESS_TOKEN.value(),
-        Accept: "application/json",
-      },
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ jwt: token }),
     });
-    if (!r.ok) {
-      const t = await r.text().catch(() => "");
-      throw new Error(`paymentmethods failed (${r.status}): ${t || r.statusText}`);
+
+    const txt = await r.text();
+    let json: any = {};
+    try {
+      json = txt ? JSON.parse(txt) : {};
+    } catch {
+      // leave json as {}
     }
-    const json = await r.json();
-    // Expect array like ["cc", "ach", "applePay", ...]
-    const methods: string[] = Array.isArray(json?.paymentMethods)
-      ? json.paymentMethods
-      : Array.isArray(json) ? json : [];
-    const achEnabled = methods.includes("ach");
-    res.json({ achEnabled, methods });
+
+    if (!r.ok) {
+      logger.error("merchantStatus failed", { status: r.status, body: txt });
+      return void res.json({ applePayEnabled: false, googlePayEnabled: false });
+    }
+
+    // Success — proxy the embedded merchantStatus shape through as-is
+    return void res.json(json);
   } catch (err: any) {
     logger.error("getEmbeddedMerchantStatus error", err);
-    // Default safe fallback: cards only
-    res.json({ achEnabled: false, methods: ["cc"] });
+    return void res.json({ applePayEnabled: false, googlePayEnabled: false });
   }
 });
+
+
 
 
 // Embedded: create short-lived JWT for Deluxe SDK
