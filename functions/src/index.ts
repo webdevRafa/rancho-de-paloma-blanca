@@ -10,25 +10,24 @@
  *   POST /api/refundDeluxePayment
  *   POST /api/deluxe/webhook
  *
- * Requirements:
- *   - Firebase project secrets (set via `firebase functions:secrets:set`):
- *       DELUXE_CLIENT_ID           (OAuth client id)            // for hosted links & gateway
- *       DELUXE_CLIENT_SECRET       (OAuth client secret)        // for hosted links & gateway
- *       DELUXE_MID                 (Merchant ID / MID GUID)     // informational
- *       DELUXE_ACCESS_TOKEN        (PartnerToken GUID)          // header: PartnerToken
- *       DELUXE_EMBEDDED_SECRET     (HS256 secret for JWT)       // embedded payments JWT signing
+ * Secrets (set with `firebase functions:secrets:set`):
+ *   DELUXE_CLIENT_ID
+ *   DELUXE_CLIENT_SECRET
+ *   DELUXE_MID
+ *   DELUXE_ACCESS_TOKEN
+ *   DELUXE_EMBEDDED_SECRET
  *
- *   - Optional env var to switch sandbox/production:
- *       process.env.DELUXE_USE_SANDBOX = "true" | "false" (default "true")
+ * Optional env:
+ *   DELUXE_USE_SANDBOX = "true" | "false"   (default "true")
  *
  * Notes:
- *   - Uses global `fetch` (Node 22). Do NOT import node-fetch.
- *   - All Deluxe **gateway** calls use https://sandbox.api.deluxe.com or https://api.deluxe.com
- *   - Deluxe **embedded SDK & merchant status** live on https://payments2.deluxe.com or https://payments.deluxe.com
+ *   - Uses global fetch (Node 22). Do NOT import node-fetch.
+ *   - Gateway:   https://sandbox.api.deluxe.com | https://api.deluxe.com
+ *   - Embedded:  https://payments2.deluxe.com    | https://payments.deluxe.com
  */
 
 import * as admin from "firebase-admin";
-import express from "express";
+import express, { type Request, type Response } from "express";
 import cors from "cors";
 import crypto from "crypto";
 
@@ -40,7 +39,7 @@ import { defineSecret } from "firebase-functions/params";
 try {
   admin.app();
 } catch {
-  admin.initializeApp();
+  admin.initializeApp();c
 }
 const db = admin.firestore();
 
@@ -53,9 +52,9 @@ setGlobalOptions({
 // ---- Secrets ----
 const DELUXE_CLIENT_ID = defineSecret("DELUXE_CLIENT_ID");
 const DELUXE_CLIENT_SECRET = defineSecret("DELUXE_CLIENT_SECRET");
-const DELUXE_ACCESS_TOKEN = defineSecret("DELUXE_ACCESS_TOKEN"); // PartnerToken header value
-const DELUXE_MID = defineSecret("DELUXE_MID");                   // informational
-const DELUXE_EMBEDDED_SECRET = defineSecret("DELUXE_EMBEDDED_SECRET"); // HS256 signing secret
+const DELUXE_ACCESS_TOKEN = defineSecret("DELUXE_ACCESS_TOKEN"); // PartnerToken
+const DELUXE_MID = defineSecret("DELUXE_MID"); // informational
+const DELUXE_EMBEDDED_SECRET = defineSecret("DELUXE_EMBEDDED_SECRET"); // HS256 for embedded JWT
 
 // ---- Hosts ----
 function useSandbox(): boolean {
@@ -63,22 +62,31 @@ function useSandbox(): boolean {
   return flag !== "false"; // default true
 }
 function gatewayBase(): string {
-  return useSandbox()
-    ? "https://sandbox.api.deluxe.com"
-    : "https://api.deluxe.com";
+  return useSandbox() ? "https://sandbox.api.deluxe.com" : "https://api.deluxe.com";
 }
 function embeddedBase(): string {
-  return "https://payments2.deluxe.com";
+  // IMPORTANT: sandbox uses payments2, production uses payments
+  return useSandbox() ? "https://payments2.deluxe.com" : "https://payments.deluxe.com";
 }
 
 // ---- Helpers ----
+const base64url = (obj: object) => Buffer.from(JSON.stringify(obj)).toString("base64url");
+
+// Sign a payload with HS256 for Embedded endpoints (and for the embedded SDK token)
+function signEmbeddedJwt(payload: Record<string, any>): string {
+  const header = { alg: "HS256", typ: "JWT" };
+  const signingInput = `${base64url(header)}.${base64url(payload)}`;
+  const signature = crypto
+    .createHmac("sha256", DELUXE_EMBEDDED_SECRET.value())
+    .update(signingInput)
+    .digest("base64url");
+  return `${signingInput}.${signature}`;
+}
 
 // OAuth bearer for gateway endpoints (paymentlinks/refunds/etc.)
 async function getGatewayBearer(): Promise<string> {
   const tokenUrl = `${gatewayBase()}/secservices/oauth2/v2/token`;
-  const params = new URLSearchParams({
-    grant_type: "client_credentials",
-  });
+  const params = new URLSearchParams({ grant_type: "client_credentials" });
 
   const resp = await fetch(tokenUrl, {
     method: "POST",
@@ -87,9 +95,7 @@ async function getGatewayBearer(): Promise<string> {
       Accept: "application/json",
       Authorization:
         "Basic " +
-        Buffer.from(
-          `${DELUXE_CLIENT_ID.value()}:${DELUXE_CLIENT_SECRET.value()}`
-        ).toString("base64"),
+        Buffer.from(`${DELUXE_CLIENT_ID.value()}:${DELUXE_CLIENT_SECRET.value()}`).toString("base64"),
     },
     body: params.toString(),
   });
@@ -103,7 +109,7 @@ async function getGatewayBearer(): Promise<string> {
   return json.access_token as string;
 }
 
-// Build Level 3 lines from order doc if available (optional)
+// ---- Types ----
 type Level3Item = {
   skuCode: string;
   quantity: number;
@@ -114,7 +120,6 @@ type Level3Item = {
   itemDiscountRate?: number;
 };
 
-// Minimal shape of our Order document
 type OrderDoc = {
   id?: string;
   userId?: string;
@@ -122,9 +127,7 @@ type OrderDoc = {
   total: number;
   currency?: "USD" | "CAD";
   createdAt?: admin.firestore.Timestamp;
-  // optional structured line items (preferred for Level3)
   level3?: Level3Item[];
-  // optional customer snapshot
   customer?: {
     firstName?: string;
     lastName?: string;
@@ -139,18 +142,12 @@ type OrderDoc = {
       countryCode?: string;
     };
   };
-  // optional booking info to increment capacity post‑payment
   booking?: {
     dates: string[]; // YYYY-MM-DD
     numberOfHunters: number;
     partyDeckDates?: string[];
   };
-  // optional merch map (not required here)
-  merchItems?: Record<
-    string,
-    { skuCode?: string; name?: string; price?: number; quantity?: number }
-  >;
-  // Deluxe metadata
+  merchItems?: Record<string, { skuCode?: string; name?: string; price?: number; quantity?: number }>;
   paymentLink?: {
     paymentLinkId?: string;
     paymentUrl?: string;
@@ -166,16 +163,14 @@ function splitName(name?: string): { firstName: string; lastName: string } {
   return { firstName: parts.slice(0, -1).join(" "), lastName: parts.at(-1)! };
 }
 
-// Build Payment Links request body
-function buildPaymentLinkBody(order: OrderDoc, opts: {
-  orderId: string;
-  successUrl?: string;
-  cancelUrl?: string;
-}) {
+function buildPaymentLinkBody(
+  order: OrderDoc,
+  opts: { orderId: string; successUrl?: string; cancelUrl?: string }
+) {
   const currency = order.currency ?? "USD";
   const amount = order.total;
   const { firstName, lastName } =
-    (order.customer?.firstName || order.customer?.lastName)
+    order.customer?.firstName || order.customer?.lastName
       ? { firstName: order.customer?.firstName ?? "Guest", lastName: order.customer?.lastName ?? "User" }
       : splitName(order.customer?.name);
 
@@ -189,9 +184,7 @@ function buildPaymentLinkBody(order: OrderDoc, opts: {
     deliveryMethod: "ReturnOnly",
   };
 
-  if (order.level3 && Array.isArray(order.level3) && order.level3.length) {
-    body.level3 = order.level3;
-  }
+  if (order.level3?.length) body.level3 = order.level3;
 
   const customData: { name: string; value: string }[] = [];
   if (opts.successUrl) customData.push({ name: "successUrl", value: String(opts.successUrl) });
@@ -202,7 +195,6 @@ function buildPaymentLinkBody(order: OrderDoc, opts: {
   return body;
 }
 
-// Increment capacity after payment (webhook)
 async function incrementCapacityFromOrder(order: OrderDoc) {
   const booking = order.booking;
   if (!booking?.dates?.length || !booking.numberOfHunters) return;
@@ -228,35 +220,22 @@ app.use(cors({ origin: true }));
 app.use(express.json());
 
 // Health
-app.get("/api/health", (_req, res) => {
+app.get("/api/health", (_req: Request, res: Response) => {
   res.set("Cache-Control", "no-store");
   res.json({ status: "ok" });
 });
 
-// Merchant status (ACH enabled?)
-// Merchant status (Embedded): POST payments{2}.deluxe.com/embedded/merchantStatus with HS256 JWT
-// Merchant status (Embedded): POST payments{2}.deluxe.com/embedded/merchantStatus with HS256 JWT
-app.get("/api/getEmbeddedMerchantStatus", async (_req, res): Promise<void> => {
+// Embedded merchant status (wallets etc.) — HS256 JWT to payments{2}.deluxe.com
+app.get("/api/getEmbeddedMerchantStatus", async (_req: Request, res: Response): Promise<void> => {
   try {
     const now = Math.floor(Date.now() / 1000);
     const exp = now + 5 * 60;
 
-    const header = { alg: "HS256", typ: "JWT" };
-    const base64url = (obj: object) => Buffer.from(JSON.stringify(obj)).toString("base64url");
-
-    const payload = {
+    const token = signEmbeddedJwt({
       accessToken: DELUXE_ACCESS_TOKEN.value(),
       iat: now,
       exp,
-    };
-
-    const signingInput = `${base64url(header)}.${base64url(payload)}`;
-    const signature = crypto
-      .createHmac("sha256", DELUXE_EMBEDDED_SECRET.value())
-      .update(signingInput)
-      .digest("base64url");
-
-    const token = `${signingInput}.${signature}`;
+    });
 
     const url = `${embeddedBase()}/embedded/merchantStatus`;
     const r = await fetch(url, {
@@ -270,7 +249,7 @@ app.get("/api/getEmbeddedMerchantStatus", async (_req, res): Promise<void> => {
     try {
       json = txt ? JSON.parse(txt) : {};
     } catch {
-      // leave json as {}
+      // leave as {}
     }
 
     if (!r.ok) {
@@ -278,7 +257,7 @@ app.get("/api/getEmbeddedMerchantStatus", async (_req, res): Promise<void> => {
       return void res.json({ applePayEnabled: false, googlePayEnabled: false });
     }
 
-    // Success — proxy the embedded merchantStatus shape through as-is
+    // Example response shape: { applePayEnabled: boolean, googlePayEnabled: boolean, ... }
     return void res.json(json);
   } catch (err: any) {
     logger.error("getEmbeddedMerchantStatus error", err);
@@ -286,11 +265,8 @@ app.get("/api/getEmbeddedMerchantStatus", async (_req, res): Promise<void> => {
   }
 });
 
-
-
-
-// Embedded: create short-lived JWT for Deluxe SDK
-app.post("/api/createEmbeddedJwt", async (req, res) => {
+// Embedded: create short-lived JWT for the Deluxe SDK
+app.post("/api/createEmbeddedJwt", async (req: Request, res: Response): Promise<void> => {
   try {
     const { amount, currency = "USD", orderId, customer, products, summary } =
       (req.body || {}) as {
@@ -303,8 +279,7 @@ app.post("/api/createEmbeddedJwt", async (req, res) => {
       };
 
     if (typeof amount !== "number" || amount <= 0) {
-      res.status(400).json({ error: "invalid-amount" });
-      return;
+      return void res.status(400).json({ error: "invalid-amount" });
     }
 
     // If an orderId is supplied, verify it exists and prefer its total for the JWT amount.
@@ -330,76 +305,45 @@ app.post("/api/createEmbeddedJwt", async (req, res) => {
     const now = Math.floor(Date.now() / 1000);
     const exp = now + 10 * 60; // 10 minutes
 
-    // Build the JWT payload for Deluxe Embedded Payments.  The payload
-    // must only include supported claims; unknown fields can lead to
-    // validation errors in the Deluxe SDK.  Do not include our internal
-    // environment hints (e.g. `env`, `embeddedBase`) directly in the
-    // payload.  Instead, expose them separately in the response (see
-    // below) so the frontend can decide which script to load.  Deluxe
-    // supports either `currency` or `currencyCode`; we use
-    // `currencyCode` here to align with their examples.
     const payload: Record<string, any> = {
       iss: "RDPB-Functions",
       iat: now,
       exp,
-      // Required claims
       accessToken: DELUXE_ACCESS_TOKEN.value(),
       amount: finalAmount,
-      currencyCode: currency,
-      // Optional claims (omit if undefined)
+      currencyCode: currency, // Deluxe accepts currency or currencyCode; we use currencyCode
       ...(customer ? { customer } : {}),
       ...(products ? { products } : {}),
       ...(summary ? { summary } : {}),
-      // Include orderId for reconciliation; null if not present
       orderId: orderId ?? verifiedOrder?.id ?? null,
     };
 
-    const header = { alg: "HS256", typ: "JWT" };
-    const base64url = (obj: object) =>
-      Buffer.from(JSON.stringify(obj)).toString("base64url");
+    const jwt = signEmbeddedJwt(payload);
 
-    const signingInput = `${base64url(header)}.${base64url(payload)}`;
-    const signature = crypto
-      .createHmac("sha256", DELUXE_EMBEDDED_SECRET.value())
-      .update(signingInput)
-      .digest("base64url");
-
-    const token = `${signingInput}.${signature}`;
-    // Expose the environment and base domain used for Embedded SDK. This helps
-    // the frontend load the correct Deluxe SDK (sandbox vs production) when
-    // rendering payments. Without this, the client may default to the
-    // production script based on hostname, which can lead to 404 errors in
-    // sandbox testing.
-    res.json({
-      // Signed token for the Embedded SDK
-      jwt: token,
+    return void res.json({
+      jwt,
       exp,
-      // Expose environment hints outside of the JWT payload so the
-      // frontend can decide which Deluxe script to load.  These values
-      // are NOT included in the token itself.
       embeddedBase: embeddedBase(),
       env: useSandbox() ? "sandbox" : "production",
     });
   } catch (err: any) {
     logger.error("createEmbeddedJwt error", err);
-    res.status(500).json({ error: "jwt-failed", message: err?.message || String(err) });
+    return void res.status(500).json({ error: "jwt-failed", message: err?.message || String(err) });
   }
 });
 
 // Hosted Links: create a payment link as fallback
-app.post("/api/createDeluxePayment", async (req, res) => {
+app.post("/api/createDeluxePayment", async (req: Request, res: Response): Promise<void> => {
   try {
     const { orderId, successUrl, cancelUrl } = req.body || {};
     if (!orderId) {
-      res.status(400).json({ error: "Missing orderId" });
-      return;
+      return void res.status(400).json({ error: "Missing orderId" });
     }
 
     const orderRef = db.collection("orders").doc(String(orderId));
     const snap = await orderRef.get();
     if (!snap.exists) {
-      res.status(404).json({ error: "Order not found" });
-      return;
+      return void res.status(404).json({ error: "Order not found" });
     }
     const order = { id: snap.id, ...(snap.data() as OrderDoc) };
 
@@ -420,19 +364,23 @@ app.post("/api/createDeluxePayment", async (req, res) => {
 
     const text = await resp.text();
     let json: any = {};
-    try { json = text ? JSON.parse(text) : {}; } catch { /* non-JSON error body */ }
+    try {
+      json = text ? JSON.parse(text) : {};
+    } catch {
+      /* non-JSON error body */
+    }
 
     if (!resp.ok) {
       logger.error("paymentlinks failed", { status: resp.status, body: text });
-      res.status(resp.status).json({ error: "paymentlinks-failed", status: resp.status, body: json || text });
-      return;
+      return void res
+        .status(resp.status)
+        .json({ error: "paymentlinks-failed", status: resp.status, body: json || text });
     }
 
     const paymentUrl: string | undefined = json?.paymentUrl;
     const paymentLinkId: string | undefined = json?.paymentLinkId;
     if (!paymentUrl) {
-      res.status(502).json({ error: "No paymentUrl in response", response: json });
-      return;
+      return void res.status(502).json({ error: "No paymentUrl in response", response: json });
     }
 
     await orderRef.set(
@@ -450,16 +398,17 @@ app.post("/api/createDeluxePayment", async (req, res) => {
       { merge: true }
     );
 
-    res.json({ paymentUrl, paymentLinkId });
+    return void res.json({ paymentUrl, paymentLinkId });
   } catch (err: any) {
     logger.error("createDeluxePayment error", err);
-    res.status(500).json({ error: "createDeluxePayment-failed", message: err?.message || String(err) });
+    return void res
+      .status(500)
+      .json({ error: "createDeluxePayment-failed", message: err?.message || String(err) });
   }
 });
 
 // Refunds (compliance): POST /refunds
-// Body: { amount, currency?, paymentId?, transactionId?, reason? }
-app.post("/api/refundDeluxePayment", async (req, res) => {
+app.post("/api/refundDeluxePayment", async (req: Request, res: Response): Promise<void> => {
   try {
     const { amount, currency = "USD", paymentId, transactionId, reason } =
       (req.body || {}) as {
@@ -471,12 +420,10 @@ app.post("/api/refundDeluxePayment", async (req, res) => {
       };
 
     if (!amount || amount <= 0) {
-      res.status(400).json({ error: "invalid-amount" });
-      return;
+      return void res.status(400).json({ error: "invalid-amount" });
     }
     if (!paymentId && !transactionId) {
-      res.status(400).json({ error: "paymentId-or-transactionId-required" });
-      return;
+      return void res.status(400).json({ error: "paymentId-or-transactionId-required" });
     }
 
     const bearer = await getGatewayBearer();
@@ -501,31 +448,35 @@ app.post("/api/refundDeluxePayment", async (req, res) => {
 
     const text = await resp.text();
     let json: any = {};
-    try { json = text ? JSON.parse(text) : {}; } catch {}
+    try {
+      json = text ? JSON.parse(text) : {};
+    } catch {}
 
     if (!resp.ok) {
       logger.error("refunds failed", { status: resp.status, body: text });
-      res.status(resp.status).json({ error: "refunds-failed", status: resp.status, body: json || text });
-      return;
+      return void res
+        .status(resp.status)
+        .json({ error: "refunds-failed", status: resp.status, body: json || text });
     }
 
-    res.json(json);
+    return void res.json(json);
   } catch (err: any) {
     logger.error("refundDeluxePayment error", err);
-    res.status(500).json({ error: "refund-failed", message: err?.message || String(err) });
+    return void res.status(500).json({ error: "refund-failed", message: err?.message || String(err) });
   }
 });
 
 // Webhook: mark orders paid & increment capacity
-app.post("/api/deluxe/webhook", async (req, res) => {
+app.post("/api/deluxe/webhook", async (req: Request, res: Response): Promise<void> => {
   try {
     const evt = req.body || {};
-    // Expected (varies by Deluxe configuration); we look for an orderId reference
+    // Try to resolve orderId from standard fields
     const orderId: string | undefined =
       evt?.orderData?.orderId ||
       evt?.customData?.find?.((x: any) => x?.name === "orderId")?.value;
 
-    const status: string | undefined = evt?.status || evt?.transactionStatus || evt?.paymentStatus;
+    const status: string | undefined =
+      evt?.status || evt?.transactionStatus || evt?.paymentStatus;
     const approved = typeof status === "string" && /approved|captured|paid/i.test(status);
 
     if (orderId && approved) {
@@ -536,9 +487,7 @@ app.post("/api/deluxe/webhook", async (req, res) => {
         await ref.set(
           {
             status: "paid",
-            deluxe: {
-              lastWebhook: evt,
-            },
+            deluxe: { lastWebhook: evt },
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           },
           { merge: true }
@@ -549,10 +498,11 @@ app.post("/api/deluxe/webhook", async (req, res) => {
       logger.warn("Webhook received without resolvable orderId or unpaid status", { orderId, status });
     }
 
-    res.json({ ok: true });
+    return void res.json({ ok: true });
   } catch (err: any) {
     logger.error("webhook error", err);
-    res.status(200).json({ ok: false }); // avoid retries storm; inspect logs
+    // Always 200 to avoid retry storms; inspect logs for details.
+    return void res.status(200).json({ ok: false });
   }
 });
 
