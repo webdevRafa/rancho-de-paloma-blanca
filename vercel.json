@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://api-XXXXXXXX-uc.a.run.app/api/$1"
+      "destination": "https://api-djnoc6u77a-uc.a.run.app/api/$1"
     },
     {
       "source": "/(.*)",
@@ -13,7 +13,9 @@
   "headers": [
     {
       "source": "/api/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "no-store" }]
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
     }
   ]
 }

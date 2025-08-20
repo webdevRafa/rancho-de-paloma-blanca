@@ -861,12 +861,12 @@ export default function CheckoutPage() {
       )}
 
       <section className="mb-8 p-4 rounded-xl border border-white/10 bg-white">
-        <h2 className="text-xl mb-4">Customer Info</h2>
+        <h2 className="text-xl mb-4 font-acumin">Customer Info</h2>
         <CustomerInfoForm value={customer} onChange={setCustomer} />
         <div className="mt-10 p-4">
-          <h2 className="text-xl mb-3">Order Summary</h2>
-          <div className="flex items-center justify-between">
-            <div>Total</div>
+          <h2 className="text-xl mb-3  font-acumin">Order Summary</h2>
+          <div className="flex items-center gap-2 max-w-[200px]">
+            <div className="text-lg font-acumin">Total</div>
             <div className="text-2xl font-bold">${amount.toFixed(2)}</div>
           </div>
         </div>

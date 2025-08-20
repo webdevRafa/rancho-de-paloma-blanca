@@ -61,7 +61,9 @@ const CustomerInfoForm = ({ value, onChange }: Props) => {
 
   return (
     <div className="bg-neutral-100 p-3 rounded border">
-      <h3 className="text-lg font-semibold mb-2">Payer Information</h3>
+      <h3 className="text-lg font-semibold font-acumin mb-2">
+        Payer Information
+      </h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <label className="flex flex-col text-sm">
           First name
