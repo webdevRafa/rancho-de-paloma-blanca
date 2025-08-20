@@ -1,11 +1,21 @@
 // CartContext.tsx
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useMemo } from "react";
 import type { Product } from "../types/MerchTypes";
 import type { NewBooking } from "../types/Types";
 
 type MerchCartItem = {
   product: Product;
   quantity: number;
+};
+
+// Adapter for Deluxe Level 3 style line items
+type Level3Item = {
+  skuCode?: string;
+  name?: string;
+  description?: string;
+  quantity: number;
+  price: number; // currency units (e.g., 200 = $200.00)
+  unitOfMeasure?: string; // defaults to "Each"
 };
 
 interface CartContextType {
@@ -16,12 +26,20 @@ interface CartContextType {
   booking: Omit<NewBooking, "createdAt"> | null;
   calculateBookingTotal: () => number;
   cartTotal: () => number;
+  total: number;
+  level3Items: Level3Item[];
+  cart: {
+    orderId?: string;
+    booking: Omit<NewBooking, "createdAt"> | null;
+    merchItems: Record<string, MerchCartItem>;
+  };
   setNumberOfHunters: (n: number) => void;
   setSelectedDates: (d: string[]) => void;
   setPartyDeckDates: (d: string[]) => void;
   addOrUpdateMerchItem: (product: Product, quantity: number) => void;
   setBooking: (b: Omit<NewBooking, "createdAt">) => void;
   resetCart: () => void;
+  clearCart: () => void;
   isHydrated: boolean;
 }
 
@@ -164,7 +182,57 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     );
     return bookingTotal + merchTotal;
   };
+  const total = useMemo(
+    () => calculateCartTotal(),
+    [numberOfHunters, selectedDates, partyDeckDates, merchItems, booking]
+  );
 
+  const level3Items: Level3Item[] = useMemo(() => {
+    const items: Level3Item[] = [];
+    const bookingTotal = calculateBookingTotal();
+    const dates = booking?.dates ?? selectedDates;
+    const hunters = booking?.numberOfHunters ?? numberOfHunters;
+    if (bookingTotal > 0) {
+      items.push({
+        skuCode: "HUNT",
+        name: "Dove Hunt Booking",
+        description: `Dove Hunt — ${dates.length} day(s), ${hunters} hunter(s)`,
+        quantity: 1,
+        price: bookingTotal,
+        unitOfMeasure: "Each",
+      });
+    }
+    // Merch line items
+    for (const entry of Object.values(merchItems)) {
+      items.push({
+        skuCode: entry.product.id,
+        name: entry.product.name ?? "Merch Item",
+        description: entry.product.name ?? "Merch Item",
+        quantity: entry.quantity,
+        price: entry.product.price,
+        unitOfMeasure: "Each",
+      });
+    }
+    return items;
+  }, [
+    merchItems,
+    booking,
+    selectedDates,
+    numberOfHunters,
+    partyDeckDates,
+    calculateBookingTotal,
+  ]);
+
+  const cartAdapter = useMemo(
+    () => ({
+      // orderId can be injected/attached later if you decide to store it in localStorage
+      booking,
+      merchItems,
+    }),
+    [booking, merchItems]
+  );
+
+  const clearCart = () => resetCart();
   const resetCart = () => {
     setNumberOfHunters(1);
     setSelectedDates([]);
@@ -182,12 +250,16 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     booking,
     calculateBookingTotal,
     cartTotal: calculateCartTotal,
+    total,
+    level3Items,
+    cart: cartAdapter,
     setNumberOfHunters,
     setSelectedDates,
     setPartyDeckDates,
     addOrUpdateMerchItem,
     setBooking,
     resetCart,
+    clearCart,
     isHydrated,
   };
 
