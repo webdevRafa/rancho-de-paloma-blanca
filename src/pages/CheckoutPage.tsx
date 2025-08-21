@@ -789,10 +789,7 @@ export default function CheckoutPage() {
       if (!jwt) throw new Error("JWT missing from response");
 
       // (4) load SDK from the server-specified base (forces sandbox/production correctly)
-      const scriptSrc = embeddedBase
-        ? `${embeddedBase}/embedded/javascripts/deluxe.js`
-        : undefined;
-      await loadDeluxeSdk(scriptSrc);
+      await loadDeluxeSdk(embeddedBase);
 
       const EP = (window as any).EmbeddedPayments;
       if (!EP || typeof EP.init !== "function") {
