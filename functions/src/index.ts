@@ -39,7 +39,7 @@ import { defineSecret } from "firebase-functions/params";
 try {
   admin.app();
 } catch {
-  admin.initializeApp();c
+  admin.initializeApp();
 }
 const db = admin.firestore();
 
