@@ -265,8 +265,7 @@ app.get("/api/getEmbeddedMerchantStatus", async (_req: Request, res: Response): 
   }
 });
 
-// Embedded: create short-lived JWT for the Deluxe SDK
-app.post("/api/createEmbeddedJwt", async (req: Request, res: Response): Promise<void> => {
+app.post("/api/createEmbeddedJwt", async (req: Request, res: Response) => {
   try {
     const { amount, currency = "USD", orderId, customer, products, summary } =
       (req.body || {}) as {
@@ -279,20 +278,18 @@ app.post("/api/createEmbeddedJwt", async (req: Request, res: Response): Promise<
       };
 
     if (typeof amount !== "number" || amount <= 0) {
-      return void res.status(400).json({ error: "invalid-amount" });
+      return res.status(400).json({ error: "invalid-amount" });
     }
 
-    // If an orderId is supplied, verify it exists and prefer its total for the JWT amount.
+    // If an orderId is provided, verify the order and use its total for amount (for consistency)
     let finalAmount = amount;
-    let verifiedOrder: OrderDoc | null = null;
     if (orderId) {
       try {
-        const ref = db.collection("orders").doc(String(orderId));
-        const snap = await ref.get();
+        const snap = await db.collection("orders").doc(String(orderId)).get();
         if (snap.exists) {
-          verifiedOrder = { id: snap.id, ...(snap.data() as OrderDoc) };
-          if (typeof verifiedOrder.total === "number" && verifiedOrder.total > 0) {
-            finalAmount = verifiedOrder.total;
+          const orderData = snap.data() as OrderDoc;
+          if (typeof orderData.total === "number" && orderData.total > 0) {
+            finalAmount = orderData.total;
           }
         } else {
           logger.warn("createEmbeddedJwt: orderId provided but not found", { orderId });
@@ -303,34 +300,36 @@ app.post("/api/createEmbeddedJwt", async (req: Request, res: Response): Promise<
     }
 
     const now = Math.floor(Date.now() / 1000);
-    const exp = now + 10 * 60; // 10 minutes
+    const exp = now + 10 * 60; // 10-minute expiration
 
+    // Build JWT payload with only supported fields
     const payload: Record<string, any> = {
-      iss: "RDPB-Functions",
       iat: now,
-      exp,
+      exp: exp,
       accessToken: DELUXE_ACCESS_TOKEN.value(),
       amount: finalAmount,
-      currencyCode: currency, // Deluxe accepts currency or currencyCode; we use currencyCode
+      currencyCode: currency,
       ...(customer ? { customer } : {}),
       ...(products ? { products } : {}),
-      ...(summary ? { summary } : {}),
-      orderId: orderId ?? verifiedOrder?.id ?? null,
+      // If summary flags are provided, map them to Deluxe-supported fields
+      ...(summary?.hide ? { hideproductspanel: true } : {}),
+      ...(summary?.hideTotals ? { hidetotals: true } : {})
+      // Note: no 'summary' object or 'orderId' field is included in the JWT payload
     };
 
-    const jwt = signEmbeddedJwt(payload);
-
-    return void res.json({
-      jwt,
+    const jwtToken = signEmbeddedJwt(payload);
+    return res.json({
+      jwt: jwtToken,
       exp,
       embeddedBase: embeddedBase(),
-      env: useSandbox() ? "sandbox" : "production",
+      env: useSandbox() ? "sandbox" : "production"
     });
   } catch (err: any) {
     logger.error("createEmbeddedJwt error", err);
-    return void res.status(500).json({ error: "jwt-failed", message: err?.message || String(err) });
+    return res.status(500).json({ error: "jwt-failed", message: err?.message || String(err) });
   }
 });
+
 
 // Hosted Links: create a payment link as fallback
 app.post("/api/createDeluxePayment", async (req: Request, res: Response): Promise<void> => {

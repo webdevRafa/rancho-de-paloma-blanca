@@ -30,7 +30,22 @@ export type CustomerInfo = {
     country?: string;
   };
 };
-
+/** Normalize a human-entered country string to ISO alpha-2 the SDK accepts. */
+function toAlpha2Country(input?: string): string {
+  const s = (input || "").trim().toUpperCase();
+  if (!s) return "US";
+  const map: Record<string, string> = {
+    US: "US",
+    USA: "US",
+    "UNITED STATES": "US",
+    "UNITED STATES OF AMERICA": "US",
+    "U.S.": "US",
+    CA: "CA",
+    CAN: "CA",
+    CANADA: "CA",
+  };
+  return map[s] || (s.length === 2 ? s : "US");
+}
 /** Recursively remove any fields with value `undefined`. Firestore rejects `undefined` values. */
 function pruneUndefinedDeep<T>(obj: T): T {
   if (Array.isArray(obj)) {
@@ -704,12 +719,7 @@ export default function CheckoutPage() {
               city: customer.billingAddress?.city,
               state: customer.billingAddress?.state,
               zipCode: customer.billingAddress?.postalCode,
-              countryCode:
-                customer.billingAddress?.country
-                  ?.toString()
-                  .trim()
-                  .slice(0, 2)
-                  .toUpperCase() || "US",
+              countryCode: toAlpha2Country(customer.billingAddress?.country),
             },
           },
           products: buildProductsForJwt({
