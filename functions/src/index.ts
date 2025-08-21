@@ -21,7 +21,7 @@
  *   DELUXE_USE_SANDBOX = "true" | "false"   (default "true")
  *
  * Notes:
- *   - Uses global fetch (Node 22). Do NOT import node-fetch.
+ *   - Uses global fetch (Node 22)
  *   - Gateway:   https://sandbox.api.deluxe.com | https://api.deluxe.com
  *   - Embedded:  https://payments2.deluxe.com    | https://payments.deluxe.com
  */

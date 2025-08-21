@@ -5,6 +5,7 @@ import { db } from "../firebase/firebaseConfig";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
 import CustomerInfoForm from "../components/CustomerInfoForm";
+
 // Pull in the CustomerInfoForm component. We do not import its types
 // because within this isolated environment those modules are treated as
 // `any` by the TypeScript compiler. Instead, we define the
@@ -185,107 +186,56 @@ const EMBEDDED_CONTAINER_ID = "embeddedpayments";
  * Load Deluxe Embedded SDK and normalize the global to window.EmbeddedPayments.
  * Tries a few filename variants and several possible global names.
  */
+// Load only the canonical Deluxe SDK file and wait for window.EmbeddedPayments.
 async function loadDeluxeSdk(embeddedBase?: string): Promise<void> {
   const base = embeddedBase || "https://payments2.deluxe.com";
-  const candidates = [
-    `${base}/embedded/javascripts/deluxe.js`,
-    // fallbacks seen in various docs/builds
-    `${base}/embedded/javascripts/embeddedpayments.js`,
-    `${base}/embedded/embeddedpayments.js`,
-    `${base}/embedded/deluxe.js`,
-  ];
+  const url = `${base}/embedded/javascripts/deluxe.js`;
 
-  // Remove any previously injected SDK from a different base URL
+  // remove any previously injected SDK from a different base
   try {
-    const all = Array.from(
-      document.querySelectorAll('script[src*="deluxe.com/embedded/"]')
-    ) as HTMLScriptElement[];
-    for (const s of all) {
-      if (s.src && !s.src.startsWith(base)) s.parentElement?.removeChild(s);
-    }
+    document
+      .querySelectorAll('script[src*="deluxe.com/embedded/"]')
+      .forEach((s) => {
+        if (!(s as HTMLScriptElement).src.startsWith(base))
+          s.parentElement?.removeChild(s);
+      });
   } catch {}
 
-  // Helper to append a script and wait for onload/onerror
-  const append = (url: string) =>
-    new Promise<void>((resolve, reject) => {
-      // if already present, reuse it
-      const existing = document.querySelector(
-        `script[src="${url}"]`
-      ) as HTMLScriptElement | null;
-      if (existing) {
-        existing.addEventListener("load", () => resolve(), { once: true });
-        existing.addEventListener(
-          "error",
-          () => reject(new Error(`Failed to load Deluxe SDK: ${url}`)),
-          { once: true }
-        );
-        return;
-      }
+  // append (or reuse) the script
+  await new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector(
+      `script[src="${url}"]`
+    ) as HTMLScriptElement | null;
+    if (existing) {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener(
+        "error",
+        () => reject(new Error(`Failed to load Deluxe SDK: ${url}`)),
+        { once: true }
+      );
+    } else {
       const script = document.createElement("script");
       script.src = url;
-      script.async = true; // dynamic scripts are async by default; defer is ignored
-      // IMPORTANT: do NOT set crossOrigin here
+      script.async = true; // do NOT set crossOrigin
       script.onload = () => resolve();
       script.onerror = () =>
         reject(new Error(`Failed to load Deluxe SDK: ${url}`));
       document.head.appendChild(script);
-    });
-
-  // Try each candidate URL until one loads and exposes a usable global
-  let lastErr: unknown = null;
-  for (const url of candidates) {
-    try {
-      await append(url);
-
-      // After onload, poll briefly for a usable global and alias it
-      const started = Date.now();
-      const max = 8000;
-      const pickGlobal = (): any => {
-        const w = window as any;
-
-        // Known names + a generic scan for “embed”/“deluxe” objects with init()
-        const named = [
-          w.EmbeddedPayments,
-          w.DeluxeEmbeddedPayments,
-          w.Deluxe?.EmbeddedPayments,
-          w.deluxe?.EmbeddedPayments,
-        ].find(Boolean);
-
-        if (named && typeof named.init === "function") return named;
-
-        for (const k of Object.keys(w)) {
-          if (!/embed|deluxe/i.test(k)) continue;
-          const val = w[k];
-          if (val && typeof val.init === "function") return val;
-        }
-        return null;
-      };
-
-      return await new Promise<void>((resolve2, reject2) => {
-        (function tick() {
-          const ep = pickGlobal();
-          if (ep) {
-            (window as any).EmbeddedPayments = ep; // normalize
-            console.info("[Deluxe] SDK ready via", url);
-            return resolve2();
-          }
-          if (Date.now() - started > max) {
-            return reject2(
-              new Error(
-                `Deluxe SDK script loaded but SDK global wasn't exposed (${url}).`
-              )
-            );
-          }
-          setTimeout(tick, 50);
-        })();
-      });
-    } catch (e) {
-      console.warn("[Deluxe] SDK load attempt failed:", url, e);
-      lastErr = e;
-      // continue to next candidate
     }
+  });
+
+  // poll for the global (the SDK may pull internal chunks before exposing it)
+  const started = Date.now();
+  const max = 8000;
+  while (Date.now() - started < max) {
+    const ep = (window as any).EmbeddedPayments;
+    if (ep && typeof ep.init === "function") return;
+    await new Promise((r) => setTimeout(r, 50));
   }
-  throw (lastErr as any) || new Error("Failed to load any Deluxe SDK script");
+  throw new Error(
+    `Deluxe SDK script loaded but SDK global wasn't exposed (${url}). ` +
+      `This usually means a follow-on file (e.g. /embedded/embeddedpayments.js) was blocked by a network/extension.`
+  );
 }
 
 /**
