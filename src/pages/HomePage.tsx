@@ -48,7 +48,7 @@ const HomePage = () => {
         />
 
         {/* Content */}
-        <div className="relative z-10 py-10">
+        <div className="relative z-10 py-10 ">
           <InfoCards />
         </div>
       </section>

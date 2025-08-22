@@ -35,6 +35,14 @@ import { setGlobalOptions, logger } from "firebase-functions/v2";
 import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 
+function coerceCountryCode(input?: string): "USA" | "CAN" | string {
+  const s = (input || "").trim().toUpperCase();
+  if (!s) return "USA";
+  if (["US", "USA", "UNITED STATES", "UNITED STATES OF AMERICA", "U.S."].includes(s)) return "USA";
+  if (["CA", "CAN", "CANADA"].includes(s)) return "CAN";
+  // If something else slips through, keep it alpha-3 if already so, otherwise default to USA
+  return s.length === 3 ? s : "USA";
+}
 // ---- Firebase init ----
 try {
   admin.app();
@@ -267,28 +275,29 @@ app.get("/api/getEmbeddedMerchantStatus", async (_req: Request, res: Response): 
 
 app.post("/api/createEmbeddedJwt", async (req: Request, res: Response) => {
   try {
-    const { amount, currency = "USD", orderId, customer, products, summary } =
+    const { amount, currency = "USD", orderId, customer, products } =
       (req.body || {}) as {
         amount: number;
         currency?: "USD" | "CAD";
-        orderId?: string;
+        orderId?: string;     // accepted only to verify amount; NOT placed into JWT
         customer?: any;
         products?: any[];
-        summary?: { hide?: boolean; hideTotals?: boolean };
+        // NOTE: we intentionally ignore any 'summary' field to keep the JWT minimal
       };
 
-    if (typeof amount !== "number" || amount <= 0) {
+    // Basic validation
+    if (typeof amount !== "number" || !isFinite(amount) || amount <= 0) {
       return res.status(400).json({ error: "invalid-amount" });
     }
 
-    // If an orderId is provided, verify the order and use its total for amount (for consistency)
+    // Optional: if orderId is provided, prefer Firestore's total for consistency
     let finalAmount = amount;
     if (orderId) {
       try {
         const snap = await db.collection("orders").doc(String(orderId)).get();
         if (snap.exists) {
           const orderData = snap.data() as OrderDoc;
-          if (typeof orderData.total === "number" && orderData.total > 0) {
+          if (typeof orderData?.total === "number" && orderData.total > 0) {
             finalAmount = orderData.total;
           }
         } else {
@@ -299,30 +308,55 @@ app.post("/api/createEmbeddedJwt", async (req: Request, res: Response) => {
       }
     }
 
-    const now = Math.floor(Date.now() / 1000);
-    const exp = now + 10 * 60; // 10-minute expiration
+    // Normalize customer.billingAddress → ensure alpha-3 countryCode and consistent keys
+    let normalizedCustomer = customer;
+    if (customer?.billingAddress) {
+      const b = customer.billingAddress;
+      const countryRaw = b.countryCode ?? b.country;
+      normalizedCustomer = {
+        ...customer,
+        // keep firstName/lastName as provided (frontend already validated)
+        billingAddress: {
+          address: b.address ?? b.line1,        // accept either 'address' or 'line1'
+          city: b.city,
+          state: b.state,
+          zipCode: b.zipCode ?? b.postalCode,   // accept either 'zipCode' or 'postalCode'
+          countryCode: coerceCountryCode(countryRaw),
+        },
+      };
+      // Do NOT retain an extraneous 'country' field
+      if (normalizedCustomer.billingAddress.country) {
+        try { delete (normalizedCustomer.billingAddress as any).country; } catch {}
+      }
+    }
 
-    // Build JWT payload with only supported fields
+    // Build a LEAN JWT payload: only recognized fields
+    const now = Math.floor(Date.now() / 1000);
+    const exp = now + 15 * 60; // 15-minute expiration
+
     const payload: Record<string, any> = {
       iat: now,
-      exp: exp,
-      accessToken: DELUXE_ACCESS_TOKEN.value(),
-      amount: finalAmount,
-      currencyCode: currency,
-      ...(customer ? { customer } : {}),
-      ...(products ? { products } : {}),
-      // If summary flags are provided, map them to Deluxe-supported fields
-      ...(summary?.hide ? { hideproductspanel: true } : {}),
-      ...(summary?.hideTotals ? { hidetotals: true } : {})
-      // Note: no 'summary' object or 'orderId' field is included in the JWT payload
+      exp,
+      accessToken: DELUXE_ACCESS_TOKEN.value(), // Partner/MID GUID
+      amount: Number(finalAmount),              // whole currency units
+      currencyCode: currency,                   // "USD" | "CAD"
     };
+    if (normalizedCustomer) payload.customer = normalizedCustomer;
+    if (Array.isArray(products) && products.length > 0) payload.products = products;
+
+    // IMPORTANT:
+    // - Do NOT include 'orderId' in the JWT (keep it out of the token)
+    // - Do NOT include any nested 'summary' object in the JWT
+    // - Avoid any other custom fields to keep the token validator happy
 
     const jwtToken = signEmbeddedJwt(payload);
+
+    // Return the JWT and base so the client loads the correct SDK host
     return res.json({
       jwt: jwtToken,
       exp,
-      embeddedBase: embeddedBase(),
-      env: useSandbox() ? "sandbox" : "production"
+      embeddedBase: embeddedBase(),            // e.g., https://payments2.deluxe.com in sandbox
+      env: useSandbox() ? "sandbox" : "production",
     });
   } catch (err: any) {
     logger.error("createEmbeddedJwt error", err);

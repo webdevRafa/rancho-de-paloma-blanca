@@ -11,6 +11,22 @@ import CustomerInfoForm from "../components/CustomerInfoForm";
 // `any` by the TypeScript compiler. Instead, we define the
 // corresponding types locally below.
 import { getSeasonConfig } from "../utils/getSeasonConfig";
+function toAlpha3Country(input?: string): string {
+  if (!input) return "USA"; // default
+  const s = input.trim().toUpperCase();
+  const map: Record<string, string> = {
+    US: "USA",
+    USA: "USA",
+    "UNITED STATES": "USA",
+    "UNITED STATES OF AMERICA": "USA",
+    "U.S.": "USA",
+    CA: "CAN",
+    CAN: "CAN",
+    CANADA: "CAN",
+    // ...add other countries if needed...
+  };
+  return map[s] || s.slice(0, 3); // fallback: use first 3 chars
+}
 
 // Define lightweight versions of external types used by this component.
 // When integrating into the real application you should import these from
@@ -30,22 +46,7 @@ export type CustomerInfo = {
     country?: string;
   };
 };
-/** Normalize a human-entered country string to ISO alpha-2 the SDK accepts. */
-function toAlpha2Country(input?: string): string {
-  const s = (input || "").trim().toUpperCase();
-  if (!s) return "US";
-  const map: Record<string, string> = {
-    US: "US",
-    USA: "US",
-    "UNITED STATES": "US",
-    "UNITED STATES OF AMERICA": "US",
-    "U.S.": "US",
-    CA: "CA",
-    CAN: "CA",
-    CANADA: "CA",
-  };
-  return map[s] || (s.length === 2 ? s : "US");
-}
+
 /** Recursively remove any fields with value `undefined`. Firestore rejects `undefined` values. */
 function pruneUndefinedDeep<T>(obj: T): T {
   if (Array.isArray(obj)) {
@@ -708,7 +709,6 @@ export default function CheckoutPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          orderId,
           amount,
           currency: "USD",
           customer: {
@@ -719,7 +719,7 @@ export default function CheckoutPage() {
               city: customer.billingAddress?.city,
               state: customer.billingAddress?.state,
               zipCode: customer.billingAddress?.postalCode,
-              countryCode: toAlpha2Country(customer.billingAddress?.country),
+              countryCode: toAlpha3Country(customer.billingAddress?.country),
             },
           },
           products: buildProductsForJwt({
@@ -733,7 +733,6 @@ export default function CheckoutPage() {
               : null,
             merchItems: merchArray,
           }),
-          summary: { hide: false, hideTotals: false },
         }),
       });
       if (!jwtResp.ok) {
@@ -760,7 +759,7 @@ export default function CheckoutPage() {
       // choose wallets env from embeddedBase
       const isSandbox = (embeddedBase || "").includes("payments2.");
       const config = {
-        countryCode: "US",
+        countryCode: "USA",
         currencyCode: "USD",
         paymentMethods, // ["cc"] baseline, "ach" added if enabled
         supportedNetworks: ["visa", "masterCard", "amex", "discover"],
@@ -781,6 +780,7 @@ export default function CheckoutPage() {
             await setDoc(
               ref,
               {
+                status: "paid",
                 deluxe: {
                   lastEvent: data || null,
                   updatedAt: serverTimestamp(),
