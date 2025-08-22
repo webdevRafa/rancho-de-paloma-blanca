@@ -4,26 +4,16 @@
     "lib": ["ES2022"],
     "module": "NodeNext",
     "moduleResolution": "nodenext",
-
-    // Place compiled files into `lib` while treating the project root as the rootDir.
-    "rootDir": ".",
+    "rootDir": "src",
     "outDir": "lib",
-
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
-
     "strict": true,
     "noImplicitReturns": true,
     "noUnusedLocals": true,
     "skipLibCheck": true,
-    // Only include Node types.  Express and cors are no longer used in the
-    // functions implementation, so remove them from the type list.  Additional
-    // ambient types from dependencies are still resolved automatically.
     "types": ["node", "firebase-functions", "firebase-admin"]
   },
-  // Include both the `src` folder (where Cloud Functions source files
-  // typically reside) and the top-level `index.ts` file.  This ensures that
-  // TypeScript will compile our handler when it lives outside `src`.
-  "include": ["src", "index.ts"]
+  "include": ["src"]
 }
