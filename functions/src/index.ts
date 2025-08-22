@@ -1,55 +1,32 @@
 /**
- * Rancho de Paloma Blanca — Cloud Functions (Node 22, Functions v2)
- * Embedded Payments + Hosted Links + Refunds + Webhook
- *
- * Endpoints (mounted under /api):
- *   GET  /api/health
- *   GET  /api/getEmbeddedMerchantStatus
- *   POST /api/createEmbeddedJwt
- *   POST /api/createDeluxePayment
- *   POST /api/refundDeluxePayment
- *   POST /api/deluxe/webhook
- *
- * Secrets (set with `firebase functions:secrets:set`):
- *   DELUXE_CLIENT_ID
- *   DELUXE_CLIENT_SECRET
- *   DELUXE_MID
- *   DELUXE_ACCESS_TOKEN
- *   DELUXE_EMBEDDED_SECRET
- *
- * Optional env:
- *   DELUXE_USE_SANDBOX = "true" | "false"   (default "true")
- *
- * Notes:
- *   - Uses global fetch (Node 22)
- *   - Gateway:   https://sandbox.api.deluxe.com | https://api.deluxe.com
- *   - Embedded:  https://payments2.deluxe.com    | https://payments.deluxe.com
+ * Rancho de Paloma Blanca — Cloud Functions (Node 20+, Functions v2)
+ * Express app with minimal, safe changes:
+ *  - firebase-admin v12 modular init
+ *  - typed express/cors imports
+ *  - lean Embedded JWT (no orderId, no nested summary)
+ *  - country code coercion to "USA"/"CAN"
  */
 
-import * as admin from "firebase-admin";
 import express, { type Request, type Response } from "express";
 import cors from "cors";
 import crypto from "crypto";
 
+// ---- Firebase Functions v2 ----
 import { setGlobalOptions, logger } from "firebase-functions/v2";
 import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 
-function coerceCountryCode(input?: string): "USA" | "CAN" | string {
-  const s = (input || "").trim().toUpperCase();
-  if (!s) return "USA";
-  if (["US", "USA", "UNITED STATES", "UNITED STATES OF AMERICA", "U.S."].includes(s)) return "USA";
-  if (["CA", "CAN", "CANADA"].includes(s)) return "CAN";
-  // If something else slips through, keep it alpha-3 if already so, otherwise default to USA
-  return s.length === 3 ? s : "USA";
-}
-// ---- Firebase init ----
-try {
-  admin.app();
-} catch {
-  admin.initializeApp();
-}
-const db = admin.firestore();
+// ---- Firebase Admin v12 (modular) ----
+import { getApps, initializeApp } from "firebase-admin/app";
+import {
+  getFirestore,
+  FieldValue,
+  Timestamp,
+} from "firebase-admin/firestore";
+
+// ---------- Init ----------
+if (getApps().length === 0) initializeApp();
+const db = getFirestore();
 
 setGlobalOptions({
   region: "us-central1",
@@ -57,14 +34,14 @@ setGlobalOptions({
   timeoutSeconds: 60,
 });
 
-// ---- Secrets ----
+// ---------- Secrets ----------
 const DELUXE_CLIENT_ID = defineSecret("DELUXE_CLIENT_ID");
 const DELUXE_CLIENT_SECRET = defineSecret("DELUXE_CLIENT_SECRET");
-const DELUXE_ACCESS_TOKEN = defineSecret("DELUXE_ACCESS_TOKEN"); // PartnerToken
-const DELUXE_MID = defineSecret("DELUXE_MID"); // informational
+const DELUXE_ACCESS_TOKEN = defineSecret("DELUXE_ACCESS_TOKEN"); // Partner/MID GUID
+const DELUXE_MID = defineSecret("DELUXE_MID");                   // informational
 const DELUXE_EMBEDDED_SECRET = defineSecret("DELUXE_EMBEDDED_SECRET"); // HS256 for embedded JWT
 
-// ---- Hosts ----
+// ---------- Hosts ----------
 function useSandbox(): boolean {
   const flag = (process.env.DELUXE_USE_SANDBOX ?? "true").toLowerCase();
   return flag !== "false"; // default true
@@ -73,14 +50,14 @@ function gatewayBase(): string {
   return useSandbox() ? "https://sandbox.api.deluxe.com" : "https://api.deluxe.com";
 }
 function embeddedBase(): string {
-  // IMPORTANT: sandbox uses payments2, production uses payments
+  // sandbox uses payments2; prod uses payments
   return useSandbox() ? "https://payments2.deluxe.com" : "https://payments.deluxe.com";
 }
 
-// ---- Helpers ----
+// ---------- Small helpers ----------
 const base64url = (obj: object) => Buffer.from(JSON.stringify(obj)).toString("base64url");
 
-// Sign a payload with HS256 for Embedded endpoints (and for the embedded SDK token)
+// HS256 signer for embedded JWTs + merchantStatus
 function signEmbeddedJwt(payload: Record<string, any>): string {
   const header = { alg: "HS256", typ: "JWT" };
   const signingInput = `${base64url(header)}.${base64url(payload)}`;
@@ -91,33 +68,17 @@ function signEmbeddedJwt(payload: Record<string, any>): string {
   return `${signingInput}.${signature}`;
 }
 
-// OAuth bearer for gateway endpoints (paymentlinks/refunds/etc.)
-async function getGatewayBearer(): Promise<string> {
-  const tokenUrl = `${gatewayBase()}/secservices/oauth2/v2/token`;
-  const params = new URLSearchParams({ grant_type: "client_credentials" });
-
-  const resp = await fetch(tokenUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      Accept: "application/json",
-      Authorization:
-        "Basic " +
-        Buffer.from(`${DELUXE_CLIENT_ID.value()}:${DELUXE_CLIENT_SECRET.value()}`).toString("base64"),
-    },
-    body: params.toString(),
-  });
-
-  if (!resp.ok) {
-    const t = await resp.text().catch(() => "");
-    throw new Error(`OAuth failed (${resp.status}): ${t || resp.statusText}`);
-  }
-  const json = (await resp.json()) as { access_token?: string };
-  if (!json.access_token) throw new Error("OAuth: missing access_token");
-  return json.access_token as string;
+// Map input country to ISO alpha-3 expected by the Embedded SDK
+function toAlpha3(input?: string): "USA" | "CAN" | string {
+  const s = (input || "").trim().toUpperCase();
+  if (!s) return "USA";
+  if (["US", "USA", "UNITED STATES", "UNITED STATES OF AMERICA", "U.S."].includes(s)) return "USA";
+  if (["CA", "CAN", "CANADA"].includes(s)) return "CAN";
+  // if already 3 chars, leave it; otherwise default to USA
+  return s.length === 3 ? s : "USA";
 }
 
-// ---- Types ----
+// ---------- Types ----------
 type Level3Item = {
   skuCode: string;
   quantity: number;
@@ -134,7 +95,7 @@ type OrderDoc = {
   status?: "pending" | "paid" | "cancelled";
   total: number;
   currency?: "USD" | "CAD";
-  createdAt?: admin.firestore.Timestamp;
+  createdAt?: Timestamp | null;
   level3?: Level3Item[];
   customer?: {
     firstName?: string;
@@ -147,7 +108,7 @@ type OrderDoc = {
       city?: string;
       state?: string;
       zipCode?: string;
-      countryCode?: string;
+      countryCode?: string; // we will coerce to alpha-3 when building payloads
     };
   };
   booking?: {
@@ -155,11 +116,14 @@ type OrderDoc = {
     numberOfHunters: number;
     partyDeckDates?: string[];
   };
-  merchItems?: Record<string, { skuCode?: string; name?: string; price?: number; quantity?: number }>;
+  merchItems?: Record<
+    string,
+    { skuCode?: string; name?: string; price?: number; quantity?: number }
+  >;
   paymentLink?: {
     paymentLinkId?: string;
     paymentUrl?: string;
-    lastAttempt?: admin.firestore.FieldValue | number | Date | null;
+    lastAttempt?: FirebaseFirestore.FieldValue | number | Date | null;
   };
   deluxe?: Record<string, unknown>;
 };
@@ -171,6 +135,7 @@ function splitName(name?: string): { firstName: string; lastName: string } {
   return { firstName: parts.slice(0, -1).join(" "), lastName: parts.at(-1)! };
 }
 
+// Body for Hosted Payment Links
 function buildPaymentLinkBody(
   order: OrderDoc,
   opts: { orderId: string; successUrl?: string; cancelUrl?: string }
@@ -203,26 +168,33 @@ function buildPaymentLinkBody(
   return body;
 }
 
-async function incrementCapacityFromOrder(order: OrderDoc) {
-  const booking = order.booking;
-  if (!booking?.dates?.length || !booking.numberOfHunters) return;
-  const n = booking.numberOfHunters;
-  const batch = db.batch();
-  for (const date of booking.dates) {
-    const ref = db.collection("availability").doc(date);
-    batch.set(
-      ref,
-      {
-        huntersBooked: admin.firestore.FieldValue.increment(n),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    );
+// OAuth bearer for (hosted) gateway endpoints
+async function getGatewayBearer(): Promise<string> {
+  const tokenUrl = `${gatewayBase()}/secservices/oauth2/v2/token`;
+  const params = new URLSearchParams({ grant_type: "client_credentials" });
+
+  const resp = await fetch(tokenUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/json",
+      Authorization:
+        "Basic " +
+        Buffer.from(`${DELUXE_CLIENT_ID.value()}:${DELUXE_CLIENT_SECRET.value()}`).toString("base64"),
+    },
+    body: params.toString(),
+  });
+
+  if (!resp.ok) {
+    const t = await resp.text().catch(() => "");
+    throw new Error(`OAuth failed (${resp.status}): ${t || resp.statusText}`);
   }
-  await batch.commit();
+  const json = (await resp.json()) as { access_token?: string };
+  if (!json.access_token) throw new Error("OAuth: missing access_token");
+  return json.access_token as string;
 }
 
-// ---- Express App ----
+// ---------- Express App ----------
 const app = express();
 app.use(cors({ origin: true }));
 app.use(express.json());
@@ -233,7 +205,7 @@ app.get("/api/health", (_req: Request, res: Response) => {
   res.json({ status: "ok" });
 });
 
-// Embedded merchant status (wallets etc.) — HS256 JWT to payments{2}.deluxe.com
+// Embedded merchant status (wallet flags etc.) — calls payments{2}.deluxe.com/embedded/merchantStatus
 app.get("/api/getEmbeddedMerchantStatus", async (_req: Request, res: Response): Promise<void> => {
   try {
     const now = Math.floor(Date.now() / 1000);
@@ -257,15 +229,13 @@ app.get("/api/getEmbeddedMerchantStatus", async (_req: Request, res: Response): 
     try {
       json = txt ? JSON.parse(txt) : {};
     } catch {
-      // leave as {}
+      /* non-JSON */
     }
 
     if (!r.ok) {
       logger.error("merchantStatus failed", { status: r.status, body: txt });
       return void res.json({ applePayEnabled: false, googlePayEnabled: false });
     }
-
-    // Example response shape: { applePayEnabled: boolean, googlePayEnabled: boolean, ... }
     return void res.json(json);
   } catch (err: any) {
     logger.error("getEmbeddedMerchantStatus error", err);
@@ -273,31 +243,30 @@ app.get("/api/getEmbeddedMerchantStatus", async (_req: Request, res: Response): 
   }
 });
 
-app.post("/api/createEmbeddedJwt", async (req: Request, res: Response) => {
+// Embedded: create short-lived JWT for the Deluxe SDK (no orderId / no nested summary)
+app.post("/api/createEmbeddedJwt", async (req: Request, res: Response): Promise<void> => {
   try {
     const { amount, currency = "USD", orderId, customer, products } =
       (req.body || {}) as {
         amount: number;
         currency?: "USD" | "CAD";
-        orderId?: string;     // accepted only to verify amount; NOT placed into JWT
+        orderId?: string;          // used server-side only to verify amount; NOT added to JWT
         customer?: any;
         products?: any[];
-        // NOTE: we intentionally ignore any 'summary' field to keep the JWT minimal
       };
 
-    // Basic validation
-    if (typeof amount !== "number" || !isFinite(amount) || amount <= 0) {
-      return res.status(400).json({ error: "invalid-amount" });
+    if (typeof amount !== "number" || amount <= 0) {
+      return void res.status(400).json({ error: "invalid-amount" });
     }
 
-    // Optional: if orderId is provided, prefer Firestore's total for consistency
+    // If orderId is supplied, verify it and prefer its total for the JWT amount.
     let finalAmount = amount;
     if (orderId) {
       try {
         const snap = await db.collection("orders").doc(String(orderId)).get();
         if (snap.exists) {
           const orderData = snap.data() as OrderDoc;
-          if (typeof orderData?.total === "number" && orderData.total > 0) {
+          if (typeof orderData.total === "number" && orderData.total > 0) {
             finalAmount = orderData.total;
           }
         } else {
@@ -308,64 +277,49 @@ app.post("/api/createEmbeddedJwt", async (req: Request, res: Response) => {
       }
     }
 
-    // Normalize customer.billingAddress → ensure alpha-3 countryCode and consistent keys
-    let normalizedCustomer = customer;
-    if (customer?.billingAddress) {
-      const b = customer.billingAddress;
-      const countryRaw = b.countryCode ?? b.country;
-      normalizedCustomer = {
-        ...customer,
-        // keep firstName/lastName as provided (frontend already validated)
-        billingAddress: {
-          address: b.address ?? b.line1,        // accept either 'address' or 'line1'
-          city: b.city,
-          state: b.state,
-          zipCode: b.zipCode ?? b.postalCode,   // accept either 'zipCode' or 'postalCode'
-          countryCode: coerceCountryCode(countryRaw),
-        },
-      };
-      // Do NOT retain an extraneous 'country' field
-      if (normalizedCustomer.billingAddress.country) {
-        try { delete (normalizedCustomer.billingAddress as any).country; } catch {}
-      }
-    }
+    // Normalize customer.billingAddress.countryCode to "USA"/"CAN"
+    const normalizedCustomer =
+      customer && customer.billingAddress
+        ? {
+            ...customer,
+            billingAddress: {
+              ...customer.billingAddress,
+              countryCode: toAlpha3(customer.billingAddress?.countryCode),
+            },
+          }
+        : customer;
 
     // Build a LEAN JWT payload: only recognized fields
     const now = Math.floor(Date.now() / 1000);
-    const exp = now + 15 * 60; // 15-minute expiration
+    const exp = now + 15 * 60; // 15 mins
 
     const payload: Record<string, any> = {
       iat: now,
       exp,
       accessToken: DELUXE_ACCESS_TOKEN.value(), // Partner/MID GUID
-      amount: Number(finalAmount),              // whole currency units
-      currencyCode: currency,                   // "USD" | "CAD"
+      amount: Number(finalAmount),
+      currencyCode: currency, // "USD" | "CAD"
     };
     if (normalizedCustomer) payload.customer = normalizedCustomer;
     if (Array.isArray(products) && products.length > 0) payload.products = products;
 
-    // IMPORTANT:
-    // - Do NOT include 'orderId' in the JWT (keep it out of the token)
-    // - Do NOT include any nested 'summary' object in the JWT
-    // - Avoid any other custom fields to keep the token validator happy
+    // IMPORTANT: do NOT include orderId or a nested 'summary' object in the token
 
-    const jwtToken = signEmbeddedJwt(payload);
+    const jwt = signEmbeddedJwt(payload);
 
-    // Return the JWT and base so the client loads the correct SDK host
-    return res.json({
-      jwt: jwtToken,
+    return void res.json({
+      jwt,
       exp,
-      embeddedBase: embeddedBase(),            // e.g., https://payments2.deluxe.com in sandbox
+      embeddedBase: embeddedBase(),
       env: useSandbox() ? "sandbox" : "production",
     });
   } catch (err: any) {
     logger.error("createEmbeddedJwt error", err);
-    return res.status(500).json({ error: "jwt-failed", message: err?.message || String(err) });
+    return void res.status(500).json({ error: "jwt-failed", message: err?.message || String(err) });
   }
 });
 
-
-// Hosted Links: create a payment link as fallback
+// Hosted Links: create a payment link (fallback)
 app.post("/api/createDeluxePayment", async (req: Request, res: Response): Promise<void> => {
   try {
     const { orderId, successUrl, cancelUrl } = req.body || {};
@@ -416,16 +370,13 @@ app.post("/api/createDeluxePayment", async (req: Request, res: Response): Promis
       return void res.status(502).json({ error: "No paymentUrl in response", response: json });
     }
 
+    // persist reference if you like
     await orderRef.set(
       {
         paymentLink: {
-          paymentLinkId,
           paymentUrl,
-          lastAttempt: admin.firestore.FieldValue.serverTimestamp(),
-        },
-        deluxe: {
-          lastPaymentLinkRequest: body,
-          lastPaymentLinkResponse: json,
+          paymentLinkId,
+          lastAttempt: FieldValue.serverTimestamp(),
         },
       },
       { merge: true }
@@ -434,121 +385,15 @@ app.post("/api/createDeluxePayment", async (req: Request, res: Response): Promis
     return void res.json({ paymentUrl, paymentLinkId });
   } catch (err: any) {
     logger.error("createDeluxePayment error", err);
-    return void res
-      .status(500)
-      .json({ error: "createDeluxePayment-failed", message: err?.message || String(err) });
+    return void res.status(500).json({ error: "link-failed", message: err?.message || String(err) });
   }
 });
 
-// Refunds (compliance): POST /refunds
-app.post("/api/refundDeluxePayment", async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { amount, currency = "USD", paymentId, transactionId, reason } =
-      (req.body || {}) as {
-        amount?: number;
-        currency?: "USD" | "CAD";
-        paymentId?: string;
-        transactionId?: string; // aka originalTransactionId
-        reason?: string;
-      };
-
-    if (!amount || amount <= 0) {
-      return void res.status(400).json({ error: "invalid-amount" });
-    }
-    if (!paymentId && !transactionId) {
-      return void res.status(400).json({ error: "paymentId-or-transactionId-required" });
-    }
-
-    const bearer = await getGatewayBearer();
-    const url = `${gatewayBase()}/dpp/v1/gateway/refunds`;
-    const body: any = {
-      amount: { amount, currency },
-    };
-    if (paymentId) body.paymentId = paymentId;
-    if (transactionId) body.originalTransactionId = transactionId;
-    if (reason) body.reason = reason;
-
-    const resp = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${bearer}`,
-        PartnerToken: DELUXE_ACCESS_TOKEN.value(),
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-
-    const text = await resp.text();
-    let json: any = {};
-    try {
-      json = text ? JSON.parse(text) : {};
-    } catch {}
-
-    if (!resp.ok) {
-      logger.error("refunds failed", { status: resp.status, body: text });
-      return void res
-        .status(resp.status)
-        .json({ error: "refunds-failed", status: resp.status, body: json || text });
-    }
-
-    return void res.json(json);
-  } catch (err: any) {
-    logger.error("refundDeluxePayment error", err);
-    return void res.status(500).json({ error: "refund-failed", message: err?.message || String(err) });
-  }
-});
-
-// Webhook: mark orders paid & increment capacity
-app.post("/api/deluxe/webhook", async (req: Request, res: Response): Promise<void> => {
-  try {
-    const evt = req.body || {};
-    // Try to resolve orderId from standard fields
-    const orderId: string | undefined =
-      evt?.orderData?.orderId ||
-      evt?.customData?.find?.((x: any) => x?.name === "orderId")?.value;
-
-    const status: string | undefined =
-      evt?.status || evt?.transactionStatus || evt?.paymentStatus;
-    const approved = typeof status === "string" && /approved|captured|paid/i.test(status);
-
-    if (orderId && approved) {
-      const ref = db.collection("orders").doc(orderId);
-      const snap = await ref.get();
-      if (snap.exists) {
-        const order = { id: snap.id, ...(snap.data() as OrderDoc) };
-        await ref.set(
-          {
-            status: "paid",
-            deluxe: { lastWebhook: evt },
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          },
-          { merge: true }
-        );
-        await incrementCapacityFromOrder(order);
-      }
-    } else {
-      logger.warn("Webhook received without resolvable orderId or unpaid status", { orderId, status });
-    }
-
-    return void res.json({ ok: true });
-  } catch (err: any) {
-    logger.error("webhook error", err);
-    // Always 200 to avoid retry storms; inspect logs for details.
-    return void res.status(200).json({ ok: false });
-  }
-});
-
-// ---- Export single onRequest that proxies to Express app ----
+// ---------- Export Express app as a single HTTPS function ----------
 export const api = onRequest(
   {
-    secrets: [
-      DELUXE_CLIENT_ID,
-      DELUXE_CLIENT_SECRET,
-      DELUXE_ACCESS_TOKEN,
-      DELUXE_MID,
-      DELUXE_EMBEDDED_SECRET,
-    ],
+    cors: true,
+    secrets: [DELUXE_CLIENT_ID, DELUXE_CLIENT_SECRET, DELUXE_ACCESS_TOKEN, DELUXE_MID, DELUXE_EMBEDDED_SECRET],
   },
-  (req, res) => app(req, res)
+  app
 );

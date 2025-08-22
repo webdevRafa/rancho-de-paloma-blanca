@@ -5,33 +5,8 @@ import { db } from "../firebase/firebaseConfig";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
 import CustomerInfoForm from "../components/CustomerInfoForm";
-
-// Pull in the CustomerInfoForm component. We do not import its types
-// because within this isolated environment those modules are treated as
-// `any` by the TypeScript compiler. Instead, we define the
-// corresponding types locally below.
 import { getSeasonConfig } from "../utils/getSeasonConfig";
-function toAlpha3Country(input?: string): string {
-  if (!input) return "USA"; // default
-  const s = input.trim().toUpperCase();
-  const map: Record<string, string> = {
-    US: "USA",
-    USA: "USA",
-    "UNITED STATES": "USA",
-    "UNITED STATES OF AMERICA": "USA",
-    "U.S.": "USA",
-    CA: "CAN",
-    CAN: "CAN",
-    CANADA: "CAN",
-    // ...add other countries if needed...
-  };
-  return map[s] || s.slice(0, 3); // fallback: use first 3 chars
-}
 
-// Define lightweight versions of external types used by this component.
-// When integrating into the real application you should import these from
-// their respective modules instead. See Types.ts and CustomerInfoForm for
-// the canonical definitions.
 export type CustomerInfo = {
   firstName: string;
   lastName: string;
@@ -47,89 +22,36 @@ export type CustomerInfo = {
   };
 };
 
-/** Recursively remove any fields with value `undefined`. Firestore rejects `undefined` values. */
-function pruneUndefinedDeep<T>(obj: T): T {
-  if (Array.isArray(obj)) {
-    return obj.map((v) => pruneUndefinedDeep(v)) as unknown as T;
-  }
-  if (
-    obj &&
-    typeof obj === "object" &&
-    (obj as any).constructor?.name === "Object"
-  ) {
-    const out: Record<string, any> = {};
-    for (const [k, v] of Object.entries(obj as any)) {
-      if (v === undefined) continue;
-      out[k] = pruneUndefinedDeep(v as any);
-    }
-    return out as unknown as T;
-  }
-  return obj;
-}
-
-export type SeasonConfig = {
-  /** inclusive ISO yyyy-mm-dd start of the season */
-  seasonStart: string;
-  /** inclusive ISO yyyy-mm-dd end of the season */
-  seasonEnd: string;
-  /** per‑person weekday rate */
-  weekdayRate?: number;
-  /** per‑person weekend rate configurations */
-  weekendRates?: {
-    singleDay: number;
-    twoConsecutiveDays: number;
-    threeDayCombo: number;
-  };
-  /** optional per‑day party deck rental rate */
-  partyDeckRatePerDay?: number;
-};
-
-/**
- * CheckoutPage.tsx
- *
- * A production-ready checkout implementation leveraging Deluxe Embedded Payments as the
- * primary collection mechanism with hosted payment links as a fallback. This
- * component calculates totals for bookings and merchandise, persists order
- * information to Firestore, and manages lifecycle of the EmbeddedPayments SDK.
- *
- * The types declared here mirror those in our Types.ts/MerchTypes.ts modules.
- */
-
-// Extend the Window interface for the Deluxe SDK. The embedded script attaches
-// `EmbeddedPayments` at runtime. We use `any` here since the SDK does not ship
-// official TypeScript definitions.
 declare global {
   interface Window {
     EmbeddedPayments?: any;
   }
 }
 
-// ---- Local Types (align with Types.ts / Order schema) ----
 type BookingLine = {
-  /** The days the hunt is booked (ISO YYYY-MM-DD). */
   dates: string[];
-  /** Number of hunters participating. */
   numberOfHunters: number;
-  /** Optional subset of dates where the party deck is reserved. */
   partyDeckDates?: string[];
-  /** Copy of the season configuration used for auditing. */
   seasonConfig?: SeasonConfig;
 };
 
-type MerchItem = {
-  skuCode: string;
-  name: string;
-  qty: number;
-  /** Unit price in whole currency units (no cents). */
-  price: number;
+type MerchItem = { skuCode: string; name: string; qty: number; price: number };
+
+export type SeasonConfig = {
+  seasonStart: string;
+  seasonEnd: string;
+  weekdayRate?: number;
+  weekendRates?: {
+    singleDay: number;
+    twoConsecutiveDays: number;
+    threeDayCombo: number;
+  };
+  partyDeckRatePerDay?: number;
 };
 
 type OrderDoc = {
   userId: string;
   status: "pending" | "paid" | "cancelled";
-  /**
-   * Grand total in whole currency units. For example, 200 corresponds to $200.00.
-   */
   total: number;
   currency: "USD" | "CAD";
   createdAt?: any;
@@ -165,7 +87,7 @@ type OrderDoc = {
       city?: string;
       state?: string;
       postalCode?: string;
-      country?: string; // two‑letter ISO country code
+      country?: string;
     };
   };
   deluxe?: {
@@ -178,99 +100,72 @@ type OrderDoc = {
   };
 };
 
-// Storage key for persisting a generated order ID. Keeping this constant
-// outside of the component allows reuse across navigations. When used in
-// combination with a user ID (if available) the risk of collisions is
-// minimized. See the useState hook for how this constant is applied.
 const ORDER_ID_KEY = "rdpb:orderId";
-
-// The DOM id used to host the embedded payment panel. If you modify this
-// identifier here, also update the matching attribute in the render method.
 const EMBEDDED_CONTAINER_ID = "embeddedpayments";
 
-/**
- * Dynamically injects the Deluxe Embedded Payments SDK. The correct
- * environment (production or sandbox) is inferred at runtime based on the
- * hostname. If the script has already been added to the document, the
- * existing script's load events are used; otherwise a new <script> element
- * is appended to <head>. The promise resolves once window.EmbeddedPayments
- * is available.
- *
- * @param src override the default script URL; useful for testing
- */
-/**
- * Load Deluxe Embedded SDK and normalize the global to window.EmbeddedPayments.
- * Tries a few filename variants and several possible global names.
- */
-// Load only the canonical Deluxe SDK file and wait for window.EmbeddedPayments.
-async function loadDeluxeSdk(embeddedBase?: string): Promise<void> {
-  const base = embeddedBase || "https://payments2.deluxe.com";
-  const url = `${base}/embedded/javascripts/deluxe.js`;
+function pruneUndefinedDeep<T>(obj: T): T {
+  if (Array.isArray(obj))
+    return obj.map((v) => pruneUndefinedDeep(v)) as unknown as T;
+  if (
+    obj &&
+    typeof obj === "object" &&
+    (obj as any).constructor?.name === "Object"
+  ) {
+    const out: Record<string, any> = {};
+    for (const [k, v] of Object.entries(obj as any)) {
+      if (v === undefined) continue;
+      out[k] = pruneUndefinedDeep(v as any);
+    }
+    return out as unknown as T;
+  }
+  return obj;
+}
 
-  // remove any previously injected SDK from a different base
-  try {
-    document
-      .querySelectorAll('script[src*="deluxe.com/embedded/"]')
-      .forEach((s) => {
-        if (!(s as HTMLScriptElement).src.startsWith(base))
-          s.parentElement?.removeChild(s);
-      });
-  } catch {}
-
-  // append (or reuse) the script
-  await new Promise<void>((resolve, reject) => {
+function loadDeluxeSdk(src?: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const url =
+      src || "https://payments2.deluxe.com/embedded/javascripts/deluxe.js";
+    const finish = () => {
+      const t0 = Date.now();
+      (function wait() {
+        if ((window as any).EmbeddedPayments) return resolve();
+        if (Date.now() - t0 > 10000)
+          return reject(new Error("Deluxe SDK loaded but global missing"));
+        setTimeout(wait, 50);
+      })();
+    };
+    if ((window as any).EmbeddedPayments) return resolve();
     const existing = document.querySelector(
       `script[src="${url}"]`
     ) as HTMLScriptElement | null;
     if (existing) {
-      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("load", finish, { once: true });
       existing.addEventListener(
         "error",
-        () => reject(new Error(`Failed to load Deluxe SDK: ${url}`)),
+        () => reject(new Error("Failed to load Deluxe SDK")),
         { once: true }
       );
-    } else {
-      const script = document.createElement("script");
-      script.src = url;
-      script.async = true; // do NOT set crossOrigin
-      script.onload = () => resolve();
-      script.onerror = () =>
-        reject(new Error(`Failed to load Deluxe SDK: ${url}`));
-      document.head.appendChild(script);
+      return;
     }
+    const s = document.createElement("script");
+    s.src = url;
+    s.async = true;
+    s.defer = true;
+    s.crossOrigin = "anonymous";
+    s.onload = finish;
+    s.onerror = () => reject(new Error("Failed to load Deluxe SDK"));
+    document.head.appendChild(s);
   });
-
-  // poll for the global (the SDK may pull internal chunks before exposing it)
-  const started = Date.now();
-  const max = 8000;
-  while (Date.now() - started < max) {
-    const ep = (window as any).EmbeddedPayments;
-    if (ep && typeof ep.init === "function") return;
-    await new Promise((r) => setTimeout(r, 50));
-  }
-  throw new Error(
-    `Deluxe SDK script loaded but SDK global wasn't exposed (${url}). ` +
-      `This usually means a follow-on file (e.g. /embedded/embeddedpayments.js) was blocked by a network/extension.`
-  );
 }
 
-/**
- * Returns true if the second ISO date is exactly one day after the first. This
- * helper is used when grouping consecutive weekend days for special pricing.
- */
 function isConsecutive(d0: string, d1: string): boolean {
   const a = new Date(`${d0}T00:00:00`);
   const b = new Date(`${d1}T00:00:00`);
-  const diff = (b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24);
-  return diff === 1;
+  return (b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24) === 1;
 }
-
-/** Returns a new array of ISO dates sorted in ascending order. */
-function sortIsoDates(dates: string[]): string[] {
+function sortIsoDates(dates: string[]) {
   return [...dates].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
-
-/** Returns true if iso is within the inclusive range [startIso, endIso]. */
 function inRange(iso: string, startIso: string, endIso: string) {
   const t = new Date(`${iso}T00:00:00`).getTime();
   const s = new Date(`${startIso}T00:00:00`).getTime();
@@ -278,11 +173,6 @@ function inRange(iso: string, startIso: string, endIso: string) {
   return t >= s && t <= e;
 }
 
-/**
- * Constructs the array of product objects consumed by Deluxe's Embedded JWT.
- * Both booking and merchandise items are represented. When booking is present
- * the description conveys the number of days and hunters.
- */
 function buildProductsForJwt(args: {
   booking: BookingLine | null;
   merchItems: MerchItem[];
@@ -295,22 +185,18 @@ function buildProductsForJwt(args: {
     price?: number;
     description?: string;
     unitOfMeasure?: string;
-    itemDiscountAmount?: number;
-    itemDiscountRate?: number;
   }> = [];
-
   if (booking) {
     products.push({
       name: "Dove Hunt Package",
       skuCode: "HUNT",
       quantity: booking.numberOfHunters,
-      price: 0, // pricing is rolled into the overall total
+      price: 0,
       description: `${booking.dates.length} day(s) • ${booking.numberOfHunters} hunter(s)`,
       unitOfMeasure: "Each",
     });
   }
-
-  for (const m of merchItems) {
+  for (const m of merchItems)
     products.push({
       name: m.name,
       skuCode: m.skuCode,
@@ -318,82 +204,59 @@ function buildProductsForJwt(args: {
       price: m.price,
       unitOfMeasure: "Each",
     });
-  }
   return products;
 }
 
-/**
- * Computes the per-person cost for a set of booking dates based on a season
- * configuration. When cfg is null, sensible defaults are applied. The return
- * value includes individual subtotals for booking and merchandise as well as
- * the combined amount due. All values are whole currency units (no cents).
- */
 function calculateTotals(args: {
   booking: BookingLine | null;
   merchItems: MerchItem[];
   cfg: SeasonConfig | null;
 }) {
   const { booking, merchItems, cfg } = args;
-
-  // Merchandise subtotal
   const merchTotal = merchItems.reduce((sum, m) => sum + m.price * m.qty, 0);
-
-  // Booking subtotal
   let bookingTotal = 0;
   if (booking && booking.dates.length > 0) {
     const all = sortIsoDates(booking.dates);
-
     const weekdayRate = cfg?.weekdayRate ?? 125;
     const wkRates = cfg?.weekendRates ?? {
       singleDay: 200,
       twoConsecutiveDays: 350,
       threeDayCombo: 450,
     };
-
-    const isInSeason = (iso: string) => {
-      if (!cfg) {
-        // Sept 6 – Oct 26 default season (inclusive).  Note: months are 0-indexed.
-        const d = new Date(`${iso}T00:00:00`);
-        const m = d.getMonth() + 1;
-        const dd = d.getDate();
-        return (m === 9 && dd >= 6) || (m === 10 && dd <= 26);
-      }
-      return inRange(iso, cfg.seasonStart, cfg.seasonEnd);
-    };
-
+    const isInSeason = (iso: string) =>
+      cfg
+        ? inRange(iso, cfg.seasonStart, cfg.seasonEnd)
+        : (() => {
+            const d = new Date(`${iso}T00:00:00`);
+            const m = d.getMonth() + 1;
+            const dd = d.getDate();
+            return (m === 9 && dd >= 6) || (m === 10 && dd <= 26);
+          })();
     const isWeekend = (iso: string) => {
       const d = new Date(`${iso}T00:00:00`);
-      const dow = d.getDay(); // 0 Sun..6 Sat
-      return dow === 5 || dow === 6 || dow === 0; // Fri/Sat/Sun
+      const dow = d.getDay();
+      return dow === 5 || dow === 6 || dow === 0;
     };
-
-    // Off-season days are billed at the weekday rate (per person).
     const offSeasonDays = all.filter((d) => !isInSeason(d));
     bookingTotal +=
       offSeasonDays.length * weekdayRate * (booking.numberOfHunters || 1);
-
-    // In-season days may qualify for special weekend pricing combos. We process
-    // consecutive days in order to group 2- and 3-day packages. The
-    // seasonCostPerPerson accumulator holds the subtotal per hunter.
     const inSeasonDays = all.filter((d) => isInSeason(d));
     const seasonDaysSorted = sortIsoDates(inSeasonDays);
     let seasonCostPerPerson = 0;
     for (let i = 0; i < seasonDaysSorted.length; ) {
-      const d0 = seasonDaysSorted[i];
-      const d1 = seasonDaysSorted[i + 1];
-      const d2 = seasonDaysSorted[i + 2];
-      const wknd0 = d0 ? isWeekend(d0) : false;
-      const wknd1 = d1 ? isWeekend(d1) : false;
-      const wknd2 = d2 ? isWeekend(d2) : false;
-
-      // 3-day Fri–Sun combo
+      const d0 = seasonDaysSorted[i],
+        d1 = seasonDaysSorted[i + 1],
+        d2 = seasonDaysSorted[i + 2];
+      const wk0 = d0 ? isWeekend(d0) : false,
+        wk1 = d1 ? isWeekend(d1) : false,
+        wk2 = d2 ? isWeekend(d2) : false;
       if (
         d0 &&
         d1 &&
         d2 &&
-        wknd0 &&
-        wknd1 &&
-        wknd2 &&
+        wk0 &&
+        wk1 &&
+        wk2 &&
         isConsecutive(d0, d1) &&
         isConsecutive(d1, d2)
       ) {
@@ -401,13 +264,11 @@ function calculateTotals(args: {
         i += 3;
         continue;
       }
-      // 2 consecutive days combo (e.g., Fri+Sat or Sat+Sun)
       if (d0 && d1 && isConsecutive(d0, d1)) {
         seasonCostPerPerson += wkRates.twoConsecutiveDays;
         i += 2;
         continue;
       }
-      // Single in-season day
       if (d0) {
         seasonCostPerPerson += wkRates.singleDay;
         i += 1;
@@ -416,13 +277,10 @@ function calculateTotals(args: {
       i++;
     }
     bookingTotal += seasonCostPerPerson * (booking.numberOfHunters || 1);
-
-    // Party deck: fixed rate per selected day regardless of season
     const partyDays = booking.partyDeckDates?.length || 0;
     const partyRate = cfg?.partyDeckRatePerDay ?? 500;
     bookingTotal += partyDays * partyRate;
   }
-
   const amount = bookingTotal + merchTotal;
   return { bookingTotal, merchTotal, amount };
 }
@@ -432,35 +290,17 @@ export default function CheckoutPage() {
   const { user } = useAuth();
   const { booking, merchItems, isHydrated } = useCart();
 
-  /**
-   * Generate or retrieve a persisted orderId. If crypto.randomUUID is not
-   * available (e.g. in very old browsers), a simple fallback based on
-   * Math.random is used. The orderId is stored in localStorage using a
-   * fixed key. In a future iteration this key could incorporate the
-   * authenticated user's UID to avoid collisions when multiple users
-   * share the same browser.
-   */
-  // When not using the React type definitions, the generic form of useState
-  // (i.e. useState<string>()) is invalid because the imported function is
-  // typed as `any`. To avoid "untagged function calls may not accept type
-  // arguments" errors we call useState without a type parameter and cast
-  // the return value. The stored orderId is always a string.
   const [orderId] = useState(() => {
     const existing = localStorage.getItem(ORDER_ID_KEY);
     if (existing) return existing;
-    const uuid =
-      typeof crypto !== "undefined" && (crypto as any).randomUUID
-        ? (crypto as any).randomUUID()
-        : Math.random().toString(36).slice(2) +
-          Math.random().toString(36).slice(2);
+    const uuid = (crypto as any)?.randomUUID
+      ? (crypto as any).randomUUID()
+      : Math.random().toString(36).slice(2) +
+        Math.random().toString(36).slice(2);
     localStorage.setItem(ORDER_ID_KEY, uuid);
     return uuid;
   }) as unknown as [string, any];
 
-  // Season configuration state loaded asynchronously from our utility helper.
-  // See note above on generics: we avoid specifying the type argument when
-  // the imported hook is typed as `any`. Cast the initial state to the
-  // appropriate union type instead.
   const [seasonConfig, setSeasonConfig] = useState(null as SeasonConfig | null);
   const [cfgError, setCfgError] = useState("") as unknown as [string, any];
   useEffect(() => {
@@ -478,24 +318,9 @@ export default function CheckoutPage() {
     };
   }, []);
 
-  // Convert the cart's merchandise record into a flat array. Each key in
-  // merchItems corresponds to a product with its own quantity and price.
   const merchArray: MerchItem[] = useMemo(() => {
-    /**
-     * The cart's merchandise state can be represented in a variety of ways
-     * depending on the calling context. In our implementation the values
-     * returned from `useCart().merchItems` are keyed objects rather than a
-     * simple array, so we iterate over the object's values to build an
-     * array of MerchItem objects. Because the type signature for
-     * `merchItems` is opaque (i.e. it is typed as `unknown` coming from
-     * the context) we cast each entry to `any` before accessing its
-     * properties. Without this cast TypeScript will emit errors such as
-     * "Property 'product' does not exist on type 'unknown'". See issue
-     * https://github.com/microsoft/TypeScript/issues/43467 for details.
-     */
     const arr: MerchItem[] = [];
     const items = merchItems as any;
-    // Guard against undefined/null by defaulting to an empty object
     const values: any[] = items ? Object.values(items) : [];
     for (const v of values) {
       const sku = v?.product?.skuCode ?? v?.product?.id ?? "SKU";
@@ -509,9 +334,6 @@ export default function CheckoutPage() {
     return arr;
   }, [merchItems]);
 
-  // Initialize the customer state with defaults from the authenticated user if
-  // available. When the customer changes their info in the form, this state
-  // updates accordingly.
   const [customer, setCustomer] = useState(() => {
     const displayName = user?.displayName || "";
     const parts = displayName.split(" ");
@@ -527,9 +349,6 @@ export default function CheckoutPage() {
     return initial;
   }) as unknown as [CustomerInfo, any];
 
-  // Memoized total calculations. Whenever booking, merchArray, or the
-  // seasonConfig change, recompute the totals. If booking is null we pass
-  // null through to calculateTotals.
   const { amount } = useMemo(
     () =>
       calculateTotals({
@@ -547,32 +366,15 @@ export default function CheckoutPage() {
     [booking, merchArray, seasonConfig]
   );
 
-  // UI state flags controlling the embedded payment lifecycle.
   const [sdkReady, setSdkReady] = useState(false);
   const [instanceReady, setInstanceReady] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("") as unknown as [string, any];
-
-  // Keep a reference to the EmbeddedPayments instance so that we can
-  // unmount/destroy it when the component unmounts or when a new payment
-  // session begins. Without cleanup, stray event listeners could persist.
-  // See note above on generics: avoid specifying type arguments on hooks
-  // when React types are unavailable. Cast the result of useRef to the
-  // desired shape instead.
   const instanceRef = useRef(null) as unknown as { current: any };
 
-  /**
-   * Ensure that a corresponding order document exists in Firestore. If the
-   * document does not exist it is created; otherwise it is merged with
-   * updated totals and customer information. This function is invoked prior
-   * to initiating either embedded or hosted payments.
-   */
   const ensureOrder = useCallback(async () => {
     const ref = doc(db, "orders", orderId);
     const snap = await getDoc(ref);
-    // Build up a base OrderDoc. We always include createdAt on initial
-    // creation and updatedAt on subsequent updates to aid sorting in the
-    // dashboard.
     let base: OrderDoc = {
       userId: user?.uid || "anon",
       status: "pending",
@@ -623,31 +425,17 @@ export default function CheckoutPage() {
       },
     };
     base = pruneUndefinedDeep(base);
-    if (!snap.exists()) {
-      await setDoc(ref, base, { merge: true });
-    } else {
+    if (!snap.exists()) await setDoc(ref, base, { merge: true });
+    else
       await setDoc(
         ref,
         { ...base, updatedAt: serverTimestamp() },
         { merge: true }
       );
-    }
   }, [amount, booking, customer, merchArray, orderId, seasonConfig, user]);
 
-  /**
-   * Starts the embedded payment flow. This function validates required
-   * customer fields, ensures the order document exists, generates a JWT
-   * server-side, loads the Deluxe SDK, initializes a new payment instance,
-   * registers event handlers, and finally renders the payment panel.
-   */
   const startEmbeddedPayment = useCallback(async () => {
     setErrorMsg("");
-
-    // Wallet flags (cards are always allowed as baseline)
-    let applePayEnabled = false;
-    let googlePayEnabled = false;
-
-    // basic validation
     if (!customer.firstName || !customer.lastName || !customer.email) {
       setErrorMsg(
         "Please complete your customer information before starting payment."
@@ -658,10 +446,8 @@ export default function CheckoutPage() {
       setErrorMsg("Amount must be greater than zero to initiate payment.");
       return;
     }
-
     setIsSubmitting(true);
     try {
-      // (0) clean up any previous instance before starting anew
       try {
         const inst = instanceRef.current;
         if (inst?.destroy) inst.destroy();
@@ -669,46 +455,22 @@ export default function CheckoutPage() {
         instanceRef.current = null;
       } catch {}
 
-      // (1) ensure/merge order
       await ensureOrder();
 
-      // (2) optional: merchant status (best-effort only)
-      // Start with cards only; enable ACH / wallets if backend says so.
       let paymentMethods: ("cc" | "ach")[] = ["cc"];
       try {
         const statusResp = await fetch("/api/getEmbeddedMerchantStatus");
         if (statusResp.ok) {
           const status = await statusResp.json();
-
-          // ACH toggles (support both shapes)
           if (status?.achEnabled === true) paymentMethods = ["cc", "ach"];
-          if (
-            Array.isArray(status?.methods) &&
-            status.methods.includes("ach")
-          ) {
-            if (!paymentMethods.includes("ach")) paymentMethods.push("ach");
-          }
-
-          // Wallet flags (support both shapes)
-          applePayEnabled =
-            !!status?.applePayEnabled ||
-            (Array.isArray(status?.methods) &&
-              status.methods.includes("applePay"));
-          googlePayEnabled =
-            !!status?.googlePayEnabled ||
-            (Array.isArray(status?.methods) &&
-              status.methods.includes("googlePay"));
         }
-      } catch (err) {
-        console.warn("Failed to fetch merchant status", err);
-        // best-effort only; continue with cards baseline
-      }
+      } catch {}
 
-      // (3) get short-lived JWT from backend (include orderId)
       const jwtResp = await fetch("/api/createEmbeddedJwt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          orderId,
           amount,
           currency: "USD",
           customer: {
@@ -719,7 +481,7 @@ export default function CheckoutPage() {
               city: customer.billingAddress?.city,
               state: customer.billingAddress?.state,
               zipCode: customer.billingAddress?.postalCode,
-              countryCode: toAlpha3Country(customer.billingAddress?.country),
+              countryCode: customer.billingAddress?.country, // backend normalizes to alpha‑3
             },
           },
           products: buildProductsForJwt({
@@ -747,36 +509,37 @@ export default function CheckoutPage() {
       };
       if (!jwt) throw new Error("JWT missing from response");
 
-      // (4) load SDK from the server-specified base (forces sandbox/production correctly)
-      await loadDeluxeSdk(embeddedBase);
+      const scriptSrc = embeddedBase
+        ? `${embeddedBase}/embedded/javascripts/deluxe.js`
+        : undefined;
+      await loadDeluxeSdk(scriptSrc);
 
       const EP = (window as any).EmbeddedPayments;
-      if (!EP || typeof EP.init !== "function") {
+      if (!EP || typeof EP.init !== "function")
         throw new Error("Deluxe SDK not initialized (global missing)");
-      }
       setSdkReady(true);
 
-      // choose wallets env from embeddedBase
       const isSandbox = (embeddedBase || "").includes("payments2.");
       const config = {
-        countryCode: "USA",
+        countryCode: "US",
         currencyCode: "USD",
-        paymentMethods, // ["cc"] baseline, "ach" added if enabled
+        paymentMethods,
         supportedNetworks: ["visa", "masterCard", "amex", "discover"],
         googlePayEnv: isSandbox ? "TEST" : "PRODUCTION",
         merchantCapabilities: ["supports3DS"],
         allowedCardAuthMethods: ["PAN_ONLY", "CRYPTOGRAM_3DS"],
-        // Hide wallet buttons unless explicitly enabled
-        hideApplePayButton: !applePayEnabled,
-        hideGooglePayButton: !googlePayEnabled,
       } as any;
 
-      // (5) init, attach handlers, render
-      const initReturn = EP.init(jwt, config);
-      const instance = await initReturn.setEventHandlers({
-        onTxnSuccess: async (_gateway: any, data: any) => {
+      const instance = await EP.init(jwt, config).setEventHandlers({
+        onTxnSuccess: async (_g: any, data: any) => {
           try {
             const ref = doc(db, "orders", orderId);
+            const paymentId =
+              data?.paymentId ||
+              data?.PaymentId ||
+              data?.transactionId ||
+              data?.id ||
+              null;
             await setDoc(
               ref,
               {
@@ -784,6 +547,7 @@ export default function CheckoutPage() {
                 deluxe: {
                   lastEvent: data || null,
                   updatedAt: serverTimestamp(),
+                  paymentId,
                 },
               },
               { merge: true }
@@ -793,41 +557,33 @@ export default function CheckoutPage() {
           }
           navigate(`/dashboard?status=paid&orderId=${orderId}`);
         },
-        onTxnFailed: (_gateway: any, data: any) => {
+        onTxnFailed: (_g: any, data: any) => {
           console.warn("[Deluxe] Failed:", data);
-          setErrorMsg(
-            "Payment failed. Please try again or use the hosted checkout."
-          );
+          setErrorMsg("Payment failed. Please try again.");
         },
-        onTxnCancelled: (_gateway: any, data: any) => {
+        onTxnCancelled: (_g: any, data: any) => {
           console.log("[Deluxe] Cancelled:", data);
           setErrorMsg("Payment cancelled.");
         },
-        onValidationError: (_gateway: any, data: any) => {
+        onValidationError: (_g: any, data: any) => {
           console.warn("[Deluxe] Validation error:", data);
           setErrorMsg("Validation error — please check your info.");
         },
-        onTokenSuccess: (_gateway: any, data: any) => {
+        onTokenSuccess: (_g: any, data: any) => {
           console.log("[Deluxe] Token success", data);
         },
-        onTokenFailed: (_gateway: any, data: any) => {
+        onTokenFailed: (_g: any, data: any) => {
           console.warn("[Deluxe] Token failed", data);
         },
       });
       instanceRef.current = instance;
 
-      // make sure the container exists before rendering
-      if (!document.getElementById(EMBEDDED_CONTAINER_ID)) {
+      if (!document.getElementById(EMBEDDED_CONTAINER_ID))
         throw new Error(`Missing container #${EMBEDDED_CONTAINER_ID}`);
-      }
 
       EP.render({
         containerId: EMBEDDED_CONTAINER_ID,
         paymentpanelstyle: "light",
-        walletsbgcolor: "#000",
-        walletsborderadius: "10px",
-        walletspadding: "10px",
-        walletsgap: "10px",
       });
       setInstanceReady(true);
     } catch (err: any) {
@@ -847,12 +603,6 @@ export default function CheckoutPage() {
     seasonConfig,
   ]);
 
-  /**
-   * Initiates the hosted checkout fallback. This method first ensures the
-   * order document exists, then calls our backend to create a hosted
-   * payment session. The backend returns a paymentUrl which we redirect
-   * the browser to. Errors during creation are surfaced to the user.
-   */
   const fallbackHostedCheckout = useCallback(async () => {
     try {
       await ensureOrder();
@@ -877,29 +627,22 @@ export default function CheckoutPage() {
     }
   }, [ensureOrder, orderId]);
 
-  // On unmount we clean up any EmbeddedPayments instance that was created.
   useEffect(() => {
     return () => {
       try {
         const inst = instanceRef.current;
         if (inst?.destroy) inst.destroy();
         else if (inst?.unmount) inst.unmount();
-        else if (window.EmbeddedPayments?.destroy) {
+        else if (window.EmbeddedPayments?.destroy)
           window.EmbeddedPayments.destroy();
-        }
-      } catch (err) {
-        // Silently ignore cleanup errors
-      }
+      } catch {}
     };
   }, []);
 
-  // Determine if the primary payment flow can be initiated. A non-zero amount
-  // and a known orderId are required before we allow the user to start.
   const canStart = useMemo(() => amount > 0 && !!orderId, [amount, orderId]);
 
-  if (!isHydrated) {
-    return <div className="text-center text-white py-20">Loading cart…</div>;
-  }
+  if (!isHydrated)
+    return <div className="text-center py-20">Loading cart…</div>;
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-10">
@@ -910,37 +653,37 @@ export default function CheckoutPage() {
         </p>
       </div>
 
-      {(errorMsg || cfgError) && (
-        <div className="mb-6 rounded-lg border border-red-500/30 bg-red-500/10 text-red-200 p-3">
-          {errorMsg || cfgError}
+      {(errorMsg || (cfgError as any)) && (
+        <div className="mb-6 rounded-lg border border-red-500/30 bg-red-500/10 text-red-700 p-3">
+          {errorMsg || (cfgError as any)}
         </div>
       )}
 
-      <section className="mb-8 p-4 rounded-xl border border-white/10 bg-white">
-        <h2 className="text-xl mb-4 font-acumin">Customer Info</h2>
+      <section className="mb-8 p-4 rounded-xl border bg-white">
+        <h2 className="text-xl mb-4">Customer Info</h2>
         <CustomerInfoForm value={customer} onChange={setCustomer} />
         <div className="mt-10 p-4">
-          <h2 className="text-xl mb-3  font-acumin">Order Summary</h2>
+          <h2 className="text-xl mb-3">Order Summary</h2>
           <div className="flex items-center gap-2 max-w-[200px]">
-            <div className="text-lg font-acumin">Total</div>
+            <div className="text-lg">Total</div>
             <div className="text-2xl font-bold">${amount.toFixed(2)}</div>
           </div>
         </div>
       </section>
 
-      <section className="mb-6 p-4 rounded-xl border border-white/10 bg-neutral-100">
-        <h2 className="text-xl mb-3 font-acumin">Pay Securely (Embedded)</h2>
+      <section className="mb-6 p-4 rounded-xl border bg-neutral-100">
+        <h2 className="text-xl mb-3">Pay Securely (Embedded)</h2>
         <div className="flex flex-wrap gap-3 mb-4">
           <button
             disabled={!canStart || isSubmitting}
             onClick={startEmbeddedPayment}
-            className="px-4 py-2 rounded-lg bg-[var(--color-accent-sage)] text-white disabled:opacity-50 transition-colors"
+            className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50 transition-colors"
           >
             {isSubmitting ? "Starting…" : "Start secure payment"}
           </button>
           <button
             onClick={fallbackHostedCheckout}
-            className="hidden px-4 py-2 rounded-lg bg-[var(--color-card-hover,#172034)] border border-white/10 hover:bg-white/10 transition-colors"
+            className="hidden px-4 py-2 rounded-lg bg-gray-700 text-white"
           >
             Use hosted checkout (fallback)
           </button>
@@ -949,12 +692,11 @@ export default function CheckoutPage() {
         <div
           id={EMBEDDED_CONTAINER_ID}
           className={[
-            "min-h-[240px] rounded-xl border border-white/10",
+            "min-h-[240px] rounded-xl border",
             sdkReady ? "opacity-100" : "opacity-60",
             "transition-opacity",
           ].join(" ")}
         />
-
         {!sdkReady && (
           <p className="mt-2 text-sm opacity-70">
             The payment panel will appear here after you click “Start secure

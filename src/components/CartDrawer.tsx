@@ -8,6 +8,7 @@ import { db } from "../firebase/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import { getSeasonConfig } from "../utils/getSeasonConfig";
 import { formatLongDate } from "../utils/formatDate";
+import { RiShoppingCartFill } from "react-icons/ri";
 
 type AvailabilityDoc = { huntersBooked?: number; partyDeckBooked?: boolean };
 
@@ -205,7 +206,9 @@ const CartDrawer = () => {
               >
                 <div className="p-4">
                   <div className="flex justify-between items-center mb-2">
-                    <h3 className="text-lg font-bold">Cart Summary</h3>
+                    <h3 className="text-lg font-bold font-acumin">
+                      Cart Summary
+                    </h3>
                     <button
                       onClick={() => setIsOpen(false)}
                       className="text-sm font-bold text-[var(--color-background)] hover:underline"
@@ -385,9 +388,10 @@ const CartDrawer = () => {
               exit={{ y: 100 }}
               transition={{ duration: 0.3 }}
               onClick={() => setIsOpen(true)}
-              className="pointer-events-auto mx-auto block bg-[var(--color-accent-gold)] text-[var(--color-footer)] text-sm font-bold py-3 px-6 rounded-t-lg shadow-lg"
+              className="pointer-events-auto  flex  items-center gap-3 mx-auto bg-[var(--color-accent-gold)] text-[var(--color-footer)] text-sm font-bold py-3 px-6 rounded-t-lg shadow-lg"
             >
-              View Cart (${total})
+              <RiShoppingCartFill className="size-10" />
+              (${total})
             </motion.button>
           )}
         </AnimatePresence>

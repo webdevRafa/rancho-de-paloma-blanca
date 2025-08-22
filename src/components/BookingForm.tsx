@@ -305,7 +305,7 @@ const BookingForm = () => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto mt-20 mb-50 bg-white border-4 border-[var(--color-footer)] p-8  shadow-2xl text-[var(--color-text)]">
+    <div className="max-w-2xl mx-auto my-10 bg-white  p-8  shadow-2xl text-[var(--color-text)]">
       <h2 className="text-3xl font-acumin mb-0 text-center text-[var(--color-footer)]">
         {step === 1 && "Enter Party Size"}
         {step === 2 && "Choose Your Dates"}

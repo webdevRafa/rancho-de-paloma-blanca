@@ -16,7 +16,7 @@
     "noImplicitReturns": true,
     "noUnusedLocals": true,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": ["node", "express", "cors"]
   },
   "include": ["src"]
 }

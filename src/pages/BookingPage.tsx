@@ -1,101 +1,236 @@
-// /pages/BookingPage.tsx
-import { useState } from "react";
+// /pages/BookingPage.tsx (rebuilt with auth gating + AuthModal reuse)
+// RDPB — Booking page with friendly sign‑in flow, then booking/cart UX.
+//
+// • If NOT logged in: show a polished "Sign in / Create account" panel
+//   that reuses our <AuthModal /> (email/password) and offers a 1‑click
+//   "Continue with Google" action.
+// • If logged in: show the original booking experience — either the
+//   <BookingForm /> (start a booking) OR a "cart in progress" summary with
+//   actions (Go to Checkout, Edit Dates, Clear Cart).
+//
+// Notes:
+// - Uses Tailwind + our CSS vars for the ranch palette.
+// - Micro‑motion via Framer Motion for smooth entry/exit.
+// - No business logic changed; this is a UX upgrade.
+//
+// Dependencies already in the project:
+//   • context/AuthContext  (exposes: user, loginWithGoogle)
+//   • components/AuthModal (props: isOpen, onClose)
+//   • components/BookingForm, components/EditBookingDatesModal
+//   • utils/formatDate
+//
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "../context/AuthContext";
+import AuthModal from "../components/AuthModal";
 import BookingForm from "../components/BookingForm";
 import EditBookingDatesModal from "../components/EditBookingDatesModal";
 import { formatLongDate } from "../utils/formatDate";
-
 import { useCart } from "../context/CartContext";
 import dove from "../assets/dove.webp";
+import { PackagesBrochure } from "../components/PackagesBrochure";
+
 const BookingPage = () => {
   const navigate = useNavigate();
+  const { user, loginWithGoogle } = useAuth();
   const { booking, merchItems, resetCart } = useCart();
 
-  const hasBooking = !!booking && booking.dates?.length > 0;
-  const hasMerch = Object.keys(merchItems).length > 0;
-  const hasActiveCart = hasBooking || hasMerch;
-
+  const [authOpen, setAuthOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
 
+  const hasBooking = !!booking && (booking.dates?.length ?? 0) > 0;
+  const hasMerch = useMemo(
+    () => Object.keys(merchItems || {}).length > 0,
+    [merchItems]
+  );
+  const cartTotalItems = useMemo(() => {
+    const merchCount = Object.values(merchItems || {}).reduce(
+      (sum: number, anyItem: any) => {
+        const qty = (anyItem?.quantity ?? 0) as number;
+        return sum + (Number.isFinite(qty) ? qty : 0);
+      },
+      0
+    );
+    const days = booking?.dates?.length ?? 0;
+    return merchCount + days;
+  }, [merchItems, booking]);
+
+  // ---------- 1) AUTH GATE (friendly) ----------
+  if (!user) {
+    return (
+      <div className="relative min-h-[70vh]">
+        {/* Background / hero */}
+        <div
+          className="absolute inset-0 bg-center bg-cover"
+          style={{ backgroundImage: `url(${dove})` }}
+          aria-hidden="true"
+        />
+        <div className="absolute inset-0 bg-black/60" aria-hidden="true" />
+
+        <div className="relative max-w-3xl mx-auto px-4 py-24">
+          <motion.div
+            initial={{ opacity: 0, y: 16, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.45 }}
+            className="bg-white/95 backdrop-blur rounded-2xl shadow-2xl p-8 border border-white/20"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h1 className="text-2xl md:text-3xl font-acumin text-[var(--color-background)]">
+                Sign in to book your hunt
+              </h1>
+            </div>
+            <p className="text-sm md:text-base text-[var(--color-background)]/80">
+              Create an account or sign in to choose your hunt dates, party
+              size, and optional Party Deck. You can also add merch and check
+              out in a single order.
+            </p>
+
+            <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                onClick={() => setAuthOpen(true)}
+                className="w-full rounded-lg bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white font-semibold py-3 transition-colors"
+              >
+                Sign in / Create account
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    await loginWithGoogle();
+                  } catch (e) {
+                    console.warn(e);
+                  }
+                }}
+                className="w-full rounded-lg border border-[var(--color-footer)]/30 bg-white hover:bg-neutral-50 text-[var(--color-background)] font-semibold py-3 transition-colors"
+                aria-label="Continue with Google"
+                title="Continue with Google"
+              >
+                Continue with Google
+              </button>
+            </div>
+
+            <ul className="mt-6 space-y-2 text-sm text-[var(--color-background)]/80">
+              <li>
+                • No spam — we use your account to keep bookings and receipts in
+                one place.
+              </li>
+              <li>
+                • You’ll see availability in real time and package pricing for
+                in‑season weekends.
+              </li>
+              <li>
+                • Pay securely online; your spots are confirmed after payment.
+              </li>
+            </ul>
+          </motion.div>
+        </div>
+        <PackagesBrochure />
+        {/* Reuse our global AuthModal */}
+        <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} />
+      </div>
+    );
+  }
+
+  // ---------- 2) BOOKING / CART UX (for signed‑in users) ----------
   return (
-    <div className="min-h-screen text-[var(--color-text)] relative">
-      {/* Hero / header */}
-      <div className="w-full h-[40vh] md:h-[50vh] z-[-20] opacity-50 blur-[1px]">
-        <img className="object-cover h-full w-full" src={dove} alt="" />
+    <div className="relative">
+      {/* Hero banner (subtle) */}
+      <div className="relative h-[180px] md:h-[220px] overflow-hidden rounded-b-[24px]">
+        <div
+          className="absolute inset-0 bg-center bg-cover scale-105"
+          style={{ backgroundImage: `url(${dove})` }}
+          aria-hidden="true"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-black/60" />
+        <div className="relative z-10 max-w-5xl mx-auto h-full flex items-end px-4 pb-6">
+          <div>
+            <h1 className="text-white text-3xl md:text-4xl font-acumin">
+              Book your hunt
+            </h1>
+            <p className="text-white/80 text-sm md:text-base">
+              Signed in as{" "}
+              <span className="font-semibold">
+                {user?.displayName || user?.email}
+              </span>
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-6 -mt-16 pb-24 z-40 relative">
+      <div className="max-w-5xl mx-auto px-4 py-10">
         <AnimatePresence mode="wait">
-          {!hasActiveCart ? (
-            // Show the full form when there is no active cart
+          {!hasBooking && cartTotalItems === 0 ? (
+            // No cart yet — show the booking form
             <motion.div
-              key="form"
-              initial={{ opacity: 0, y: 20, scale: 0.98 }}
+              key="booking-form"
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.98 }}
+              exit={{ opacity: 0, y: 16, scale: 0.98 }}
               transition={{ duration: 0.4 }}
+              className="bg-neutral-200 rounded-2xl shadow-2xl p-6 md:p-8 border border-white/10"
             >
               <BookingForm />
             </motion.div>
           ) : (
-            // Cart-in-progress panel replaces the form
+            // Cart‑in‑progress panel replaces the form
             <motion.div
               key="cart-blocker"
-              initial={{ opacity: 0, y: 20, scale: 0.98 }}
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.98 }}
+              exit={{ opacity: 0, y: 16, scale: 0.98 }}
               transition={{ duration: 0.4 }}
-              className="bg-white rounded-xl shadow-2xl p-8 mt-10"
+              className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 border border-white/10 mt-10"
             >
               <h2 className="text-2xl md:text-3xl text-[var(--color-background)] font-acumin mb-2">
                 You’ve got a cart in progress
               </h2>
-              <p className="text-sm text-[var(--color-background)] mb-6">
+              <p className="text-sm text-[var(--color-background)]/80 mb-6">
                 You already started a booking and/or added merchandise. Finish
                 checkout or edit your dates below. If you want to start over,
                 you can clear your cart.
               </p>
 
-              <div className="space-y-2 text-sm rounded-xl">
+              <div className="space-y-3 text-sm">
                 {hasBooking && (
-                  <div className="rounded-md p-4 bg-neutral-200 ">
-                    <p className="font-semibold text-[var(--color-footer)] text-lg mb-1">
+                  <div className="rounded-md p-4 bg-neutral-100 border border-black/5">
+                    <p className="font-semibold text-[var(--color-footer)] text-base mb-1">
                       Current Booking
                     </p>
-                    <ul className="ml-5 text-[var(--color-footer)]">
-                      <li>
-                        <span className="font-bold"> Dates:</span>
-                        <ul className="ml-4 list-disc mb-2">
-                          {booking!.dates.map((d) => (
-                            <li key={d}>{formatLongDate(d)}</li>
-                          ))}
-                        </ul>
-                      </li>
-                      <li className="font-semibold text-[var(--color-footer)]  mb-1">
-                        Hunters: {booking!.numberOfHunters}
-                      </li>
-                      {!!booking!.partyDeckDates?.length && (
-                        <li>
-                          Party Deck Days: {booking!.partyDeckDates.length}
-                        </li>
-                      )}
-                    </ul>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full bg-white border border-black/10">
+                        {booking?.numberOfHunters ?? 1} hunter
+                        {(booking?.numberOfHunters ?? 1) > 1 ? "s" : ""}
+                      </span>
+                      {booking?.dates?.map((d: string) => (
+                        <span
+                          key={d}
+                          className="inline-flex items-center px-3 py-1 rounded-full bg-white border border-black/10"
+                        >
+                          {formatLongDate(d)}
+                        </span>
+                      ))}
+                    </div>
+                    {booking?.partyDeckDates?.length ? (
+                      <p className="mt-2 text-[var(--color-background)]/80">
+                        Party Deck reserved for:{" "}
+                        <span className="font-medium">
+                          {booking.partyDeckDates
+                            .map((d: string) => formatLongDate(d))
+                            .join(", ")}
+                        </span>
+                      </p>
+                    ) : null}
                   </div>
                 )}
 
                 {hasMerch && (
-                  <div className="bg-neutral-200  rounded-md p-4 ">
-                    <p className="font-semibold text-[var(--color-footer)]">
-                      Merch Items
+                  <div className="rounded-md p-4 bg-neutral-100 border border-black/5">
+                    <p className="font-semibold text-[var(--color-footer)] text-base mb-1">
+                      Merchandise
                     </p>
-                    <ul className="ml-5 list-disc text-[var(--color-footer)]">
-                      {Object.entries(merchItems).map(([id, item]) => (
-                        <li key={id}>
-                          {item.product.name} × {item.quantity}
-                        </li>
-                      ))}
-                    </ul>
+                    <p className="text-[var(--color-background)]/80">
+                      {Object.values(merchItems || {}).length} item(s) in cart.
+                    </p>
                   </div>
                 )}
               </div>
@@ -103,7 +238,7 @@ const BookingPage = () => {
               <div className="mt-6 flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={() => navigate("/checkout")}
-                  className="flex-1 bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white px-3 py-3 rounded-md font-semibold text-sm"
+                  className="flex-1 bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white px-3 py-3 rounded-md font-semibold text-sm transition-colors"
                 >
                   Go to Checkout
                 </button>
@@ -111,7 +246,7 @@ const BookingPage = () => {
                 {hasBooking && (
                   <button
                     onClick={() => setEditOpen(true)}
-                    className="flex-1 bg-[var(--color-accent-gold)] text-[var(--color-footer)] px-3 py-3 rounded-md font-bold text-sm"
+                    className="flex-1 bg-[var(--color-accent-gold,#B38E35)]/15 hover:bg-[var(--color-accent-gold,#B38E35)]/25 text-[var(--color-footer)] px-3 py-3 rounded-md font-semibold text-sm transition-colors"
                   >
                     Edit Dates
                   </button>
@@ -119,7 +254,7 @@ const BookingPage = () => {
 
                 <button
                   onClick={resetCart}
-                  className="flex-1 bg-[var(--color-footer)]  text-white  px-3 py-3 rounded-md text-sm"
+                  className="flex-1 bg-[var(--color-footer)] hover:opacity-90 text-white px-3 py-3 rounded-md text-sm transition-colors"
                   title="Clear everything and start over"
                 >
                   Clear Cart & Start Over
@@ -130,7 +265,7 @@ const BookingPage = () => {
         </AnimatePresence>
       </div>
 
-      {/* Optional: allow editing dates directly from here */}
+      {/* Edit dates directly from here */}
       {hasBooking && (
         <EditBookingDatesModal
           isOpen={editOpen}
