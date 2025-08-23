@@ -125,7 +125,6 @@ function loadDeluxeSdk(src?: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const url =
       src || "https://payments2.deluxe.com/embedded/javascripts/deluxe.js";
-
     // If the SDK has already been attached, resolve immediately.
     if ((window as any).EmbeddedPayments) {
       resolve();
@@ -133,11 +132,27 @@ function loadDeluxeSdk(src?: string): Promise<void> {
     }
 
     // Polyfill Node-like globals expected by Deluxe’s SDK.
-    // Without these, the script throws and never attaches to window.
+    // Without these, the script may throw and never attach to window.
     (window as any).global = (window as any).global || window;
     (window as any).process = (window as any).process || { env: {} };
 
+    // Some bundlers define AMD/CommonJS globals (define, module) which the
+    // Deluxe SDK uses to register itself instead of attaching to `window`.
+    // Temporarily remove them so the SDK falls back to the global export.
+    const savedDefine = (window as any).define;
+    const savedModule = (window as any).module;
+    try {
+      delete (window as any).define;
+    } catch {}
+    try {
+      delete (window as any).module;
+    } catch {}
+
     const finish = () => {
+      // Restore AMD/CommonJS definitions after the script has executed.
+      if (savedDefine !== undefined) (window as any).define = savedDefine;
+      if (savedModule !== undefined) (window as any).module = savedModule;
+
       const start = Date.now();
       (function waitForGlobal() {
         if ((window as any).EmbeddedPayments) {
@@ -158,7 +173,12 @@ function loadDeluxeSdk(src?: string): Promise<void> {
       existing.addEventListener("load", finish, { once: true });
       existing.addEventListener(
         "error",
-        () => reject(new Error("Failed to load Deluxe SDK")),
+        () => {
+          // restore saved definitions on error
+          if (savedDefine !== undefined) (window as any).define = savedDefine;
+          if (savedModule !== undefined) (window as any).module = savedModule;
+          reject(new Error("Failed to load Deluxe SDK"));
+        },
         { once: true }
       );
       return;
@@ -167,9 +187,17 @@ function loadDeluxeSdk(src?: string): Promise<void> {
     // Create the script element.
     const script = document.createElement("script");
     script.src = url;
-    script.defer = true; // do not specify async; let defer control execution order
+    // Do not specify `async`; using defer ensures execution order but allows
+    // the browser to download in parallel.  Leaving off async also avoids
+    // issues where the SDK runs before our polyfills.
+    script.defer = true;
     script.onload = finish;
-    script.onerror = () => reject(new Error("Failed to load Deluxe SDK"));
+    script.onerror = () => {
+      // restore saved definitions on error
+      if (savedDefine !== undefined) (window as any).define = savedDefine;
+      if (savedModule !== undefined) (window as any).module = savedModule;
+      reject(new Error("Failed to load Deluxe SDK"));
+    };
     document.head.appendChild(script);
   });
 }
