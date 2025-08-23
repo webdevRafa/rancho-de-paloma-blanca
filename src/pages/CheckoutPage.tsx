@@ -151,7 +151,6 @@ function loadDeluxeSdk(src?: string): Promise<void> {
     s.src = url;
     s.async = true;
     s.defer = true;
-    s.crossOrigin = "anonymous";
     s.onload = finish;
     s.onerror = () => reject(new Error("Failed to load Deluxe SDK"));
     document.head.appendChild(s);
