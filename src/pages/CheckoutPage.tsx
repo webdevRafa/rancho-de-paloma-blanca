@@ -125,16 +125,32 @@ function loadDeluxeSdk(src?: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const url =
       src || "https://payments2.deluxe.com/embedded/javascripts/deluxe.js";
+
+    // If the SDK has already been attached, resolve immediately.
+    if ((window as any).EmbeddedPayments) {
+      resolve();
+      return;
+    }
+
+    // Polyfill Node-like globals expected by Deluxe’s SDK.
+    // Without these, the script throws and never attaches to window.
+    (window as any).global = (window as any).global || window;
+    (window as any).process = (window as any).process || { env: {} };
+
     const finish = () => {
-      const t0 = Date.now();
-      (function wait() {
-        if ((window as any).EmbeddedPayments) return resolve();
-        if (Date.now() - t0 > 10000)
-          return reject(new Error("Deluxe SDK loaded but global missing"));
-        setTimeout(wait, 50);
+      const start = Date.now();
+      (function waitForGlobal() {
+        if ((window as any).EmbeddedPayments) {
+          resolve();
+        } else if (Date.now() - start > 15000) {
+          reject(new Error("Deluxe SDK loaded but global missing"));
+        } else {
+          setTimeout(waitForGlobal, 50);
+        }
       })();
     };
-    if ((window as any).EmbeddedPayments) return resolve();
+
+    // If the script already exists, attach listeners to it.
     const existing = document.querySelector(
       `script[src="${url}"]`
     ) as HTMLScriptElement | null;
@@ -147,13 +163,14 @@ function loadDeluxeSdk(src?: string): Promise<void> {
       );
       return;
     }
-    const s = document.createElement("script");
-    s.src = url;
-    s.async = true;
-    s.defer = true;
-    s.onload = finish;
-    s.onerror = () => reject(new Error("Failed to load Deluxe SDK"));
-    document.head.appendChild(s);
+
+    // Create the script element.
+    const script = document.createElement("script");
+    script.src = url;
+    script.defer = true; // do not specify async; let defer control execution order
+    script.onload = finish;
+    script.onerror = () => reject(new Error("Failed to load Deluxe SDK"));
+    document.head.appendChild(script);
   });
 }
 
