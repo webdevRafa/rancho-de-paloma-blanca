@@ -558,9 +558,20 @@ export default function CheckoutPage() {
         : undefined;
       await loadDeluxeSdk(scriptSrc);
 
-      const EP = (window as any).EmbeddedPayments;
-      if (!EP || typeof EP.init !== "function")
+      // After the SDK script loads, the global may be exposed under different
+      // names depending on how the Deluxe bundle is built.  In some builds
+      // there is no window.EmbeddedPayments; instead the object is exported as
+      // DigitalWalletsPay.  To make our integration resilient, check both
+      // properties before aborting.
+      const EP =
+        (window as any).EmbeddedPayments ||
+        (window as any).DigitalWalletsPay ||
+        (window as any).DigitalWallets ||
+        (window as any).DeluxeEmbedded ||
+        undefined;
+      if (!EP || typeof EP.init !== "function") {
         throw new Error("Deluxe SDK not initialized (global missing)");
+      }
       setSdkReady(true);
 
       const isSandbox = (embeddedBase || "").includes("payments2.");
