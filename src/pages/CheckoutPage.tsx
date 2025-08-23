@@ -6,6 +6,7 @@ import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
 import CustomerInfoForm from "../components/CustomerInfoForm";
 import { getSeasonConfig } from "../utils/getSeasonConfig";
+import toIsoAlpha3 from "../utils/toIsoAlpha3";
 
 export type CustomerInfo = {
   firstName: string;
@@ -525,7 +526,7 @@ export default function CheckoutPage() {
               city: customer.billingAddress?.city,
               state: customer.billingAddress?.state,
               zipCode: customer.billingAddress?.postalCode,
-              countryCode: customer.billingAddress?.country, // backend normalizes to alpha‑3
+              countryCode: toIsoAlpha3(customer.billingAddress?.country), // backend normalizes to alpha‑3
             },
           },
           products: buildProductsForJwt({
