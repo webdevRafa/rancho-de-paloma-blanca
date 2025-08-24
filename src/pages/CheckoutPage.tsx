@@ -136,41 +136,82 @@ function pruneUndefinedDeep<T>(obj: T): T {
  * exists on window (has `init()` and `render()`).
  */
 function loadDeluxeSdk(src?: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const url =
-      src ?? "https://payments2.deluxe.com/embedded/javascripts/deluxe.js";
+  // We’ll try the provided URL first; if not given, try sandbox then prod.
+  const candidates: string[] = [];
+  if (src) {
+    candidates.push(src);
+  } else {
+    candidates.push(
+      "https://payments2.deluxe.com/embedded/javascripts/deluxe.js", // sandbox
+      "https://payments.deluxe.com/embedded/javascripts/deluxe.js" // prod (fallback)
+    );
+  }
 
-    // Already resolved earlier?
-    if (window.__EP_RESOLVED__) return resolve();
+  const inject = (url: string) =>
+    new Promise<void>((resolve, reject) => {
+      // Already resolved?
+      if ((window as any).__EP_RESOLVED__ || pickEmbeddedPaymentsGlobal()) {
+        (window as any).__EP_RESOLVED__ =
+          (window as any).__EP_RESOLVED__ || pickEmbeddedPaymentsGlobal();
+        return resolve();
+      }
 
-    // If the SDK is already present by *any* name, resolve immediately.
-    const foundNow = pickEmbeddedPaymentsGlobal();
-    if (foundNow) {
-      window.__EP_RESOLVED__ = foundNow;
-      return resolve();
+      // Reuse existing <script> if present
+      const existing = document.querySelector<HTMLScriptElement>(
+        `script[src="${url}"]`
+      );
+      if (existing) {
+        existing.addEventListener(
+          "load",
+          () => {
+            const ep =
+              (window as any).__EP_RESOLVED__ || pickEmbeddedPaymentsGlobal();
+            ep
+              ? resolve()
+              : reject(new Error("Deluxe SDK loaded but global missing"));
+          },
+          { once: true }
+        );
+        existing.addEventListener(
+          "error",
+          () => reject(new Error("Failed to load Deluxe SDK")),
+          { once: true }
+        );
+        return;
+      }
+
+      const s = document.createElement("script");
+      s.src = url; // IMPORTANT: no cache-buster, no crossorigin
+      s.async = true; // classic script
+      s.onload = () => {
+        // give it a tick to attach
+        setTimeout(() => {
+          const ep =
+            (window as any).__EP_RESOLVED__ || pickEmbeddedPaymentsGlobal();
+          if (ep) {
+            (window as any).__EP_RESOLVED__ = ep;
+            resolve();
+          } else {
+            reject(new Error("Deluxe SDK loaded but global missing"));
+          }
+        }, 0);
+      };
+      s.onerror = () => reject(new Error("Failed to load Deluxe SDK"));
+      document.head.appendChild(s);
+    });
+
+  return new Promise<void>(async (resolve, reject) => {
+    let lastErr: unknown = null;
+    for (const url of candidates) {
+      try {
+        await inject(url);
+        return resolve();
+      } catch (e) {
+        lastErr = e;
+        // try next candidate
+      }
     }
-
-    // Otherwise load (cache-busted so it actually executes)
-    const script = document.createElement("script");
-    script.src = url + (url.includes("?") ? "&" : "?") + "v=" + Date.now();
-    script.async = true;
-    script.crossOrigin = "anonymous";
-
-    script.onload = () => {
-      // Let the script attach, then try to find it by shape.
-      setTimeout(() => {
-        const ep = pickEmbeddedPaymentsGlobal();
-        if (ep) {
-          window.__EP_RESOLVED__ = ep;
-          resolve();
-        } else {
-          reject(new Error("Deluxe SDK loaded but global missing"));
-        }
-      }, 0);
-    };
-
-    script.onerror = () => reject(new Error("Failed to load Deluxe SDK"));
-    document.head.appendChild(script);
+    reject(lastErr || new Error("Failed to load Deluxe SDK"));
   });
 }
 
