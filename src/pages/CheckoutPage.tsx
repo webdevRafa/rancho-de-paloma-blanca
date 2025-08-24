@@ -122,85 +122,176 @@ function pruneUndefinedDeep<T>(obj: T): T {
   return obj;
 }
 
-function loadDeluxeSdk(src?: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const url =
-      src || "https://payments2.deluxe.com/embedded/javascripts/deluxe.js";
-    // If the SDK has already been attached, resolve immediately.
-    if ((window as any).EmbeddedPayments) {
-      resolve();
-      return;
-    }
+// Ensure these guards exist once in your file
+declare global {
+  interface Window {
+    __EP_RESOLVED__?: any;
+    __EP_LOADING__?: Promise<void>;
+  }
+}
 
-    // Polyfill Node-like globals expected by Deluxe’s SDK.
-    // Without these, the script may throw and never attach to window.
+/**
+ * Load Deluxe SDK exactly once from the provided base (or sandbox default).
+ * If the SDK exports via AMD/CommonJS, capture it and attach to window.EmbeddedPayments.
+ * No cache-busters, no crossorigin, no multiple hosts.
+ */
+function loadDeluxeSdk(src?: string): Promise<void> {
+  // Find the SDK by name OR by shape (has init+render)
+  const findEP = (): any | undefined => {
+    const w: any = window;
+
+    const direct =
+      w.__EP_RESOLVED__ ||
+      w.EmbeddedPayments ||
+      w.DigitalWalletsPay ||
+      w.DigitalWallets ||
+      w.DeluxeEmbedded;
+    if (direct) return direct;
+
+    try {
+      const names = Object.getOwnPropertyNames(w);
+      for (const name of names) {
+        const v = w[name];
+        if (
+          v &&
+          (typeof v === "object" || typeof v === "function") &&
+          typeof v.init === "function" &&
+          typeof v.render === "function"
+        ) {
+          return v;
+        }
+      }
+    } catch {}
+    return undefined;
+  };
+
+  // Already present? finish immediately.
+  const already = findEP();
+  if (already) {
+    (window as any).__EP_RESOLVED__ = already;
+    if (!(window as any).EmbeddedPayments)
+      (window as any).EmbeddedPayments = already;
+    return Promise.resolve();
+  }
+
+  // Reuse an in-flight loader if one exists.
+  if ((window as any).__EP_LOADING__) return (window as any).__EP_LOADING__;
+
+  const url =
+    src || "https://payments2.deluxe.com/embedded/javascripts/deluxe.js"; // sandbox default
+
+  // If an identical tag is already in the DOM, just wait for it.
+  const existing = document.querySelector<HTMLScriptElement>(
+    `script[src="${url}"]`
+  );
+  if (existing) {
+    (window as any).__EP_LOADING__ = new Promise<void>((resolve, reject) => {
+      const finalize = () => {
+        const ep = findEP();
+        if (!ep)
+          return reject(new Error("Deluxe SDK loaded but global missing"));
+        if (!(window as any).EmbeddedPayments)
+          (window as any).EmbeddedPayments = ep;
+        (window as any).__EP_RESOLVED__ = ep;
+        resolve();
+      };
+      if ((existing as any)._epLoaded) setTimeout(finalize, 0);
+      else {
+        existing.addEventListener(
+          "load",
+          () => {
+            (existing as any)._epLoaded = true;
+            setTimeout(finalize, 0);
+          },
+          { once: true }
+        );
+        existing.addEventListener(
+          "error",
+          () => reject(new Error("Failed to load Deluxe SDK")),
+          { once: true }
+        );
+      }
+    });
+    return (window as any).__EP_LOADING__;
+  }
+
+  // One-shot classic script injection with AMD/CJS capture shim.
+  (window as any).__EP_LOADING__ = new Promise<void>((resolve, reject) => {
+    // Tiny node-like globals some builds read
     (window as any).global = (window as any).global || window;
     (window as any).process = (window as any).process || { env: {} };
 
-    // Some bundlers define AMD/CommonJS globals (define, module) which the
-    // Deluxe SDK uses to register itself instead of attaching to `window`.
-    // Temporarily remove them so the SDK falls back to the global export.
+    // Capture UMD choosing AMD/CommonJS
     const savedDefine = (window as any).define;
     const savedModule = (window as any).module;
-    try {
-      delete (window as any).define;
-    } catch {}
-    try {
-      delete (window as any).module;
-    } catch {}
+    const savedExports = (window as any).exports;
+    let captured: any = null;
 
-    const finish = () => {
-      // Restore AMD/CommonJS definitions after the script has executed.
+    (window as any).define = function (deps: any, factory?: any) {
+      try {
+        captured =
+          typeof deps === "function"
+            ? deps()
+            : typeof factory === "function"
+            ? factory()
+            : factory || deps;
+      } catch {}
+    };
+    (window as any).define.amd = true;
+    (window as any).module = { exports: {} };
+    (window as any).exports = (window as any).module.exports;
+
+    const restore = () => {
       if (savedDefine !== undefined) (window as any).define = savedDefine;
+      else delete (window as any).define;
       if (savedModule !== undefined) (window as any).module = savedModule;
-
-      const start = Date.now();
-      (function waitForGlobal() {
-        if ((window as any).EmbeddedPayments) {
-          resolve();
-        } else if (Date.now() - start > 15000) {
-          reject(new Error("Deluxe SDK loaded but global missing"));
-        } else {
-          setTimeout(waitForGlobal, 50);
-        }
-      })();
+      else delete (window as any).module;
+      if (savedExports !== undefined) (window as any).exports = savedExports;
+      else delete (window as any).exports;
     };
 
-    // If the script already exists, attach listeners to it.
-    const existing = document.querySelector(
-      `script[src="${url}"]`
-    ) as HTMLScriptElement | null;
-    if (existing) {
-      existing.addEventListener("load", finish, { once: true });
-      existing.addEventListener(
-        "error",
-        () => {
-          // restore saved definitions on error
-          if (savedDefine !== undefined) (window as any).define = savedDefine;
-          if (savedModule !== undefined) (window as any).module = savedModule;
-          reject(new Error("Failed to load Deluxe SDK"));
-        },
-        { once: true }
-      );
-      return;
-    }
+    const onload = () => {
+      (script as any)._epLoaded = true;
+      // If AMD/CJS export happened, normalize it to window.EmbeddedPayments
+      try {
+        const mod = captured || (window as any).module?.exports;
+        const val = mod && (mod.default || mod);
+        if (
+          !findEP() &&
+          val &&
+          typeof val.init === "function" &&
+          typeof val.render === "function"
+        ) {
+          (window as any).EmbeddedPayments = val;
+        }
+      } catch {}
+      restore();
 
-    // Create the script element.
-    const script = document.createElement("script");
-    script.src = url;
-    // Do not specify `async`; using defer ensures execution order but allows
-    // the browser to download in parallel.  Leaving off async also avoids
-    // issues where the SDK runs before our polyfills.
-    script.defer = true;
-    script.onload = finish;
-    script.onerror = () => {
-      // restore saved definitions on error
-      if (savedDefine !== undefined) (window as any).define = savedDefine;
-      if (savedModule !== undefined) (window as any).module = savedModule;
+      const ep = findEP();
+      if (!ep) return reject(new Error("Deluxe SDK loaded but global missing"));
+      if (!(window as any).EmbeddedPayments)
+        (window as any).EmbeddedPayments = ep;
+      (window as any).__EP_RESOLVED__ = ep;
+      resolve();
+    };
+
+    const onerror = () => {
+      restore();
       reject(new Error("Failed to load Deluxe SDK"));
     };
+
+    const script = document.createElement("script");
+    script.src = url; // IMPORTANT: no ?v=… and no crossorigin
+    script.async = true; // classic script so it can attach a window global
+    script.onload = onload;
+    script.onerror = onerror;
     document.head.appendChild(script);
+  }).finally(() => {
+    // clear the in-flight marker so a later navigation can load again
+    (window as any).__EP_LOADING__ = undefined;
   });
+
+  return (window as any).__EP_LOADING__;
 }
 
 function isConsecutive(d0: string, d1: string): boolean {
