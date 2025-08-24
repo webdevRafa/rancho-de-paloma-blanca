@@ -126,10 +126,11 @@ function loadDeluxeSdk(src?: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const url =
       src || "https://payments2.deluxe.com/embedded/javascripts/deluxe.js";
-    // If the SDK has already been attached, resolve immediately.  Some builds of
-    // Deluxe expose the global under different names (EmbeddedPayments,
-    // DigitalWalletsPay, DigitalWallets, DeluxeEmbedded).  Check them all
-    // before deciding to load the script.
+
+    // If the SDK has already been attached, resolve immediately.  Some
+    // builds of Deluxe export the global under different names depending
+    // on the bundler (e.g. EmbeddedPayments, DigitalWalletsPay,
+    // DigitalWallets, DeluxeEmbedded).  Check all possibilities.
     const existingGlobal =
       (window as any).EmbeddedPayments ||
       (window as any).DigitalWalletsPay ||
@@ -140,8 +141,8 @@ function loadDeluxeSdk(src?: string): Promise<void> {
       return;
     }
 
-    // Polyfill Node-like globals expected by Deluxe’s SDK.
-    // Without these, the script may throw and never attach to window.
+    // Polyfill Node-like globals expected by Deluxe’s SDK.  Without these,
+    // the script may throw and never attach to window.
     (window as any).global = (window as any).global || window;
     (window as any).process = (window as any).process || { env: {} };
 
@@ -157,6 +158,7 @@ function loadDeluxeSdk(src?: string): Promise<void> {
       delete (window as any).module;
     } catch {}
 
+    // Helper to restore and then wait for the global to be available
     const finish = () => {
       // Restore AMD/CommonJS definitions after the script has executed.
       if (savedDefine !== undefined) (window as any).define = savedDefine;
@@ -179,16 +181,13 @@ function loadDeluxeSdk(src?: string): Promise<void> {
       })();
     };
 
-    // If the script already exists, run the finish logic immediately (in case the
-    // script has already fired its load event).  Also attach an error
-    // listener to handle any failures during re-download.  We still attach
-    // a load listener so that if the script is re-downloaded (e.g. the
-    // src changes), our finish function runs again.
+    // If the script already exists, run finish immediately to resolve if the
+    // global is present.  Also attach load/error listeners so we handle
+    // subsequent reloads or failures.
     const existing = document.querySelector(
       `script[src="${url}"]`
     ) as HTMLScriptElement | null;
     if (existing) {
-      // Run finish immediately to resolve if the global is present.
       try {
         finish();
       } catch {}
@@ -206,12 +205,12 @@ function loadDeluxeSdk(src?: string): Promise<void> {
       return;
     }
 
-    // Create the script element.
+    // Otherwise create and insert a new script element.
     const script = document.createElement("script");
     script.src = url;
-    // Do not specify `async`; using defer ensures execution order but allows
-    // the browser to download in parallel.  Leaving off async also avoids
-    // issues where the SDK runs before our polyfills.
+    // Do not specify `async`; using defer ensures execution order but
+    // allows the browser to download in parallel.  Leaving off async
+    // also avoids issues where the SDK runs before our polyfills.
     script.defer = true;
     script.onload = finish;
     script.onerror = () => {
@@ -598,9 +597,7 @@ export default function CheckoutPage() {
 
       const isSandbox = (embeddedBase || "").includes("payments2.");
       const config = {
-        // Deluxe SDK expects a two-letter country code (e.g., "US" or "CA").  Using
-        // the three-letter "USA" can prevent initialization.  See the
-        // Deluxe docs for details.
+        // Deluxe SDK requires a 2-letter ISO country code (e.g. "US", "CA").
         countryCode: "US",
         currencyCode: "USD",
         paymentMethods,
