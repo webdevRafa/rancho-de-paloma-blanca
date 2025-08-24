@@ -8,8 +8,6 @@ import CustomerInfoForm from "../components/CustomerInfoForm";
 import { getSeasonConfig } from "../utils/getSeasonConfig";
 import toIsoAlpha3 from "../utils/toIsoAlpha3";
 
-/* ----------------------------- Types & Models ----------------------------- */
-
 export type CustomerInfo = {
   firstName: string;
   lastName: string;
@@ -21,17 +19,13 @@ export type CustomerInfo = {
     city?: string;
     state?: string;
     postalCode?: string;
-    country?: string; // e.g. "US"
+    country?: string;
   };
 };
 
 declare global {
   interface Window {
     EmbeddedPayments?: any;
-    DigitalWalletsPay?: any;
-    DigitalWallets?: any;
-    DeluxeEmbedded?: any;
-    __EP_RESOLVED__?: any;
   }
 }
 
@@ -45,8 +39,8 @@ type BookingLine = {
 type MerchItem = { skuCode: string; name: string; qty: number; price: number };
 
 export type SeasonConfig = {
-  seasonStart: string; // ISO date
-  seasonEnd: string; // ISO date
+  seasonStart: string;
+  seasonEnd: string;
   weekdayRate?: number;
   weekendRates?: {
     singleDay: number;
@@ -107,15 +101,12 @@ type OrderDoc = {
   };
 };
 
-/* --------------------------------- Consts -------------------------------- */
-
 const ORDER_ID_KEY = "rdpb:orderId";
 const EMBEDDED_CONTAINER_ID = "embeddedpayments";
 
-/* -------------------------------- Helpers -------------------------------- */
-
 function pruneUndefinedDeep<T>(obj: T): T {
-  if (Array.isArray(obj)) return obj.map(pruneUndefinedDeep) as unknown as T;
+  if (Array.isArray(obj))
+    return obj.map((v) => pruneUndefinedDeep(v)) as unknown as T;
   if (
     obj &&
     typeof obj === "object" &&
@@ -131,132 +122,85 @@ function pruneUndefinedDeep<T>(obj: T): T {
   return obj;
 }
 
-/**
- * Load the Deluxe SDK and resolve only when an object that looks like the SDK
- * exists on window (has `init()` and `render()`).
- */
-// Singleton guards so we never inject twice.
-declare global {
-  interface Window {
-    __EP_RESOLVED__?: any;
-    __EP_LOADING__?: Promise<void>;
-  }
-}
-
-/**
- * Load the Deluxe SDK exactly once (no cache-buster, no crossorigin, no fallback host).
- * We resolve only when something that looks like the SDK (has init+render) is present.
- */
 function loadDeluxeSdk(src?: string): Promise<void> {
-  const findEP = () =>
-    (window as any).__EP_RESOLVED__ || pickEmbeddedPaymentsGlobal();
-
-  // 1) Already resolved earlier?
-  if (findEP()) {
-    (window as any).__EP_RESOLVED__ = findEP();
-    return Promise.resolve();
-  }
-
-  // 2) If a prior call is still loading, reuse it.
-  if (window.__EP_LOADING__) return window.__EP_LOADING__;
-
-  // 3) Decide the ONE url to use this run.
-  const url =
-    src || "https://payments2.deluxe.com/embedded/javascripts/deluxe.js"; // sandbox by default
-  // IMPORTANT: do not add ?v= cache-busters here; that creates a second copy later.
-
-  // 4) If there is already a <script> for this exact URL, wait for it & poll.
-  const existing = document.querySelector<HTMLScriptElement>(
-    `script[src="${url}"]`
-  );
-  if (existing) {
-    window.__EP_LOADING__ = new Promise<void>((resolve, reject) => {
-      const done = () => {
-        const ep = findEP();
-        ep
-          ? ((window.__EP_RESOLVED__ = ep), resolve())
-          : reject(new Error("Deluxe SDK loaded but global missing"));
-      };
-      // if it already fired load earlier, just poll once on the next tick
-      if ((existing as any)._epLoaded) {
-        setTimeout(done, 0);
-      } else {
-        existing.addEventListener(
-          "load",
-          () => {
-            (existing as any)._epLoaded = true;
-            setTimeout(done, 0);
-          },
-          { once: true }
-        );
-        existing.addEventListener(
-          "error",
-          () => {
-            reject(new Error("Failed to load Deluxe SDK"));
-          },
-          { once: true }
-        );
-      }
-    });
-    return window.__EP_LOADING__;
-  }
-
-  // 5) Inject a single classic script tag.
-  window.__EP_LOADING__ = new Promise<void>((resolve, reject) => {
-    const s = document.createElement("script");
-    s.src = url; // no cache-buster
-    s.async = true; // classic script
-    s.onload = () => {
-      (s as any)._epLoaded = true;
-      // let the bundle attach, then look it up by shape
-      setTimeout(() => {
-        const ep = findEP();
-        if (ep) {
-          window.__EP_RESOLVED__ = ep;
-          resolve();
-        } else {
-          reject(new Error("Deluxe SDK loaded but global missing"));
-        }
-      }, 0);
-    };
-    s.onerror = () => reject(new Error("Failed to load Deluxe SDK"));
-    document.head.appendChild(s);
-  });
-
-  return window.__EP_LOADING__;
-}
-
-/** Find the SDK by *shape* (has init + render), not by a hard-coded name. */
-function pickEmbeddedPaymentsGlobal(): any | undefined {
-  const w: any = window;
-  const names = Object.getOwnPropertyNames(w);
-  const candidates: Array<{ name: string; value: any }> = [];
-
-  for (const name of names) {
-    try {
-      const v = w[name];
-      if (!v) continue;
-      const isObjOrFn = typeof v === "object" || typeof v === "function";
-      if (!isObjOrFn) continue;
-      if (typeof v.init === "function" && typeof v.render === "function") {
-        candidates.push({ name, value: v });
-      }
-    } catch {
-      /* ignore getter/cross-origin errors */
+  return new Promise((resolve, reject) => {
+    const url =
+      src || "https://payments2.deluxe.com/embedded/javascripts/deluxe.js";
+    // If the SDK has already been attached, resolve immediately.
+    if ((window as any).EmbeddedPayments) {
+      resolve();
+      return;
     }
-  }
 
-  const preferred = [
-    "EmbeddedPayments",
-    "DigitalWalletsPay",
-    "DigitalWallets",
-    "DeluxeEmbedded",
-  ];
-  for (const p of preferred) {
-    const hit = candidates.find((c) => c.name === p);
-    if (hit) return hit.value;
-  }
-  return candidates[0]?.value;
+    // Polyfill Node-like globals expected by Deluxe’s SDK.
+    // Without these, the script may throw and never attach to window.
+    (window as any).global = (window as any).global || window;
+    (window as any).process = (window as any).process || { env: {} };
+
+    // Some bundlers define AMD/CommonJS globals (define, module) which the
+    // Deluxe SDK uses to register itself instead of attaching to `window`.
+    // Temporarily remove them so the SDK falls back to the global export.
+    const savedDefine = (window as any).define;
+    const savedModule = (window as any).module;
+    try {
+      delete (window as any).define;
+    } catch {}
+    try {
+      delete (window as any).module;
+    } catch {}
+
+    const finish = () => {
+      // Restore AMD/CommonJS definitions after the script has executed.
+      if (savedDefine !== undefined) (window as any).define = savedDefine;
+      if (savedModule !== undefined) (window as any).module = savedModule;
+
+      const start = Date.now();
+      (function waitForGlobal() {
+        if ((window as any).EmbeddedPayments) {
+          resolve();
+        } else if (Date.now() - start > 15000) {
+          reject(new Error("Deluxe SDK loaded but global missing"));
+        } else {
+          setTimeout(waitForGlobal, 50);
+        }
+      })();
+    };
+
+    // If the script already exists, attach listeners to it.
+    const existing = document.querySelector(
+      `script[src="${url}"]`
+    ) as HTMLScriptElement | null;
+    if (existing) {
+      existing.addEventListener("load", finish, { once: true });
+      existing.addEventListener(
+        "error",
+        () => {
+          // restore saved definitions on error
+          if (savedDefine !== undefined) (window as any).define = savedDefine;
+          if (savedModule !== undefined) (window as any).module = savedModule;
+          reject(new Error("Failed to load Deluxe SDK"));
+        },
+        { once: true }
+      );
+      return;
+    }
+
+    // Create the script element.
+    const script = document.createElement("script");
+    script.src = url;
+    // Do not specify `async`; using defer ensures execution order but allows
+    // the browser to download in parallel.  Leaving off async also avoids
+    // issues where the SDK runs before our polyfills.
+    script.defer = true;
+    script.onload = finish;
+    script.onerror = () => {
+      // restore saved definitions on error
+      if (savedDefine !== undefined) (window as any).define = savedDefine;
+      if (savedModule !== undefined) (window as any).module = savedModule;
+      reject(new Error("Failed to load Deluxe SDK"));
+    };
+    document.head.appendChild(script);
+  });
 }
 
 function isConsecutive(d0: string, d1: string): boolean {
@@ -287,7 +231,6 @@ function buildProductsForJwt(args: {
     description?: string;
     unitOfMeasure?: string;
   }> = [];
-
   if (booking) {
     products.push({
       name: "Dove Hunt Package",
@@ -298,7 +241,7 @@ function buildProductsForJwt(args: {
       unitOfMeasure: "Each",
     });
   }
-  for (const m of merchItems) {
+  for (const m of merchItems)
     products.push({
       name: m.name,
       skuCode: m.skuCode,
@@ -306,7 +249,6 @@ function buildProductsForJwt(args: {
       price: m.price,
       unitOfMeasure: "Each",
     });
-  }
   return products;
 }
 
@@ -318,7 +260,6 @@ function calculateTotals(args: {
   const { booking, merchItems, cfg } = args;
   const merchTotal = merchItems.reduce((sum, m) => sum + m.price * m.qty, 0);
   let bookingTotal = 0;
-
   if (booking && booking.dates.length > 0) {
     const all = sortIsoDates(booking.dates);
     const weekdayRate = cfg?.weekdayRate ?? 125;
@@ -327,7 +268,6 @@ function calculateTotals(args: {
       twoConsecutiveDays: 350,
       threeDayCombo: 450,
     };
-
     const isInSeason = (iso: string) =>
       cfg
         ? inRange(iso, cfg.seasonStart, cfg.seasonEnd)
@@ -337,21 +277,17 @@ function calculateTotals(args: {
             const dd = d.getDate();
             return (m === 9 && dd >= 6) || (m === 10 && dd <= 26);
           })();
-
     const isWeekend = (iso: string) => {
       const d = new Date(`${iso}T00:00:00`);
       const dow = d.getDay();
       return dow === 5 || dow === 6 || dow === 0;
     };
-
     const offSeasonDays = all.filter((d) => !isInSeason(d));
     bookingTotal +=
       offSeasonDays.length * weekdayRate * (booking.numberOfHunters || 1);
-
     const inSeasonDays = all.filter((d) => isInSeason(d));
     const seasonDaysSorted = sortIsoDates(inSeasonDays);
     let seasonCostPerPerson = 0;
-
     for (let i = 0; i < seasonDaysSorted.length; ) {
       const d0 = seasonDaysSorted[i],
         d1 = seasonDaysSorted[i + 1],
@@ -359,7 +295,6 @@ function calculateTotals(args: {
       const wk0 = d0 ? isWeekend(d0) : false,
         wk1 = d1 ? isWeekend(d1) : false,
         wk2 = d2 ? isWeekend(d2) : false;
-
       if (
         d0 &&
         d1 &&
@@ -387,37 +322,32 @@ function calculateTotals(args: {
       i++;
     }
     bookingTotal += seasonCostPerPerson * (booking.numberOfHunters || 1);
-
     const partyDays = booking.partyDeckDates?.length || 0;
     const partyRate = cfg?.partyDeckRatePerDay ?? 500;
     bookingTotal += partyDays * partyRate;
   }
-
   const amount = bookingTotal + merchTotal;
   return { bookingTotal, merchTotal, amount };
 }
-
-/* --------------------------------- Page ---------------------------------- */
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { booking, merchItems, isHydrated } = useCart();
 
-  // Stable order id (persisted).
-  const [orderId] = useState<string>(() => {
+  const [orderId] = useState(() => {
     const existing = localStorage.getItem(ORDER_ID_KEY);
     if (existing) return existing;
-    const uuid =
-      (crypto as any)?.randomUUID?.() ??
-      Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    const uuid = (crypto as any)?.randomUUID
+      ? (crypto as any).randomUUID()
+      : Math.random().toString(36).slice(2) +
+        Math.random().toString(36).slice(2);
     localStorage.setItem(ORDER_ID_KEY, uuid);
     return uuid;
-  });
+  }) as unknown as [string, any];
 
-  const [seasonConfig, setSeasonConfig] = useState<SeasonConfig | null>(null);
-  const [cfgError, setCfgError] = useState<string>("");
-
+  const [seasonConfig, setSeasonConfig] = useState(null as SeasonConfig | null);
+  const [cfgError, setCfgError] = useState("") as unknown as [string, any];
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -449,19 +379,20 @@ export default function CheckoutPage() {
     return arr;
   }, [merchItems]);
 
-  const [customer, setCustomer] = useState<CustomerInfo>(() => {
+  const [customer, setCustomer] = useState(() => {
     const displayName = user?.displayName || "";
     const parts = displayName.split(" ");
     const firstName = parts[0] || "";
     const lastName = parts.slice(1).join(" ") || "";
-    return {
+    const initial: CustomerInfo = {
       firstName,
       lastName,
       email: user?.email || "",
       phone: "",
       billingAddress: {},
     };
-  });
+    return initial;
+  }) as unknown as [CustomerInfo, any];
 
   const { amount } = useMemo(
     () =>
@@ -480,16 +411,15 @@ export default function CheckoutPage() {
     [booking, merchArray, seasonConfig]
   );
 
-  const [sdkReady, setSdkReady] = useState<boolean>(false);
-  const [instanceReady, setInstanceReady] = useState<boolean>(false);
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [errorMsg, setErrorMsg] = useState<string>("");
-  const instanceRef = useRef<any>(null);
+  const [sdkReady, setSdkReady] = useState(false);
+  const [instanceReady, setInstanceReady] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("") as unknown as [string, any];
+  const instanceRef = useRef(null) as unknown as { current: any };
 
   const ensureOrder = useCallback(async () => {
     const ref = doc(db, "orders", orderId);
     const snap = await getDoc(ref);
-
     let base: OrderDoc = {
       userId: user?.uid || "anon",
       status: "pending",
@@ -539,9 +469,7 @@ export default function CheckoutPage() {
         },
       },
     };
-
     base = pruneUndefinedDeep(base);
-
     if (!snap.exists()) await setDoc(ref, base, { merge: true });
     else
       await setDoc(
@@ -553,7 +481,6 @@ export default function CheckoutPage() {
 
   const startEmbeddedPayment = useCallback(async () => {
     setErrorMsg("");
-
     if (!customer.firstName || !customer.lastName || !customer.email) {
       setErrorMsg(
         "Please complete your customer information before starting payment."
@@ -564,10 +491,8 @@ export default function CheckoutPage() {
       setErrorMsg("Amount must be greater than zero to initiate payment.");
       return;
     }
-
     setIsSubmitting(true);
     try {
-      // Clean up any prior instance
       try {
         const inst = instanceRef.current;
         if (inst?.destroy) inst.destroy();
@@ -577,7 +502,6 @@ export default function CheckoutPage() {
 
       await ensureOrder();
 
-      // Payment methods toggle
       let paymentMethods: ("cc" | "ach")[] = ["cc"];
       try {
         const statusResp = await fetch("/api/getEmbeddedMerchantStatus");
@@ -587,7 +511,6 @@ export default function CheckoutPage() {
         }
       } catch {}
 
-      // Get JWT from your function
       const jwtResp = await fetch("/api/createEmbeddedJwt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -603,7 +526,7 @@ export default function CheckoutPage() {
               city: customer.billingAddress?.city,
               state: customer.billingAddress?.state,
               zipCode: customer.billingAddress?.postalCode,
-              countryCode: toIsoAlpha3(customer.billingAddress?.country), // backend normalizes to alpha-3
+              countryCode: toIsoAlpha3(customer.billingAddress?.country), // backend normalizes to alpha‑3
             },
           },
           products: buildProductsForJwt({
@@ -619,7 +542,6 @@ export default function CheckoutPage() {
           }),
         }),
       });
-
       if (!jwtResp.ok) {
         const txt = await jwtResp.text().catch(() => "");
         throw new Error(
@@ -632,14 +554,22 @@ export default function CheckoutPage() {
       };
       if (!jwt) throw new Error("JWT missing from response");
 
-      // Load SDK
       const scriptSrc = embeddedBase
         ? `${embeddedBase}/embedded/javascripts/deluxe.js`
         : undefined;
       await loadDeluxeSdk(scriptSrc);
 
-      // Grab the SDK by shape
-      const EP = window.__EP_RESOLVED__ || pickEmbeddedPaymentsGlobal();
+      // After the SDK script loads, the global may be exposed under different
+      // names depending on how the Deluxe bundle is built.  In some builds
+      // there is no window.EmbeddedPayments; instead the object is exported as
+      // DigitalWalletsPay.  To make our integration resilient, check both
+      // properties before aborting.
+      const EP =
+        (window as any).EmbeddedPayments ||
+        (window as any).DigitalWalletsPay ||
+        (window as any).DigitalWallets ||
+        (window as any).DeluxeEmbedded ||
+        undefined;
       if (!EP || typeof EP.init !== "function") {
         throw new Error("Deluxe SDK not initialized (global missing)");
       }
@@ -647,14 +577,14 @@ export default function CheckoutPage() {
 
       const isSandbox = (embeddedBase || "").includes("payments2.");
       const config = {
-        countryCode: "US", // 2-letter for init options
+        countryCode: "USA",
         currencyCode: "USD",
         paymentMethods,
         supportedNetworks: ["visa", "masterCard", "amex", "discover"],
         googlePayEnv: isSandbox ? "TEST" : "PRODUCTION",
         merchantCapabilities: ["supports3DS"],
         allowedCardAuthMethods: ["PAN_ONLY", "CRYPTOGRAM_3DS"],
-      } as const;
+      } as any;
 
       const instance = await EP.init(jwt, config).setEventHandlers({
         onTxnSuccess: async (_g: any, data: any) => {
@@ -702,18 +632,15 @@ export default function CheckoutPage() {
           console.warn("[Deluxe] Token failed", data);
         },
       });
-
       instanceRef.current = instance;
 
-      if (!document.getElementById(EMBEDDED_CONTAINER_ID)) {
+      if (!document.getElementById(EMBEDDED_CONTAINER_ID))
         throw new Error(`Missing container #${EMBEDDED_CONTAINER_ID}`);
-      }
 
       EP.render({
         containerId: EMBEDDED_CONTAINER_ID,
         paymentpanelstyle: "light",
       });
-
       setInstanceReady(true);
     } catch (err: any) {
       console.error(err);
@@ -782,9 +709,9 @@ export default function CheckoutPage() {
         </p>
       </div>
 
-      {(errorMsg || cfgError) && (
+      {(errorMsg || (cfgError as any)) && (
         <div className="mb-6 rounded-lg border border-red-500/30 bg-red-500/10 text-red-700 p-3">
-          {errorMsg || cfgError}
+          {errorMsg || (cfgError as any)}
         </div>
       )}
 
