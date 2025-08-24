@@ -38,7 +38,7 @@ import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
 // resolution issues in TypeScript.  All necessary CORS headers are set
 // manually in the handler below.
 import crypto from "crypto";
-
+import { corsify } from "../src/functions.cors.js";
 import { setGlobalOptions, logger } from "firebase-functions/v2";
 import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
@@ -241,37 +241,29 @@ export const api = onRequest(
     ],
   },
   async (req: any, res: any) => {
-    // CORS: allow any origin by default.  You may restrict this in production.
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader(
-      "Access-Control-Allow-Methods",
-      "GET,POST,OPTIONS,PUT,PATCH,DELETE"
-    );
-    res.setHeader(
-      "Access-Control-Allow-Headers",
-      "Origin,X-Requested-With,Content-Type,Accept,Authorization"
-    );
+    // 1) CORS first: sets headers for all responses and handles preflight
+    if (corsify(req, res, [
+      "http://localhost:5173",
+      "http://127.0.0.1:5173",
+      // allow your production domain (www + apex)
+      /^https:\/\/(www\.)?ranchodepalomablanca\.com$/i,
+      // keep vercel previews if you use them
+      /\.vercel\.app$/i,
+    ])) return;
 
-    // Handle preflight requests
-    if (req.method === "OPTIONS") {
-      res.status(204).end();
-      return;
-    }
-
-    // Normalize the URL: remove any query string or hash fragment.
-    // `req.url` may be undefined in some environments, so default to '/' when empty.
-    const rawUrl = req.url || "/";
-    const url = rawUrl.split("?")[0];
+    // 2) Normalize path once (strip query + trailing slash)
+    const raw = (req.path || req.url || "/") as string;
+    const url = raw.replace(/\?.*$/, "").replace(/\/+$/, "");
 
     try {
-      // Health endpoint
+      // --- Health ---
       if (req.method === "GET" && url === "/api/health") {
         res.setHeader("Cache-Control", "no-store");
         res.status(200).json({ status: "ok" });
         return;
       }
 
-      // Embedded merchant status
+      // --- Embedded merchant status ---
       if (req.method === "GET" && url === "/api/getEmbeddedMerchantStatus") {
         try {
           const now = Math.floor(Date.now() / 1000);
@@ -289,11 +281,7 @@ export const api = onRequest(
           });
           const txt = await r.text();
           let json: any = {};
-          try {
-            json = txt ? JSON.parse(txt) : {};
-          } catch {
-            // ignore JSON parse errors; leave empty
-          }
+          try { json = txt ? JSON.parse(txt) : {}; } catch {}
           if (!r.ok) {
             logger.error("merchantStatus failed", { status: r.status, body: txt });
             res.status(200).json({ applePayEnabled: false, googlePayEnabled: false });
@@ -308,7 +296,7 @@ export const api = onRequest(
         }
       }
 
-      // Create Embedded JWT
+      // --- Create Embedded JWT ---
       if (req.method === "POST" && url === "/api/createEmbeddedJwt") {
         try {
           const body = (req.body || {}) as any;
@@ -342,18 +330,18 @@ export const api = onRequest(
             }
           }
 
-          // Sanitize customer: only include firstName, lastName, billingAddress fields per docs
+          // Sanitize customer
           let customer: any = undefined;
           if (customerRaw && typeof customerRaw === "object") {
             const firstName = customerRaw.firstName ?? undefined;
             const lastName = customerRaw.lastName ?? undefined;
-            const billing: any = customerRaw.billingAddress;
-            const billingAddress = billing && typeof billing === "object" ? {
-              address: billing.address,
-              city: billing.city,
-              state: billing.state,
-              zipCode: billing.zipCode,
-              countryCode: billing.countryCode,
+            const b = customerRaw.billingAddress;
+            const billingAddress = b && typeof b === "object" ? {
+              address: b.address,
+              city: b.city,
+              state: b.state,
+              zipCode: b.zipCode,
+              countryCode: b.countryCode,
             } : undefined;
             if (firstName || lastName || billingAddress) {
               customer = {
@@ -364,7 +352,7 @@ export const api = onRequest(
             }
           }
 
-          // Sanitize products: array of objects with allowed keys only (name, skuCode, quantity, price, description, unitOfMeasure, itemDiscountAmount, itemDiscountRate)
+          // Sanitize products
           let products: any[] | undefined = undefined;
           if (Array.isArray(productsRaw)) {
             products = productsRaw.map((p) => {
@@ -378,7 +366,7 @@ export const api = onRequest(
               if (typeof p.itemDiscountAmount === "number") out.itemDiscountAmount = p.itemDiscountAmount;
               if (typeof p.itemDiscountRate === "number") out.itemDiscountRate = p.itemDiscountRate;
               return out;
-            }).filter((item) => Object.keys(item).length > 0);
+            }).filter((x) => Object.keys(x).length > 0);
             if (!products.length) products = undefined;
           }
 
@@ -412,7 +400,7 @@ export const api = onRequest(
         }
       }
 
-      // Create Deluxe Payment (Hosted Link fallback)
+      // --- Create Deluxe Payment (hosted link fallback) ---
       if (req.method === "POST" && url === "/api/createDeluxePayment") {
         try {
           const body = req.body || {};
@@ -449,11 +437,7 @@ export const api = onRequest(
           });
           const text = await resp.text();
           let json: any = {};
-          try {
-            json = text ? JSON.parse(text) : {};
-          } catch {
-            // ignore parse errors
-          }
+          try { json = text ? JSON.parse(text) : {}; } catch {}
           if (!resp.ok) {
             logger.error("paymentlinks failed", { status: resp.status, body: text });
             res.status(resp.status).json({ error: "paymentlinks-failed", status: resp.status, body: json || text });
@@ -488,14 +472,14 @@ export const api = onRequest(
         }
       }
 
-      // Refund Deluxe Payment
+      // --- Refund ---
       if (req.method === "POST" && url === "/api/refundDeluxePayment") {
         try {
           const body = (req.body || {}) as any;
           const amount = Number(body.amount);
           const currency = (body.currency || "USD") as "USD" | "CAD";
           const paymentId = body.paymentId;
-          const transactionId = body.transactionId; // originalTransactionId
+          const transactionId = body.transactionId;
           const reason = body.reason;
           if (!amount || amount <= 0) {
             res.status(400).json({ error: "invalid-amount" });
@@ -507,12 +491,11 @@ export const api = onRequest(
           }
           const bearer = await getGatewayBearer();
           const endpoint = `${gatewayBase()}/dpp/v1/gateway/refunds`;
-          const requestBody: any = {
-            amount: { amount, currency },
-          };
+          const requestBody: any = { amount: { amount, currency } };
           if (paymentId) requestBody.paymentId = paymentId;
           if (transactionId) requestBody.originalTransactionId = transactionId;
           if (reason) requestBody.reason = reason;
+
           const resp = await fetch(endpoint, {
             method: "POST",
             headers: {
@@ -525,9 +508,7 @@ export const api = onRequest(
           });
           const text = await resp.text();
           let json: any = {};
-          try {
-            json = text ? JSON.parse(text) : {};
-          } catch {}
+          try { json = text ? JSON.parse(text) : {}; } catch {}
           if (!resp.ok) {
             logger.error("refunds failed", { status: resp.status, body: text });
             res.status(resp.status).json({ error: "refunds-failed", status: resp.status, body: json || text });
@@ -542,7 +523,7 @@ export const api = onRequest(
         }
       }
 
-      // Deluxe Webhook
+      // --- Webhook ---
       if (req.method === "POST" && url === "/api/deluxe/webhook") {
         try {
           const evt = req.body || {};
@@ -579,10 +560,9 @@ export const api = onRequest(
         }
       }
 
-      // If no route matched, return 404
+      // --- 404 ---
       res.status(404).json({ error: "not-found" });
     } catch (outerErr: any) {
-      // A catch-all to avoid unhandled promise rejections
       logger.error("unhandled error", outerErr);
       res.status(500).json({ error: "internal", message: outerErr?.message || String(outerErr) });
     }
