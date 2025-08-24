@@ -639,7 +639,20 @@ export default function CheckoutPage() {
 
       EP.render({
         containerId: EMBEDDED_CONTAINER_ID,
-        paymentpanelstyle: "light",
+        walletsbgcolor: "#f0f0f0", // digital wallets panel background color
+        walletsborderradius: "5px", // digital wallets panel border radius
+        walletspadding: "10px", // digital wallets panel padding
+        walletsgap: "5px", // digital wallets panel gap between buttons
+        walletswidth: "150px", // digital wallets panel buttons width
+        walletsheight: "50px", // digital wallets panel buttons height
+        walletsfontfamily: "Arial, sans-serif", // digital wallets panel font family
+        walletsfontcolor: "#333333", // digital wallets panel font color
+        paybuttoncolor: "#4CAF50", // The color of the pay button
+        productsbgcolor: "#ffffff", // The background color of the products panel (Left Hand Side)
+        productsfontcolor: "#000000", // The font color of the products panel
+        cancelbuttoncolor: "#f44336", // The color of the cancel button
+        productsfontsize: "14px", // The size of the font in the products panel
+        paymentpanelstyle: "solid", // The style of the payment panel (light/dark) });
       });
       setInstanceReady(true);
     } catch (err: any) {
