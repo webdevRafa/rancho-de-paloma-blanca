@@ -38,7 +38,6 @@ import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
 // resolution issues in TypeScript.  All necessary CORS headers are set
 // manually in the handler below.
 import crypto from "crypto";
-import { corsify } from "../src/functions.cors.js";
 import { setGlobalOptions, logger } from "firebase-functions/v2";
 import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
@@ -81,6 +80,34 @@ function embeddedBase(): string {
 
 // ---- Helpers ----
 const base64url = (obj: object) => Buffer.from(JSON.stringify(obj)).toString("base64url");
+
+const CORS_ALLOW_LIST: (string | RegExp)[] = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  /^https:\/\/(www\.)?ranchodepalomablanca\.com$/i, // your prod domain (www + apex)
+  /\.vercel\.app$/i,                                 // vercel previews
+];
+
+// Returns true if it fully handled (OPTIONS) and you should early-return.
+function applyCors(req: any, res: any): boolean {
+  const origin = String(req.headers?.origin || "");
+  const allowed = origin && CORS_ALLOW_LIST.some((a) =>
+    typeof a === "string" ? a === origin : a.test(origin)
+  );
+
+  res.setHeader("Vary", "Origin");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept");
+  res.setHeader("Access-Control-Max-Age", "86400");
+  // We’re not using credentials/cookies; echo the origin when matched, else '*'
+  res.setHeader("Access-Control-Allow-Origin", allowed ? origin : "*");
+
+  if (req.method === "OPTIONS") {
+    res.status(204).send("");
+    return true;
+  }
+  return false;
+}
 
 // Sign a payload with HS256 for Embedded endpoints (and for the embedded SDK token)
 function signEmbeddedJwt(payload: Record<string, any>): string {
@@ -242,14 +269,7 @@ export const api = onRequest(
   },
   async (req: any, res: any) => {
     // 1) CORS first: sets headers for all responses and handles preflight
-    if (corsify(req, res, [
-      "http://localhost:5173",
-      "http://127.0.0.1:5173",
-      // allow your production domain (www + apex)
-      /^https:\/\/(www\.)?ranchodepalomablanca\.com$/i,
-      // keep vercel previews if you use them
-      /\.vercel\.app$/i,
-    ])) return;
+    if (applyCors(req, res)) return;
 
     // 2) Normalize path once (strip query + trailing slash)
     const raw = (req.path || req.url || "/") as string;
