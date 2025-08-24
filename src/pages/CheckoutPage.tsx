@@ -126,62 +126,37 @@ function loadDeluxeSdk(src?: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const url =
       src || "https://payments2.deluxe.com/embedded/javascripts/deluxe.js";
-
-    // Helper that recognizes any SDK global
-    const getEP = () =>
-      (window as any).EmbeddedPayments ||
-      (window as any).DigitalWalletsPay ||
-      (window as any).DigitalWallets ||
-      (window as any).DeluxeEmbedded ||
-      undefined;
-
-    // Already attached? Done.
-    const already = getEP();
-    if (already) {
-      // normalize so downstream code can always use EmbeddedPayments
-      if (!(window as any).EmbeddedPayments)
-        (window as any).EmbeddedPayments = already;
+    // If the SDK has already been attached, resolve immediately.
+    if ((window as any).EmbeddedPayments) {
       resolve();
       return;
     }
 
-    // Polyfill small Node-like globals some SDK builds expect
+    // Polyfill Node-like globals expected by Deluxe’s SDK.
+    // Without these, the script may throw and never attach to window.
     (window as any).global = (window as any).global || window;
     (window as any).process = (window as any).process || { env: {} };
 
-    // Prevent UMD from registering to AMD/CommonJS instead of window
+    // Some bundlers define AMD/CommonJS globals (define, module) which the
+    // Deluxe SDK uses to register itself instead of attaching to `window`.
+    // Temporarily remove them so the SDK falls back to the global export.
     const savedDefine = (window as any).define;
     const savedModule = (window as any).module;
-    const savedExports = (window as any).exports;
     try {
       delete (window as any).define;
     } catch {}
     try {
       delete (window as any).module;
     } catch {}
-    try {
-      delete (window as any).exports;
-    } catch {}
-
-    const restore = () => {
-      if (savedDefine !== undefined) (window as any).define = savedDefine;
-      else delete (window as any).define;
-      if (savedModule !== undefined) (window as any).module = savedModule;
-      else delete (window as any).module;
-      if (savedExports !== undefined) (window as any).exports = savedExports;
-      else delete (window as any).exports;
-    };
 
     const finish = () => {
-      restore();
+      // Restore AMD/CommonJS definitions after the script has executed.
+      if (savedDefine !== undefined) (window as any).define = savedDefine;
+      if (savedModule !== undefined) (window as any).module = savedModule;
 
       const start = Date.now();
       (function waitForGlobal() {
-        const ep = getEP();
-        if (ep) {
-          // normalize to EmbeddedPayments so the rest of the code path is stable
-          if (!(window as any).EmbeddedPayments)
-            (window as any).EmbeddedPayments = ep;
+        if ((window as any).EmbeddedPayments) {
           resolve();
         } else if (Date.now() - start > 15000) {
           reject(new Error("Deluxe SDK loaded but global missing"));
@@ -191,16 +166,18 @@ function loadDeluxeSdk(src?: string): Promise<void> {
       })();
     };
 
-    // Reuse existing script if it’s already on the page
-    const existing = document.querySelector<HTMLScriptElement>(
+    // If the script already exists, attach listeners to it.
+    const existing = document.querySelector(
       `script[src="${url}"]`
-    );
+    ) as HTMLScriptElement | null;
     if (existing) {
       existing.addEventListener("load", finish, { once: true });
       existing.addEventListener(
         "error",
         () => {
-          restore();
+          // restore saved definitions on error
+          if (savedDefine !== undefined) (window as any).define = savedDefine;
+          if (savedModule !== undefined) (window as any).module = savedModule;
           reject(new Error("Failed to load Deluxe SDK"));
         },
         { once: true }
@@ -208,13 +185,18 @@ function loadDeluxeSdk(src?: string): Promise<void> {
       return;
     }
 
-    // Create and load the script (classic script; no cache-buster; no crossorigin)
+    // Create the script element.
     const script = document.createElement("script");
     script.src = url;
-    script.async = true; // dynamic classic script
+    // Do not specify `async`; using defer ensures execution order but allows
+    // the browser to download in parallel.  Leaving off async also avoids
+    // issues where the SDK runs before our polyfills.
+    script.defer = true;
     script.onload = finish;
     script.onerror = () => {
-      restore();
+      // restore saved definitions on error
+      if (savedDefine !== undefined) (window as any).define = savedDefine;
+      if (savedModule !== undefined) (window as any).module = savedModule;
       reject(new Error("Failed to load Deluxe SDK"));
     };
     document.head.appendChild(script);
@@ -595,7 +577,7 @@ export default function CheckoutPage() {
 
       const isSandbox = (embeddedBase || "").includes("payments2.");
       const config = {
-        countryCode: "US",
+        countryCode: "USA",
         currencyCode: "USD",
         paymentMethods,
         supportedNetworks: ["visa", "masterCard", "amex", "discover"],
