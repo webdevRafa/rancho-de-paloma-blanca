@@ -127,77 +127,77 @@ function loadDeluxeSdk(src?: string): Promise<void> {
     const url =
       src || "https://payments2.deluxe.com/embedded/javascripts/deluxe.js";
 
-    // Helper to detect any Deluxe SDK global regardless of name.
-    const getDeluxeGlobal = () =>
+    // Any of these may be used by different SDK builds
+    const getEP = () =>
       (window as any).EmbeddedPayments ||
       (window as any).DigitalWalletsPay ||
       (window as any).DigitalWallets ||
       (window as any).DeluxeEmbedded;
 
-    if (getDeluxeGlobal()) {
+    if (getEP()) {
       resolve();
       return;
     }
 
-    // Polyfill small node-like globals some builds expect.
-    (window as any).global = (window as any).global || window;
-    (window as any).process = (window as any).process || { env: {} };
+    // Capture UMD/AMD/CommonJS exports if the SDK chooses those paths
+    const saved = {
+      define: (window as any).define,
+      module: (window as any).module,
+      exports: (window as any).exports,
+    } as any;
 
-    // Prevent UMD from registering to AMD/CommonJS instead of window.
-    const savedDefine = (window as any).define;
-    const savedModule = (window as any).module;
-    const savedExports = (window as any).exports;
-    try {
-      delete (window as any).define;
-    } catch {}
-    try {
-      delete (window as any).module;
-    } catch {}
-    try {
-      delete (window as any).exports;
-    } catch {}
+    let captured: any = null;
+    (window as any).define = function (deps: any, factory?: any) {
+      try {
+        // Signature variations: define(factory) OR define(deps, factory)
+        if (typeof deps === "function") {
+          captured = deps();
+        } else if (typeof factory === "function") {
+          captured = factory();
+        } else {
+          captured = factory || deps;
+        }
+      } catch (_e) {}
+    };
+    (window as any).define.amd = true;
+
+    // Basic CommonJS shim
+    (window as any).module = { exports: {} };
+    (window as any).exports = (window as any).module.exports;
 
     const restore = () => {
-      if (savedDefine !== undefined) (window as any).define = savedDefine;
-      if (savedModule !== undefined) (window as any).module = savedModule;
-      if (savedExports !== undefined) (window as any).exports = savedExports;
+      if (saved.define !== undefined) (window as any).define = saved.define;
+      else delete (window as any).define;
+      if (saved.module !== undefined) (window as any).module = saved.module;
+      else delete (window as any).module;
+      if (saved.exports !== undefined) (window as any).exports = saved.exports;
+      else delete (window as any).exports;
     };
 
     const finish = () => {
+      // If the SDK exported via AMD/CJS, attach it to window so our code can find it
+      const ep = getEP();
+      if (!ep && (captured || (window as any).module?.exports)) {
+        const mod = captured || (window as any).module?.exports;
+        const val = (mod && (mod.default || mod)) || mod;
+        if (val) (window as any).EmbeddedPayments = val;
+      }
       restore();
+
+      // poll up to 20s for the global (covers async bootstraps inside the SDK)
       const start = Date.now();
       (function waitForGlobal() {
-        const EP = getDeluxeGlobal();
-        if (EP) {
-          resolve();
-        } else if (Date.now() - start > 20000) {
-          reject(new Error("Deluxe SDK loaded but global missing"));
-        } else {
-          setTimeout(waitForGlobal, 50);
-        }
+        if (getEP()) return resolve();
+        if (Date.now() - start > 20000)
+          return reject(new Error("Deluxe SDK loaded but global missing"));
+        setTimeout(waitForGlobal, 50);
       })();
     };
 
-    // Reuse existing script if present
-    const existing = document.querySelector(
-      `script[src="${url}"]`
-    ) as HTMLScriptElement | null;
-    if (existing) {
-      existing.addEventListener("load", finish, { once: true });
-      existing.addEventListener(
-        "error",
-        () => {
-          restore();
-          reject(new Error("Failed to load Deluxe SDK"));
-        },
-        { once: true }
-      );
-      return;
-    }
-
+    // Always load a fresh copy (in case an earlier static tag failed to expose a global)
     const script = document.createElement("script");
-    script.src = url;
-    // Do not set type="module"; let it be a classic script so it can set a window global.
+    // Cache-bust to force execution even if a previous tag exists
+    script.src = url + (url.includes("?") ? "&" : "?") + "v=" + Date.now();
     script.async = true;
     script.onload = finish;
     script.onerror = () => {
