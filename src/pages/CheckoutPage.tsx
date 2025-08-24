@@ -136,81 +136,133 @@ function pruneUndefinedDeep<T>(obj: T): T {
  * exists on window (has `init()` and `render()`).
  */
 function loadDeluxeSdk(src?: string): Promise<void> {
-  // We’ll try the provided URL first; if not given, try sandbox then prod.
-  const candidates: string[] = [];
-  if (src) {
-    candidates.push(src);
-  } else {
-    candidates.push(
+  const findEP = () =>
+    (window as any).__EP_RESOLVED__ || pickEmbeddedPaymentsGlobal();
+
+  // Build candidate URLs (prefer the one from your backend)
+  const urls: string[] = [];
+  if (src) urls.push(src);
+  else {
+    urls.push(
       "https://payments2.deluxe.com/embedded/javascripts/deluxe.js", // sandbox
-      "https://payments.deluxe.com/embedded/javascripts/deluxe.js" // prod (fallback)
+      "https://payments.deluxe.com/embedded/javascripts/deluxe.js" // prod
     );
   }
 
-  const inject = (url: string) =>
+  const pollForEP = (deadlineMs = 15000) =>
     new Promise<void>((resolve, reject) => {
-      // Already resolved?
-      if ((window as any).__EP_RESOLVED__ || pickEmbeddedPaymentsGlobal()) {
-        (window as any).__EP_RESOLVED__ =
-          (window as any).__EP_RESOLVED__ || pickEmbeddedPaymentsGlobal();
-        return resolve();
-      }
+      const start = Date.now();
+      (function tick() {
+        const ep = findEP();
+        if (ep) {
+          (window as any).__EP_RESOLVED__ = ep;
+          resolve();
+        } else if (Date.now() - start > deadlineMs) {
+          reject(new Error("Deluxe SDK loaded but global missing"));
+        } else {
+          setTimeout(tick, 50);
+        }
+      })();
+    });
 
-      // Reuse existing <script> if present
-      const existing = document.querySelector<HTMLScriptElement>(
-        `script[src="${url}"]`
-      );
-      if (existing) {
-        existing.addEventListener(
-          "load",
-          () => {
-            const ep =
-              (window as any).__EP_RESOLVED__ || pickEmbeddedPaymentsGlobal();
-            ep
-              ? resolve()
-              : reject(new Error("Deluxe SDK loaded but global missing"));
-          },
-          { once: true }
-        );
-        existing.addEventListener(
-          "error",
-          () => reject(new Error("Failed to load Deluxe SDK")),
-          { once: true }
-        );
-        return;
-      }
+  const inject = (url: string, withShim: boolean) =>
+    new Promise<void>((resolve, reject) => {
+      // If it’s already present, resolve.
+      if (findEP()) return resolve();
+
+      // Optional AMD/CJS capture shim
+      let savedDefine: any, savedModule: any, savedExports: any;
+      let captured: any = null;
+
+      const installShim = () => {
+        savedDefine = (window as any).define;
+        savedModule = (window as any).module;
+        savedExports = (window as any).exports;
+
+        (window as any).define = function (deps: any, factory?: any) {
+          try {
+            if (typeof deps === "function") captured = deps();
+            else if (typeof factory === "function") captured = factory();
+            else captured = factory || deps;
+          } catch {}
+        };
+        (window as any).define.amd = true;
+
+        (window as any).module = { exports: {} };
+        (window as any).exports = (window as any).module.exports;
+      };
+
+      const restoreShim = () => {
+        if (savedDefine !== undefined) (window as any).define = savedDefine;
+        else delete (window as any).define;
+        if (savedModule !== undefined) (window as any).module = savedModule;
+        else delete (window as any).module;
+        if (savedExports !== undefined) (window as any).exports = savedExports;
+        else delete (window as any).exports;
+      };
+
+      if (withShim) installShim();
 
       const s = document.createElement("script");
-      s.src = url; // IMPORTANT: no cache-buster, no crossorigin
-      s.async = true; // classic script
-      s.onload = () => {
-        // give it a tick to attach
-        setTimeout(() => {
-          const ep =
-            (window as any).__EP_RESOLVED__ || pickEmbeddedPaymentsGlobal();
-          if (ep) {
-            (window as any).__EP_RESOLVED__ = ep;
-            resolve();
-          } else {
-            reject(new Error("Deluxe SDK loaded but global missing"));
+      s.async = true;
+      s.src = withShim
+        ? `${url}${url.includes("?") ? "&" : "?"}r=${Date.now()}`
+        : url;
+
+      s.onload = async () => {
+        // If AMD/CJS path happened, attach captured module to window
+        try {
+          const mod = captured || (window as any).module?.exports;
+          const val = mod && (mod.default || mod);
+          if (
+            !findEP() &&
+            val &&
+            typeof val.init === "function" &&
+            typeof val.render === "function"
+          ) {
+            (window as any).EmbeddedPayments = val;
           }
-        }, 0);
+        } catch {}
+        if (withShim) restoreShim();
+
+        try {
+          await pollForEP(15000);
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
       };
-      s.onerror = () => reject(new Error("Failed to load Deluxe SDK"));
+      s.onerror = () => {
+        if (withShim) restoreShim();
+        reject(new Error("Failed to load Deluxe SDK"));
+      };
+
       document.head.appendChild(s);
     });
 
   return new Promise<void>(async (resolve, reject) => {
     let lastErr: unknown = null;
-    for (const url of candidates) {
+
+    // 1) Try each URL normally (no shim, no cache-buster)
+    for (const url of urls) {
       try {
-        await inject(url);
+        await inject(url, /*withShim*/ false);
         return resolve();
       } catch (e) {
         lastErr = e;
-        // try next candidate
       }
     }
+
+    // 2) Retry once with AMD/CJS capture shim (force re-exec with cache-buster)
+    for (const url of urls) {
+      try {
+        await inject(url, /*withShim*/ true);
+        return resolve();
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+
     reject(lastErr || new Error("Failed to load Deluxe SDK"));
   });
 }
