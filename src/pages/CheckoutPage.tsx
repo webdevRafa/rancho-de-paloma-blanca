@@ -273,98 +273,104 @@ function calculateTotals(args: {
 /* ---------------------------- SDK Dynamic Loader -------------------------- */
 
 /**
- * Load Deluxe SDK exactly once (no cache-buster, no crossorigin).
- * Force the UMD build to export to the browser global (disable AMD/CJS temporarily),
- * then wait until a usable object exists and normalize it to `window.EmbeddedPayments`.
+ * Robust Deluxe SDK loader:
+ * - Captures AMD, CommonJS, or Global UMD exports.
+ * - Removes any pre-existing deluxe.js tag so we can intercept cleanly.
+ * - No cache-busters; classic script; restores global objects afterwards.
  */
 async function ensureDeluxeSdk(src?: string): Promise<void> {
   if ((window as any).__EP_RESOLVED__) return;
-  if ((window as any).__EP_LOADING__) return (window as any).__EP_LOADING__;
 
   const url =
     src || "https://payments2.deluxe.com/embedded/javascripts/deluxe.js";
 
-  (window as any).__EP_LOADING__ = new Promise<void>((resolve, reject) => {
-    const getEP = () =>
-      (window as any).EmbeddedPayments ||
-      (window as any).DigitalWalletsPay ||
-      (window as any).DigitalWallets ||
-      (window as any).DeluxeEmbedded;
+  const pickGlobal = () =>
+    (window as any).EmbeddedPayments ||
+    (window as any).DigitalWalletsPay ||
+    (window as any).DigitalWallets ||
+    (window as any).DeluxeEmbedded;
 
-    // Temporarily neutralize AMD/CJS so UMD chooses "global"
-    const savedDefine = (window as any).define;
-    const savedModule = (window as any).module;
-    const savedExports = (window as any).exports;
+  const grab = (obj: any) => {
+    if (!obj) return;
+    (window as any).__EP_RESOLVED__ = obj;
+    if (!(window as any).EmbeddedPayments)
+      (window as any).EmbeddedPayments = obj;
+  };
+
+  // Already present?
+  const ep0 = pickGlobal();
+  if (ep0) {
+    grab(ep0);
+    return;
+  }
+
+  // Remove any existing deluxe.js (any host) before loading fresh
+  document
+    .querySelectorAll<HTMLScriptElement>(
+      'script[src$="/embedded/javascripts/deluxe.js"]'
+    )
+    .forEach((s) => s.parentElement?.removeChild(s));
+
+  // Save originals
+  const savedDefine = (window as any).define;
+  const savedModule = (window as any).module;
+  const savedExports = (window as any).exports;
+
+  // AMD capture
+  let amdCaptured: any;
+  const amdDefine: any = function (depsOrFactory: any, maybeFactory?: any) {
+    const factory =
+      typeof depsOrFactory === "function" ? depsOrFactory : maybeFactory;
     try {
-      (window as any).define = undefined;
+      amdCaptured = factory && factory();
     } catch {}
-    try {
-      (window as any).module = undefined;
-    } catch {}
-    try {
-      (window as any).exports = undefined;
-    } catch {}
+  };
+  amdDefine.amd = {}; // mark AMD
 
-    const restore = () => {
-      if (savedDefine !== undefined) (window as any).define = savedDefine;
-      else delete (window as any).define;
-      if (savedModule !== undefined) (window as any).module = savedModule;
-      else delete (window as any).module;
-      if (savedExports !== undefined) (window as any).exports = savedExports;
-      else delete (window as any).exports;
-    };
+  // CJS capture
+  const fakeModule: any = { exports: {} };
+  const fakeExports: any = fakeModule.exports;
 
-    // Reuse existing identical tag if present
-    const existing = document.querySelector<HTMLScriptElement>(
-      `script[src="${url}"]`
-    );
-    const attachHandlers = (el: HTMLScriptElement) => {
-      const finalize = () => {
-        restore();
-        const start = Date.now();
-        (function poll() {
-          const ep = getEP();
-          if (ep) {
-            if (!(window as any).EmbeddedPayments)
-              (window as any).EmbeddedPayments = ep;
-            (window as any).__EP_RESOLVED__ = ep;
-            resolve();
-          } else if (Date.now() - start > 30000) {
-            reject(new Error("Deluxe SDK loaded but global missing"));
-          } else {
-            setTimeout(poll, 50);
-          }
-        })();
-      };
-      el.addEventListener("load", finalize, { once: true });
-      el.addEventListener(
-        "error",
-        () => {
-          restore();
-          reject(new Error("Failed to load Deluxe SDK"));
-        },
-        { once: true }
-      );
-    };
+  (window as any).define = amdDefine;
+  (window as any).module = fakeModule;
+  (window as any).exports = fakeExports;
 
-    if (existing) {
-      attachHandlers(existing);
-      return;
-    }
-
+  // Load script
+  await new Promise<void>((resolve, reject) => {
     const s = document.createElement("script");
-    s.src = url; // IMPORTANT: no ?v=..., no crossorigin
-    s.async = true; // classic script
-    attachHandlers(s);
+    s.src = url;
+    s.async = true;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error("Failed to load Deluxe SDK"));
     document.head.appendChild(s);
-  }).finally(() => {
-    // clear in-flight after settle
-    setTimeout(() => {
-      (window as any).__EP_LOADING__ = undefined;
-    }, 0);
   });
 
-  return (window as any).__EP_LOADING__;
+  // Restore
+  (window as any).define = savedDefine;
+  (window as any).module = savedModule;
+  (window as any).exports = savedExports;
+
+  // Prefer AMD export
+  if (amdCaptured) {
+    grab(amdCaptured.default || amdCaptured);
+    return;
+  }
+
+  // Then CommonJS
+  const cjs = (fakeModule && fakeModule.exports) || undefined;
+  if (cjs && (cjs.init || (cjs.default && cjs.default.init))) {
+    grab(cjs.default || cjs);
+    return;
+  }
+
+  // Finally, global
+  const ep = pickGlobal();
+  if (ep) {
+    grab(ep);
+    return;
+  }
+
+  throw new Error("Deluxe SDK loaded but global missing");
 }
 
 /* --------------------------------- Page ---------------------------------- */
@@ -601,13 +607,14 @@ export default function CheckoutPage() {
       };
       if (!jwt) throw new Error("JWT missing from response");
 
-      // Load the SDK dynamically and wait until it attaches a usable global
+      // Load the SDK dynamically and capture regardless of UMD path
       const scriptSrc = embeddedBase
         ? `${embeddedBase}/embedded/javascripts/deluxe.js`
         : undefined;
       await ensureDeluxeSdk(scriptSrc);
 
       const EP =
+        (window as any).__EP_RESOLVED__ ||
         (window as any).EmbeddedPayments ||
         (window as any).DigitalWalletsPay ||
         (window as any).DigitalWallets ||
@@ -619,7 +626,7 @@ export default function CheckoutPage() {
 
       const isSandbox = (embeddedBase || "").includes("payments2.");
       const config = {
-        countryCode: "US", // 2-letter
+        countryCode: "US",
         currencyCode: "USD",
         paymentMethods,
         supportedNetworks: ["visa", "masterCard", "amex", "discover"],
@@ -628,7 +635,6 @@ export default function CheckoutPage() {
         allowedCardAuthMethods: ["PAN_ONLY", "CRYPTOGRAM_3DS"],
       } as const;
 
-      // ✅ init returns a Promise<instance>
       const instance = await EP.init(jwt, config);
       instanceRef.current = instance;
 
