@@ -31,6 +31,8 @@ declare global {
     DigitalWalletsPay?: any;
     DigitalWallets?: any;
     DeluxeEmbedded?: any;
+    __EP_LOADING__?: Promise<void>;
+    __EP_RESOLVED__?: any;
   }
 }
 
@@ -44,8 +46,8 @@ type BookingLine = {
 type MerchItem = { skuCode: string; name: string; qty: number; price: number };
 
 export type SeasonConfig = {
-  seasonStart: string; // ISO date
-  seasonEnd: string; // ISO date
+  seasonStart: string;
+  seasonEnd: string;
   weekdayRate?: number;
   weekendRates?: {
     singleDay: number;
@@ -268,6 +270,117 @@ function calculateTotals(args: {
   return { bookingTotal, merchTotal, amount };
 }
 
+/* ---------------------------- SDK Dynamic Loader -------------------------- */
+
+function findEmbeddedPayments(): any | undefined {
+  const w: any = window;
+  return (
+    w.__EP_RESOLVED__ ||
+    w.EmbeddedPayments ||
+    w.DigitalWalletsPay ||
+    w.DigitalWallets ||
+    w.DeluxeEmbedded
+  );
+}
+
+/**
+ * Load Deluxe SDK exactly once (no cache-buster, no crossorigin).
+ * Force the UMD build to export to the browser global (disable AMD/CJS temporarily),
+ * then wait until a usable object exists and normalize it to `window.EmbeddedPayments`.
+ */
+async function ensureDeluxeSdk(src?: string): Promise<void> {
+  // Already resolved?
+  const hit = findEmbeddedPayments();
+  if (hit) {
+    (window as any).__EP_RESOLVED__ = hit;
+    if (!(window as any).EmbeddedPayments)
+      (window as any).EmbeddedPayments = hit;
+    return;
+  }
+  // Reuse in-flight load
+  if (window.__EP_LOADING__) return window.__EP_LOADING__;
+
+  const url =
+    src || "https://payments2.deluxe.com/embedded/javascripts/deluxe.js";
+
+  window.__EP_LOADING__ = new Promise<void>((resolve, reject) => {
+    // Force UMD global path
+    const savedDefine = (window as any).define;
+    const savedModule = (window as any).module;
+    const savedExports = (window as any).exports;
+    try {
+      (window as any).define = undefined;
+    } catch {}
+    try {
+      (window as any).module = undefined;
+    } catch {}
+    try {
+      (window as any).exports = undefined;
+    } catch {}
+
+    const restore = () => {
+      if (savedDefine !== undefined) (window as any).define = savedDefine;
+      else delete (window as any).define;
+      if (savedModule !== undefined) (window as any).module = savedModule;
+      else delete (window as any).module;
+      if (savedExports !== undefined) (window as any).exports = savedExports;
+      else delete (window as any).exports;
+    };
+
+    // Reuse existing identical tag if present
+    const existing = document.querySelector<HTMLScriptElement>(
+      `script[src="${url}"]`
+    );
+    const attachHandlers = (el: HTMLScriptElement) => {
+      const finalize = () => {
+        restore();
+        const start = Date.now();
+        const poll = () => {
+          const ep = findEmbeddedPayments();
+          if (ep) {
+            if (!(window as any).EmbeddedPayments)
+              (window as any).EmbeddedPayments = ep;
+            (window as any).__EP_RESOLVED__ = ep;
+            resolve();
+          } else if (Date.now() - start > 30000) {
+            reject(new Error("Deluxe SDK loaded but global missing"));
+          } else {
+            setTimeout(poll, 50);
+          }
+        };
+        setTimeout(poll, 0);
+      };
+      el.addEventListener("load", finalize, { once: true });
+      el.addEventListener(
+        "error",
+        () => {
+          restore();
+          reject(new Error("Failed to load Deluxe SDK"));
+        },
+        { once: true }
+      );
+    };
+
+    if (existing) {
+      attachHandlers(existing);
+      return;
+    }
+
+    const s = document.createElement("script");
+    s.src = url; // IMPORTANT: no ?v=..., no crossorigin
+    s.async = true; // classic script
+    attachHandlers(s);
+    document.head.appendChild(s);
+  }).finally(() => {
+    // clear in-flight after settle
+    setTimeout(() => {
+      window.__EP_LOADING__ = undefined;
+    }, 0);
+  });
+
+  return window.__EP_LOADING__;
+}
+
 /* --------------------------------- Page ---------------------------------- */
 
 export default function CheckoutPage() {
@@ -275,7 +388,6 @@ export default function CheckoutPage() {
   const { user } = useAuth();
   const { booking, merchItems, isHydrated } = useCart();
 
-  // Stable order id (persisted).
   const [orderId] = useState<string>(() => {
     const existing = localStorage.getItem(ORDER_ID_KEY);
     if (existing) return existing;
@@ -474,7 +586,7 @@ export default function CheckoutPage() {
               city: customer.billingAddress?.city,
               state: customer.billingAddress?.state,
               zipCode: customer.billingAddress?.postalCode,
-              countryCode: toIsoAlpha3(customer.billingAddress?.country), // backend normalizes to alpha-3
+              countryCode: toIsoAlpha3(customer.billingAddress?.country),
             },
           },
           products: buildProductsForJwt({
@@ -503,7 +615,12 @@ export default function CheckoutPage() {
       };
       if (!jwt) throw new Error("JWT missing from response");
 
-      // Get the SDK global (SDK must be preloaded in index.html)
+      // Load the SDK dynamically and wait until it attaches a usable global
+      const scriptSrc = embeddedBase
+        ? `${embeddedBase}/embedded/javascripts/deluxe.js`
+        : undefined;
+      await ensureDeluxeSdk(scriptSrc);
+
       const EP =
         (window as any).EmbeddedPayments ||
         (window as any).DigitalWalletsPay ||
@@ -511,14 +628,12 @@ export default function CheckoutPage() {
         (window as any).DeluxeEmbedded;
 
       if (!EP || typeof EP.init !== "function") {
-        throw new Error(
-          'Deluxe SDK not initialized. Ensure <script src="https://payments2.deluxe.com/embedded/javascripts/deluxe.js"> is in index.html before your app script.'
-        );
+        throw new Error("Deluxe SDK not initialized (global missing)");
       }
 
       const isSandbox = (embeddedBase || "").includes("payments2.");
       const config = {
-        countryCode: "US", // 2-letter here
+        countryCode: "US", // 2-letter
         currencyCode: "USD",
         paymentMethods,
         supportedNetworks: ["visa", "masterCard", "amex", "discover"],
@@ -529,11 +644,8 @@ export default function CheckoutPage() {
 
       // ✅ init returns a Promise<instance>
       const instance = await EP.init(jwt, config);
-
-      // store for cleanup
       instanceRef.current = instance;
 
-      // attach handlers on the instance
       instance.setEventHandlers({
         onTxnSuccess: async (_g: any, data: any) => {
           try {
@@ -565,7 +677,7 @@ export default function CheckoutPage() {
           console.warn("[Deluxe] Failed:", data);
           setErrorMsg("Payment failed. Please try again.");
         },
-        onTxnCancelled: (_g: any) => {
+        onTxnCancelled: () => {
           setErrorMsg("Payment cancelled.");
         },
         onValidationError: (_g: any, data: any) => {
@@ -580,7 +692,6 @@ export default function CheckoutPage() {
         },
       });
 
-      // render the panel on the same instance
       await instance.render({
         containerId: EMBEDDED_CONTAINER_ID,
         paymentpanelstyle: "light",
