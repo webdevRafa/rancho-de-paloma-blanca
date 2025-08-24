@@ -90,12 +90,12 @@ type OrderDoc = {
     email: string;
     phone?: string;
     billingAddress?: {
-      line1?: string;
-      line2?: string;
-      city?: string;
-      state?: string;
-      postalCode?: string;
-      country?: string;
+      line1: string | undefined;
+      line2: string | undefined;
+      city: string | undefined;
+      state: string | undefined;
+      postalCode: string | undefined;
+      country: string | undefined;
     };
   };
   deluxe?: {
@@ -272,39 +272,26 @@ function calculateTotals(args: {
 
 /* ---------------------------- SDK Dynamic Loader -------------------------- */
 
-function findEmbeddedPayments(): any | undefined {
-  const w: any = window;
-  return (
-    w.__EP_RESOLVED__ ||
-    w.EmbeddedPayments ||
-    w.DigitalWalletsPay ||
-    w.DigitalWallets ||
-    w.DeluxeEmbedded
-  );
-}
-
 /**
  * Load Deluxe SDK exactly once (no cache-buster, no crossorigin).
  * Force the UMD build to export to the browser global (disable AMD/CJS temporarily),
  * then wait until a usable object exists and normalize it to `window.EmbeddedPayments`.
  */
 async function ensureDeluxeSdk(src?: string): Promise<void> {
-  // Already resolved?
-  const hit = findEmbeddedPayments();
-  if (hit) {
-    (window as any).__EP_RESOLVED__ = hit;
-    if (!(window as any).EmbeddedPayments)
-      (window as any).EmbeddedPayments = hit;
-    return;
-  }
-  // Reuse in-flight load
-  if (window.__EP_LOADING__) return window.__EP_LOADING__;
+  if ((window as any).__EP_RESOLVED__) return;
+  if ((window as any).__EP_LOADING__) return (window as any).__EP_LOADING__;
 
   const url =
     src || "https://payments2.deluxe.com/embedded/javascripts/deluxe.js";
 
-  window.__EP_LOADING__ = new Promise<void>((resolve, reject) => {
-    // Force UMD global path
+  (window as any).__EP_LOADING__ = new Promise<void>((resolve, reject) => {
+    const getEP = () =>
+      (window as any).EmbeddedPayments ||
+      (window as any).DigitalWalletsPay ||
+      (window as any).DigitalWallets ||
+      (window as any).DeluxeEmbedded;
+
+    // Temporarily neutralize AMD/CJS so UMD chooses "global"
     const savedDefine = (window as any).define;
     const savedModule = (window as any).module;
     const savedExports = (window as any).exports;
@@ -335,8 +322,8 @@ async function ensureDeluxeSdk(src?: string): Promise<void> {
       const finalize = () => {
         restore();
         const start = Date.now();
-        const poll = () => {
-          const ep = findEmbeddedPayments();
+        (function poll() {
+          const ep = getEP();
           if (ep) {
             if (!(window as any).EmbeddedPayments)
               (window as any).EmbeddedPayments = ep;
@@ -347,8 +334,7 @@ async function ensureDeluxeSdk(src?: string): Promise<void> {
           } else {
             setTimeout(poll, 50);
           }
-        };
-        setTimeout(poll, 0);
+        })();
       };
       el.addEventListener("load", finalize, { once: true });
       el.addEventListener(
@@ -374,11 +360,11 @@ async function ensureDeluxeSdk(src?: string): Promise<void> {
   }).finally(() => {
     // clear in-flight after settle
     setTimeout(() => {
-      window.__EP_LOADING__ = undefined;
+      (window as any).__EP_LOADING__ = undefined;
     }, 0);
   });
 
-  return window.__EP_LOADING__;
+  return (window as any).__EP_LOADING__;
 }
 
 /* --------------------------------- Page ---------------------------------- */
@@ -746,8 +732,8 @@ export default function CheckoutPage() {
         const inst = instanceRef.current;
         if (inst?.destroy) inst.destroy();
         else if (inst?.unmount) inst.unmount();
-        else if (window.EmbeddedPayments?.destroy)
-          window.EmbeddedPayments.destroy();
+        else if ((window as any).EmbeddedPayments?.destroy)
+          (window as any).EmbeddedPayments.destroy();
       } catch {}
     };
   }, []);
