@@ -126,16 +126,16 @@ function loadDeluxeSdk(src?: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const url =
       src || "https://payments2.deluxe.com/embedded/javascripts/deluxe.js";
-    // Helper to detect any Deluxe SDK global. Different builds may expose
-    // the SDK under various names (EmbeddedPayments, DigitalWalletsPay, DigitalWallets, DeluxeEmbedded).
-    const getDeluxeGlobal = () =>
+    // If the SDK has already been attached, resolve immediately.  Some builds of
+    // Deluxe expose the global under different names (EmbeddedPayments,
+    // DigitalWalletsPay, DigitalWallets, DeluxeEmbedded).  Check them all
+    // before deciding to load the script.
+    const existingGlobal =
       (window as any).EmbeddedPayments ||
       (window as any).DigitalWalletsPay ||
       (window as any).DigitalWallets ||
       (window as any).DeluxeEmbedded;
-
-    // If the SDK has already been attached under any known name, resolve immediately.
-    if (getDeluxeGlobal()) {
+    if (existingGlobal) {
       resolve();
       return;
     }
@@ -164,7 +164,12 @@ function loadDeluxeSdk(src?: string): Promise<void> {
 
       const start = Date.now();
       (function waitForGlobal() {
-        if (getDeluxeGlobal()) {
+        const EP =
+          (window as any).EmbeddedPayments ||
+          (window as any).DigitalWalletsPay ||
+          (window as any).DigitalWallets ||
+          (window as any).DeluxeEmbedded;
+        if (EP) {
           resolve();
         } else if (Date.now() - start > 15000) {
           reject(new Error("Deluxe SDK loaded but global missing"));
@@ -174,31 +179,30 @@ function loadDeluxeSdk(src?: string): Promise<void> {
       })();
     };
 
-    // If the script already exists, reuse it.  If it's already loaded, call finish immediately;
-    // otherwise attach load/error listeners.
+    // If the script already exists, run the finish logic immediately (in case the
+    // script has already fired its load event).  Also attach an error
+    // listener to handle any failures during re-download.  We still attach
+    // a load listener so that if the script is re-downloaded (e.g. the
+    // src changes), our finish function runs again.
     const existing = document.querySelector(
       `script[src="${url}"]`
     ) as HTMLScriptElement | null;
     if (existing) {
-      // If the script is already loaded (readyState is "complete" or "loaded"), finish immediately.
-      if (
-        (existing as any).readyState &&
-        /complete|loaded/.test((existing as any).readyState)
-      ) {
+      // Run finish immediately to resolve if the global is present.
+      try {
         finish();
-      } else {
-        existing.addEventListener("load", finish, { once: true });
-        existing.addEventListener(
-          "error",
-          () => {
-            // restore saved definitions on error
-            if (savedDefine !== undefined) (window as any).define = savedDefine;
-            if (savedModule !== undefined) (window as any).module = savedModule;
-            reject(new Error("Failed to load Deluxe SDK"));
-          },
-          { once: true }
-        );
-      }
+      } catch {}
+      existing.addEventListener("load", finish, { once: true });
+      existing.addEventListener(
+        "error",
+        () => {
+          // restore saved definitions on error
+          if (savedDefine !== undefined) (window as any).define = savedDefine;
+          if (savedModule !== undefined) (window as any).module = savedModule;
+          reject(new Error("Failed to load Deluxe SDK"));
+        },
+        { once: true }
+      );
       return;
     }
 
@@ -594,7 +598,9 @@ export default function CheckoutPage() {
 
       const isSandbox = (embeddedBase || "").includes("payments2.");
       const config = {
-        // Use two‑letter ISO country code as per Deluxe docs (e.g., "US").
+        // Deluxe SDK expects a two-letter country code (e.g., "US" or "CA").  Using
+        // the three-letter "USA" can prevent initialization.  See the
+        // Deluxe docs for details.
         countryCode: "US",
         currencyCode: "USD",
         paymentMethods,
