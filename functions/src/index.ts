@@ -308,7 +308,7 @@ export const api = onRequest(
         }
       }
 
-      // create embedded jwt
+      // Create Embedded JWT
       if (req.method === "POST" && url === "/api/createEmbeddedJwt") {
         try {
           const body = (req.body || {}) as any;
@@ -318,25 +318,13 @@ export const api = onRequest(
           const customerRaw = body.customer;
           const productsRaw = body.products as any[] | undefined;
           const summary = body.summary as { hide?: boolean; hideTotals?: boolean } | undefined;
-      
+
           if (!amount || amount <= 0) {
             res.status(400).json({ error: "invalid-amount" });
             return;
           }
-      
-          // ---- helpers -----------------------------------------------------------
-          const toIsoAlpha3 = (v?: string): "USA" | "CAN" | string => {
-            const s = String(v || "").trim().toUpperCase();
-            if (!s) return "USA";
-            if (s === "US" || s === "USA" || s === "UNITED STATES" || s === "UNITEDSTATES") return "USA";
-            if (s === "CA" || s === "CAN" || s === "CANADA") return "CAN";
-            // If already 3 letters but unknown, pass through (Deluxe may ignore/validate)
-            if (s.length === 3) return s;
-            // Last-resort default
-            return "USA";
-          };
-      
-          // ---- optionally override amount from order total -----------------------
+
+          // Optionally override amount from order total
           let finalAmount = amount;
           if (orderId) {
             try {
@@ -353,29 +341,20 @@ export const api = onRequest(
               logger.warn("createEmbeddedJwt: order lookup failed", { orderId, err: String(e) });
             }
           }
-      
-          // ---- sanitize + normalize customer -------------------------------------
+
+          // Sanitize customer: only include firstName, lastName, billingAddress fields per docs
           let customer: any = undefined;
           if (customerRaw && typeof customerRaw === "object") {
             const firstName = customerRaw.firstName ?? undefined;
             const lastName = customerRaw.lastName ?? undefined;
-            const billingRaw: any = customerRaw.billingAddress;
-      
-            // accept country or countryCode from client; normalize to ISO-3
-            const countryInput =
-              billingRaw?.countryCode ?? billingRaw?.country ?? billingRaw?.country_code;
-      
-            const billingAddress =
-              billingRaw && typeof billingRaw === "object"
-                ? {
-                    address: billingRaw.address,     // street line
-                    city: billingRaw.city,
-                    state: billingRaw.state,
-                    zipCode: billingRaw.zipCode,
-                    countryCode: toIsoAlpha3(countryInput), // <— normalize here
-                  }
-                : undefined;
-      
+            const billing: any = customerRaw.billingAddress;
+            const billingAddress = billing && typeof billing === "object" ? {
+              address: billing.address,
+              city: billing.city,
+              state: billing.state,
+              zipCode: billing.zipCode,
+              countryCode: billing.countryCode,
+            } : undefined;
             if (firstName || lastName || billingAddress) {
               customer = {
                 ...(firstName ? { firstName } : {}),
@@ -384,42 +363,40 @@ export const api = onRequest(
               };
             }
           }
-      
-          // ---- sanitize products --------------------------------------------------
+
+          // Sanitize products: array of objects with allowed keys only (name, skuCode, quantity, price, description, unitOfMeasure, itemDiscountAmount, itemDiscountRate)
           let products: any[] | undefined = undefined;
           if (Array.isArray(productsRaw)) {
-            products = productsRaw
-              .map((p) => {
-                const out: any = {};
-                if (typeof p.name === "string") out.name = p.name;
-                if (typeof p.skuCode === "string") out.skuCode = p.skuCode;
-                if (typeof p.quantity === "number") out.quantity = p.quantity;
-                if (typeof p.price === "number") out.price = p.price;
-                if (typeof p.description === "string") out.description = p.description;
-                if (typeof p.unitOfMeasure === "string") out.unitOfMeasure = p.unitOfMeasure;
-                if (typeof p.itemDiscountAmount === "number") out.itemDiscountAmount = p.itemDiscountAmount;
-                if (typeof p.itemDiscountRate === "number") out.itemDiscountRate = p.itemDiscountRate;
-                return out;
-              })
-              .filter((item) => Object.keys(item).length > 0);
+            products = productsRaw.map((p) => {
+              const out: any = {};
+              if (typeof p.name === "string") out.name = p.name;
+              if (typeof p.skuCode === "string") out.skuCode = p.skuCode;
+              if (typeof p.quantity === "number") out.quantity = p.quantity;
+              if (typeof p.price === "number") out.price = p.price;
+              if (typeof p.description === "string") out.description = p.description;
+              if (typeof p.unitOfMeasure === "string") out.unitOfMeasure = p.unitOfMeasure;
+              if (typeof p.itemDiscountAmount === "number") out.itemDiscountAmount = p.itemDiscountAmount;
+              if (typeof p.itemDiscountRate === "number") out.itemDiscountRate = p.itemDiscountRate;
+              return out;
+            }).filter((item) => Object.keys(item).length > 0);
             if (!products.length) products = undefined;
           }
-      
+
           const now = Math.floor(Date.now() / 1000);
           const exp = now + 10 * 60;
-      
+
           const payload: Record<string, any> = {
             iat: now,
             exp,
             accessToken: DELUXE_ACCESS_TOKEN.value(),
             amount: finalAmount,
-            currencyCode: currency,        // Deluxe expects currencyCode here
+            currencyCode: currency,
             ...(customer ? { customer } : {}),
             ...(products ? { products } : {}),
             ...(summary?.hide ? { hideproductspanel: true } : {}),
             ...(summary?.hideTotals ? { hidetotals: true } : {}),
           };
-      
+
           const jwtToken = signEmbeddedJwt(payload);
           res.status(200).json({
             jwt: jwtToken,
@@ -434,7 +411,7 @@ export const api = onRequest(
           return;
         }
       }
-      
+
       // Create Deluxe Payment (Hosted Link fallback)
       if (req.method === "POST" && url === "/api/createDeluxePayment") {
         try {
