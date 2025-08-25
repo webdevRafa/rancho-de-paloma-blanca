@@ -206,6 +206,8 @@ function loadDeluxeSdk(src?: string): Promise<void> {
 function isConsecutive(d0: string, d1: string): boolean {
   const a = new Date(`${d0}T00:00:00`);
   const b = new Date(`${d1}T00:00:00`);
+  // --- Render: page layout & payment panel container ---
+
   return (b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24) === 1;
 }
 function sortIsoDates(dates: string[]) {
@@ -331,6 +333,9 @@ function calculateTotals(args: {
 }
 
 export default function CheckoutPage() {
+  // Component entry — orchestrates order persistence, EmbeddedPayments lifecycle,
+  // JWT minting via backend, and hosted-link fallback. No business logic changed.
+
   const navigate = useNavigate();
   const { user } = useAuth();
   const { booking, merchItems, isHydrated } = useCart();
@@ -702,6 +707,7 @@ export default function CheckoutPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-10">
+      {/* Page container: header, errors, customer info, embedded pay panel */}
       <div className="mb-6">
         <h1 className="text-3xl font-semibold">Checkout</h1>
         <p className="text-sm opacity-70">
@@ -717,6 +723,7 @@ export default function CheckoutPage() {
 
       <section className="mb-8 p-4 rounded-xl border bg-white">
         <h2 className="text-xl mb-4">Customer Info</h2>
+        {/* Controlled form: updates `customer` state used to mint the JWT */}
         <CustomerInfoForm value={customer} onChange={setCustomer} />
         <div className="mt-10 p-4">
           <h2 className="text-xl mb-3">Order Summary</h2>
@@ -729,6 +736,7 @@ export default function CheckoutPage() {
 
       <section className="mb-6 p-4 rounded-xl border bg-neutral-100">
         <h2 className="text-xl mb-3">Pay Securely (Embedded)</h2>
+        {/* Primary flow: loads SDK → init → set handlers → render panel */}
         <div className="flex flex-wrap gap-3 mb-4">
           <button
             disabled={!canStart || isSubmitting}
