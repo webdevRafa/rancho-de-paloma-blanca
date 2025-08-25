@@ -575,7 +575,7 @@ export default function CheckoutPage() {
         countryCode: "US", // ISO-2 for config
         currencyCode: "USD",
         paymentMethods,
-        supportedNetworks: ["visa", "mastercard", "amex", "discover"],
+        supportedNetworks: ["visa", "masterCard", "amex", "discover"],
         googlePayEnv: isSandbox ? "TEST" : "PRODUCTION",
         merchantCapabilities: ["supports3DS"],
         allowedCardAuthMethods: ["PAN_ONLY", "CRYPTOGRAM_3DS"],
