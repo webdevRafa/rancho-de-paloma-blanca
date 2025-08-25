@@ -9,10 +9,10 @@ import { getSeasonConfig } from "../utils/getSeasonConfig";
 import toIsoAlpha3 from "../utils/toIsoAlpha3";
 
 /**
- * CheckoutPage (patched)
- * - Loader now resolves when ANY Deluxe global is present (EmbeddedPayments, DigitalWalletsPay, etc.)
- * - Proper instance usage: const instance = await EP.init(jwt, config); await instance.render(...)
- * - ISO-2 countryCode sent in config (US), while JWT payload still uses whatever backend expects
+ * CheckoutPage (with AMD/CJS shim loader)
+ * - Guaranteed global for Deluxe UMD/AMD/CJS
+ * - Use: const EP = await loadDeluxeSdk(scriptSrc)
+ * - Config uses ISO-2 countryCode; JWT sends ISO-3 via toIsoAlpha3(toIso2(...))
  */
 
 declare global {
@@ -21,10 +21,9 @@ declare global {
     DigitalWalletsPay?: any;
     DigitalWallets?: any;
     DeluxeEmbedded?: any;
+    Deluxe?: any;
     define?: any;
     module?: any;
-    global?: any;
-    process?: any;
   }
 }
 
@@ -80,7 +79,7 @@ type OrderDoc = {
       city?: string;
       state?: string;
       postalCode?: string;
-      country?: string;
+      country?: string; // ISO-2 (US/CA) for our order doc
     };
   };
   deluxe?: {
@@ -97,7 +96,7 @@ const ORDER_ID_KEY = "rdpb:orderId";
 const EMBEDDED_CONTAINER_ID = "embeddedpayments";
 
 /* ------------------------------------------------------------------------- */
-/* Utility helpers                                                           */
+/* Utils                                                                      */
 /* ------------------------------------------------------------------------- */
 
 function pruneUndefinedDeep<T>(obj: T): T {
@@ -130,6 +129,16 @@ function inRange(iso: string, startIso: string, endIso: string) {
   const s = new Date(`${startIso}T00:00:00`).getTime();
   const e = new Date(`${endIso}T00:00:00`).getTime();
   return t >= s && t <= e;
+}
+
+/** Normalize to ISO-2 for our order doc/UI */
+function toIso2(country?: string) {
+  const s = (country || "").trim().toUpperCase();
+  if (!s) return "US";
+  if (s === "USA" || s === "UNITED STATES" || s === "US") return "US";
+  if (s === "CAN" || s === "CANADA" || s === "CA") return "CA";
+  if (s.length === 2) return s;
+  return "US";
 }
 
 function calculateTotals(args: {
@@ -264,7 +273,7 @@ function buildProductsForJwt(args: {
 }
 
 /* ------------------------------------------------------------------------- */
-/* Deluxe loader (multi-global, AMD/CJS safe)                                 */
+/* Deluxe loader — AMD/CJS shim (guarantees a global)                         */
 /* ------------------------------------------------------------------------- */
 
 function getDeluxeGlobal(): any {
@@ -274,70 +283,84 @@ function getDeluxeGlobal(): any {
     w.DigitalWalletsPay ||
     w.DigitalWallets ||
     w.DeluxeEmbedded ||
+    w.Deluxe ||
     undefined
   );
 }
 
-async function loadDeluxeSdk(src?: string): Promise<void> {
-  if (getDeluxeGlobal()) return;
+/** Loads the Deluxe SDK and returns the global (EP). */
+async function loadDeluxeSdk(src?: string): Promise<any> {
   const url =
     src || "https://payments2.deluxe.com/embedded/javascripts/deluxe.js";
+  if (getDeluxeGlobal()) return getDeluxeGlobal();
 
-  // Remove old tags to force re-execution
+  // remove prior tags so it re-executes
   document
     .querySelectorAll('script[src*="/embedded/javascripts/deluxe.js"]')
     .forEach((s) => s.remove());
 
-  // Provide minimal globals some UMDs expect
-  (window as any).global = (window as any).global || window;
-  (window as any).process = (window as any).process || { env: {} };
+  return await new Promise((resolve, reject) => {
+    let amdCapture: any = null;
 
-  // Temporarily hide AMD/CJS shims so SDK attaches to window
-  const savedDefine = (window as any).define;
-  const savedModule = (window as any).module;
-  try {
-    delete (window as any).define;
-  } catch {}
-  try {
-    delete (window as any).module;
-  } catch {}
-  const cleanup = () => {
-    if (savedDefine !== undefined) (window as any).define = savedDefine;
-    if (savedModule !== undefined) (window as any).module = savedModule;
-  };
+    const prevDefine = (window as any).define;
+    const prevModule = (window as any).module;
 
-  await new Promise<void>((resolve, reject) => {
+    // AMD shim — capture factory() result and attach to window
+    const amd: any = function (...args: any[]) {
+      const factory =
+        typeof args[0] === "function" ? args[0] : args[args.length - 1];
+      try {
+        amdCapture = factory();
+      } catch {}
+      const g =
+        amdCapture?.EmbeddedPayments || amdCapture?.default || amdCapture;
+      if (g) (window as any).EmbeddedPayments = g;
+      return amdCapture;
+    };
+    amd.amd = true;
+    (window as any).define = amd;
+
+    // CJS shim — if bundle writes to module.exports, we’ll read it
+    (window as any).module = { exports: {} };
+
     const s = document.createElement("script");
     s.src = url;
-    s.defer = true;
-    s.type = "text/javascript";
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error("Failed to load Deluxe SDK"));
+    s.async = true;
+    s.onload = () => {
+      const g =
+        getDeluxeGlobal() || (window as any).module?.exports || amdCapture;
+
+      // attach if not already
+      if (!getDeluxeGlobal() && g) {
+        (window as any).EmbeddedPayments = g.EmbeddedPayments || g.default || g;
+      }
+
+      // cleanup
+      (window as any).define = prevDefine;
+      (window as any).module = prevModule;
+
+      const EP = getDeluxeGlobal();
+      if (EP && typeof EP.init === "function") resolve(EP);
+      else
+        reject(
+          new Error(
+            "Deluxe SDK loaded but global missing (AMD/CJS shim failed)"
+          )
+        );
+    };
+    s.onerror = () => {
+      (window as any).define = prevDefine;
+      (window as any).module = prevModule;
+      reject(new Error("Failed to load Deluxe SDK"));
+    };
     document.head.appendChild(s);
   });
-
-  const start = Date.now();
-  while (!getDeluxeGlobal()) {
-    if (Date.now() - start > 15000) {
-      cleanup();
-      throw new Error("Deluxe SDK loaded but global missing");
-    }
-    await new Promise((r) => setTimeout(r, 50));
-  }
-  cleanup();
 }
 
 /* ------------------------------------------------------------------------- */
 /* Page component                                                             */
 /* ------------------------------------------------------------------------- */
-function toIso2(country?: string) {
-  const s = (country || "").trim().toUpperCase();
-  if (!s) return "US";
-  if (s === "USA" || s === "UNITED STATES" || s === "US") return "US";
-  if (s === "CAN" || s === "CANADA" || s === "CA") return "CA";
-  if (s.length === 2) return s;
-  return "US";
-}
+
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -468,7 +491,7 @@ export default function CheckoutPage() {
           city: customer.billingAddress?.city,
           state: customer.billingAddress?.state,
           postalCode: customer.billingAddress?.postalCode,
-          country: toIso2(customer.billingAddress?.country),
+          country: toIso2(customer.billingAddress?.country), // ISO-2 for our doc
         },
       },
     };
@@ -499,7 +522,7 @@ export default function CheckoutPage() {
 
     setIsSubmitting(true);
     try {
-      // Cleanup any prior instance
+      // cleanup any prior instance
       try {
         const inst = instanceRef.current;
         if (inst?.destroy) inst.destroy();
@@ -509,7 +532,7 @@ export default function CheckoutPage() {
 
       await ensureOrder();
 
-      // Determine allowed payment methods (cc/ach)
+      // allowed payment methods (cc/ach)
       let paymentMethods: ("cc" | "ach")[] = ["cc"];
       try {
         const statusResp = await fetch("/api/getEmbeddedMerchantStatus");
@@ -519,7 +542,7 @@ export default function CheckoutPage() {
         }
       } catch {}
 
-      // Get JWT & base from backend
+      // get JWT & base from backend
       const jwtResp = await fetch("/api/createEmbeddedJwt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -537,7 +560,7 @@ export default function CheckoutPage() {
               zipCode: customer.billingAddress?.postalCode,
               countryCode: toIsoAlpha3(
                 toIso2(customer.billingAddress?.country)
-              ),
+              ), // ISO-3 for JWT
             },
           },
           products: buildProductsForJwt({
@@ -566,23 +589,18 @@ export default function CheckoutPage() {
       };
       if (!jwt) throw new Error("JWT missing from response");
 
-      // Load SDK from backend's base (payments2 for sandbox)
+      // load SDK (shim ensures we get a usable global)
       const scriptSrc = embeddedBase
         ? `${embeddedBase}/embedded/javascripts/deluxe.js`
         : undefined;
-      await loadDeluxeSdk(scriptSrc);
-
-      // Get whichever global the SDK exported
-      const EP: any = getDeluxeGlobal();
-      if (!EP || typeof EP.init !== "function")
-        throw new Error("Deluxe SDK not initialized (global missing)");
+      const EP: any = await loadDeluxeSdk(scriptSrc);
 
       const isSandbox = (embeddedBase || "").includes("payments2.");
       const config = {
-        countryCode: "US", // ISO-2 for config
+        countryCode: "US", // ISO-2 for init config
         currencyCode: "USD",
         paymentMethods,
-        supportedNetworks: ["visa", "masterCard", "amex", "discover"],
+        supportedNetworks: ["visa", "masterCard", "amex", "discover"], // note casing
         googlePayEnv: isSandbox ? "TEST" : "PRODUCTION",
         merchantCapabilities: ["supports3DS"],
         allowedCardAuthMethods: ["PAN_ONLY", "CRYPTOGRAM_3DS"],
@@ -593,7 +611,7 @@ export default function CheckoutPage() {
       instanceRef.current = instance;
 
       instance.setEventHandlers({
-        onTxnSuccess: async (_g: any, data: any) => {
+        onTxnSuccess: async (_gw: any, data: any) => {
           try {
             const ref = doc(db, "orders", orderId);
             const paymentId =
@@ -619,21 +637,21 @@ export default function CheckoutPage() {
           }
           navigate(`/dashboard?status=paid&orderId=${orderId}`);
         },
-        onTxnFailed: (_g: any, data: any) => {
+        onTxnFailed: (_gw: any, data: any) => {
           console.warn("[Deluxe] Failed:", data);
           setErrorMsg("Payment failed. Please try again.");
         },
         onTxnCancelled: () => {
           setErrorMsg("Payment cancelled.");
         },
-        onValidationError: (_g: any, data: any) => {
-          console.warn("[Deluxe] Validation:", data);
+        onValidationError: (_gw: any, errors: any) => {
+          console.warn("[Deluxe] Validation:", errors);
           setErrorMsg("Validation error — please check your info.");
         },
-        onTokenSuccess: (_g: any, data: any) => {
+        onTokenSuccess: (_gw: any, data: any) => {
           console.log("[Deluxe] Token success", data);
         },
-        onTokenFailed: (_g: any, data: any) => {
+        onTokenFailed: (_gw: any, data: any) => {
           console.warn("[Deluxe] Token failed", data);
         },
       });
