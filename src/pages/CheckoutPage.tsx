@@ -330,7 +330,14 @@ async function loadDeluxeSdk(src?: string): Promise<void> {
 /* ------------------------------------------------------------------------- */
 /* Page component                                                             */
 /* ------------------------------------------------------------------------- */
-
+function toIso2(country?: string) {
+  const s = (country || "").trim().toUpperCase();
+  if (!s) return "US";
+  if (s === "USA" || s === "UNITED STATES" || s === "US") return "US";
+  if (s === "CAN" || s === "CANADA" || s === "CA") return "CA";
+  if (s.length === 2) return s;
+  return "US";
+}
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -461,9 +468,7 @@ export default function CheckoutPage() {
           city: customer.billingAddress?.city,
           state: customer.billingAddress?.state,
           postalCode: customer.billingAddress?.postalCode,
-          country: (customer?.billingAddress?.country || "US")
-            .slice(0, 2)
-            .toUpperCase(),
+          country: toIso2(customer.billingAddress?.country),
         },
       },
     };
@@ -530,7 +535,9 @@ export default function CheckoutPage() {
               city: customer.billingAddress?.city,
               state: customer.billingAddress?.state,
               zipCode: customer.billingAddress?.postalCode,
-              countryCode: toIsoAlpha3(customer.billingAddress?.country),
+              countryCode: toIsoAlpha3(
+                toIso2(customer.billingAddress?.country)
+              ),
             },
           },
           products: buildProductsForJwt({
