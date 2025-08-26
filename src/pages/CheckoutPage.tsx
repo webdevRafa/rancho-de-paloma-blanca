@@ -170,7 +170,6 @@ function loadDeluxeSdk(src?: string): Promise<void> {
     script.src = url;
     script.async = true;
     script.defer = true;
-    script.crossOrigin = "anonymous";
     script.onload = () => resolve();
     script.onerror = () => reject(new Error("Failed to load Deluxe SDK"));
     document.head.appendChild(script);
