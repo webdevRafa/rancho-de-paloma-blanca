@@ -7,6 +7,42 @@ import { useCart } from "../context/CartContext";
 import CustomerInfoForm from "../components/CustomerInfoForm";
 import { getSeasonConfig } from "../utils/getSeasonConfig";
 
+/**
+ * Deluxe Embedded Payments — React Checkout Page (re‑patched)
+ *
+ * Why this patch:
+ * • Deluxe confirmed the SDK is not guaranteed to be a classic UMD global.
+ *   So we no longer rely on a fixed `window.EmbeddedPayments` check.
+ * • We now (a) load the script, then (b) **POLL for multiple namespaces**
+ *   (`window.EmbeddedPayments`, `window.Deluxe?.EmbeddedPayments`,
+ *   `window.deluxe?.EmbeddedPayments`) for a few seconds before failing.
+ * • JWT payload is minimal (no `summary`), and we normalize country codes
+ *   to alpha‑3 ("USA"/"CAN") inside the POST body.
+ * • Hosted Links fallback kept.
+ */
+
+// Optional typings for SDK shape
+type EPApi = {
+  init: (
+    jwt: string,
+    config: Record<string, any>
+  ) => {
+    setEventHandlers: (
+      map: Record<string, (gw: any, data: any) => void>
+    ) => Promise<any>;
+  };
+  render: (opts: { containerId: string } & Record<string, any>) => void;
+  destroy?: () => void;
+};
+
+declare global {
+  interface Window {
+    EmbeddedPayments?: EPApi;
+    Deluxe?: { EmbeddedPayments?: EPApi };
+    deluxe?: { EmbeddedPayments?: EPApi };
+  }
+}
+
 export type CustomerInfo = {
   firstName: string;
   lastName: string;
@@ -18,7 +54,7 @@ export type CustomerInfo = {
     city?: string;
     state?: string;
     postalCode?: string;
-    country?: string;
+    country?: string; // we'll convert to alpha-3 for the JWT payload
   };
 };
 
@@ -54,14 +90,6 @@ export type SeasonConfig = {
   partyDeckRatePerDay?: number;
 };
 
-// Extend the Window interface for the (optional) Deluxe SDK global.
-declare global {
-  interface Window {
-    EmbeddedPayments?: any;
-    deluxe?: any;
-  }
-}
-
 // ---- Local Types (align with Types.ts / Order schema) ----
 type BookingLine = {
   dates: string[];
@@ -74,13 +102,13 @@ type MerchItem = {
   skuCode: string;
   name: string;
   qty: number;
-  price: number;
+  price: number; // whole currency units
 };
 
 type OrderDoc = {
   userId: string;
   status: "pending" | "paid" | "cancelled";
-  total: number;
+  total: number; // whole currency units
   currency: "USD" | "CAD";
   createdAt?: any;
   updatedAt?: any;
@@ -115,7 +143,7 @@ type OrderDoc = {
       city?: string;
       state?: string;
       postalCode?: string;
-      country?: string;
+      country?: string; // 2-char (input) — we'll convert to alpha-3 in the JWT payload
     };
   };
   deluxe?: {
@@ -131,28 +159,24 @@ type OrderDoc = {
 const ORDER_ID_KEY = "rdpb:orderId";
 const EMBEDDED_CONTAINER_ID = "embeddedpayments";
 
-/**
- * Inject the Deluxe Embedded Payments SDK script. We **do not** wait for a UMD
- * global anymore (per Deluxe feedback). We just resolve on script load/error.
- */
+/** Load the Deluxe SDK script (sandbox by default). */
 function loadDeluxeSdk(src?: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const url =
       src || "https://payments2.deluxe.com/embedded/javascripts/deluxe.js";
 
-    // Remove conflicting copies (e.g., prod vs sandbox)
+    // Remove conflicting copies (sandbox vs prod switch)
     try {
-      const all = Array.from(
-        document.querySelectorAll(
+      document
+        .querySelectorAll(
           'script[src*="deluxe.com/embedded/javascripts/deluxe.js"]'
         )
-      ) as HTMLScriptElement[];
-      for (const s of all) {
-        if (s.src !== url) s.parentElement?.removeChild(s);
-      }
+        .forEach((el) => {
+          if ((el as HTMLScriptElement).src !== url)
+            el.parentElement?.removeChild(el);
+        });
     } catch {}
 
-    // If the exact script already exists, reuse its events.
     const existing = document.querySelector(
       `script[src="${url}"]`
     ) as HTMLScriptElement | null;
@@ -176,50 +200,29 @@ function loadDeluxeSdk(src?: string): Promise<void> {
   });
 }
 
-/**
- * Some Deluxe environments/tests do **not** expose a UMD global named
- * `window.EmbeddedPayments`. This helper inspects several likely locations
- * and finally searches window values for an object with init/render/setEventHandlers.
- */
-function findEmbeddedPayments(): any | null {
-  const w = window as any;
+/** Poll for the SDK object for up to `timeoutMs`. */
+async function waitForEmbeddedPayments(timeoutMs = 5000): Promise<EPApi> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const EP: EPApi | undefined =
+      (window as any).EmbeddedPayments ||
+      (window as any).Deluxe?.EmbeddedPayments ||
+      (window as any).deluxe?.EmbeddedPayments;
 
-  const candidates = [
-    w.EmbeddedPayments,
-    w.deluxe?.EmbeddedPayments,
-    w.deluxe?.embeddedPayments,
-    w._EmbeddedPayments,
-    w._embeddedPayments,
-  ].filter(Boolean);
-
-  for (const c of candidates) {
-    if (c && typeof c.init === "function" && typeof c.render === "function") {
-      return c;
+    if (
+      EP &&
+      typeof EP.init === "function" &&
+      typeof EP.render === "function"
+    ) {
+      return EP;
     }
+    await new Promise((r) => setTimeout(r, 50));
   }
-
-  // Last‑ditch heuristic: scan window for a likely SDK object
-  try {
-    for (const key of Object.keys(w)) {
-      const v = (w as any)[key];
-      if (
-        v &&
-        typeof v === "object" &&
-        typeof v.init === "function" &&
-        typeof v.render === "function" &&
-        typeof v.setEventHandlers === "function"
-      ) {
-        return v;
-      }
-    }
-  } catch {
-    // ignore cross-origin or sealed props
-  }
-
-  return null;
+  throw new Error(
+    "Deluxe SDK loaded but could not locate the EmbeddedPayments object."
+  );
 }
 
-/** Returns true if the second ISO date is exactly one day after the first. */
 function isConsecutive(d0: string, d1: string): boolean {
   const a = new Date(`${d0}T00:00:00`);
   const b = new Date(`${d1}T00:00:00`);
@@ -283,10 +286,9 @@ function calculateTotals(args: {
   cfg: SeasonConfig | null;
 }) {
   const { booking, merchItems, cfg } = args;
-
   const merchTotal = merchItems.reduce((sum, m) => sum + m.price * m.qty, 0);
-
   let bookingTotal = 0;
+
   if (booking && booking.dates.length > 0) {
     const all = sortIsoDates(booking.dates);
 
@@ -306,11 +308,10 @@ function calculateTotals(args: {
       }
       return inRange(iso, cfg.seasonStart, cfg.seasonEnd);
     };
-
     const isWeekend = (iso: string) => {
       const d = new Date(`${iso}T00:00:00`);
-      const dow = d.getDay(); // 0 Sun..6 Sat
-      return dow === 5 || dow === 6 || dow === 0; // Fri/Sat/Sun
+      const dow = d.getDay();
+      return dow === 5 || dow === 6 || dow === 0;
     };
 
     const offSeasonDays = all.filter((d) => !isInSeason(d));
@@ -506,20 +507,17 @@ export default function CheckoutPage() {
       },
     };
     base = pruneUndefinedDeep(base);
-    if (!snap.exists()) {
-      await setDoc(ref, base, { merge: true });
-    } else {
+    if (!snap.exists()) await setDoc(ref, base, { merge: true });
+    else
       await setDoc(
         ref,
         { ...base, updatedAt: serverTimestamp() },
         { merge: true }
       );
-    }
   }, [amount, booking, customer, merchArray, orderId, seasonConfig, user]);
 
   const startEmbeddedPayment = useCallback(async () => {
     setErrorMsg("");
-
     let applePayEnabled = false;
     let googlePayEnabled = false;
 
@@ -550,7 +548,6 @@ export default function CheckoutPage() {
         const statusResp = await fetch("/api/getEmbeddedMerchantStatus");
         if (statusResp.ok) {
           const status = await statusResp.json();
-
           if (status?.achEnabled === true) paymentMethods = ["cc", "ach"];
           if (
             Array.isArray(status?.methods) &&
@@ -558,7 +555,6 @@ export default function CheckoutPage() {
           ) {
             if (!paymentMethods.includes("ach")) paymentMethods.push("ach");
           }
-
           applePayEnabled =
             !!status?.applePayEnabled ||
             (Array.isArray(status?.methods) &&
@@ -583,16 +579,19 @@ export default function CheckoutPage() {
             firstName: customer.firstName || "Guest",
             lastName: customer.lastName || "Customer",
             billingAddress: {
+              // normalize alpha-3 country code
               address: customer.billingAddress?.line1,
               city: customer.billingAddress?.city,
               state: customer.billingAddress?.state,
               zipCode: customer.billingAddress?.postalCode,
               countryCode:
-                customer.billingAddress?.country
-                  ?.toString()
+                (customer.billingAddress?.country || "US")
+                  .toString()
                   .trim()
                   .slice(0, 2)
-                  .toUpperCase() || "USA",
+                  .toUpperCase() === "CA"
+                  ? "CAN"
+                  : "USA",
             },
           },
           products: buildProductsForJwt({
@@ -606,6 +605,7 @@ export default function CheckoutPage() {
               : null,
             merchItems: merchArray,
           }),
+          // intentionally no `summary` to keep payload minimal
         }),
       });
       if (!jwtResp.ok) {
@@ -625,13 +625,8 @@ export default function CheckoutPage() {
         : undefined;
       await loadDeluxeSdk(scriptSrc);
 
-      // NEW: do not assume UMD global; locate SDK robustly
-      const EP = findEmbeddedPayments();
-      if (!EP || typeof EP.init !== "function") {
-        throw new Error(
-          "Deluxe SDK loaded but could not locate the EmbeddedPayments object."
-        );
-      }
+      // NEW: poll for various namespaces (per Deluxe email feedback)
+      const EP = await waitForEmbeddedPayments(7000);
       setSdkReady(true);
 
       const isSandbox = (embeddedBase || "").includes("payments2.");
@@ -750,9 +745,8 @@ export default function CheckoutPage() {
         const inst = instanceRef.current;
         if (inst?.destroy) inst.destroy();
         else if (inst?.unmount) inst.unmount();
-        else if (window.EmbeddedPayments?.destroy) {
+        else if (window.EmbeddedPayments?.destroy)
           window.EmbeddedPayments.destroy();
-        }
       } catch {}
     };
   }, []);
