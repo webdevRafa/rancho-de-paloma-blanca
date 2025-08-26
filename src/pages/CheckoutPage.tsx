@@ -8,6 +8,24 @@ import CustomerInfoForm from "../components/CustomerInfoForm";
 import { getSeasonConfig } from "../utils/getSeasonConfig";
 import toIsoAlpha3 from "../utils/toIsoAlpha3";
 
+type EPApi = {
+  init: (jwt: string, config: Record<string, any>) => any;
+  setEventHandlers?: (map: Record<string, (gw: any, data: any) => void>) => any;
+  render: (opts: { containerId: string } & Record<string, any>) => void;
+  destroy?: () => void;
+};
+
+declare global {
+  interface Window {
+    EmbeddedPayments?: EPApi;
+    Deluxe?: { EmbeddedPayments?: EPApi };
+    deluxe?: { EmbeddedPayments?: EPApi };
+  }
+}
+
+// Allow for a global lexical binding in some SDK builds
+declare const EmbeddedPayments: EPApi | undefined;
+
 export type CustomerInfo = {
   firstName: string;
   lastName: string;
@@ -23,21 +41,6 @@ export type CustomerInfo = {
   };
 };
 
-declare global {
-  interface Window {
-    EmbeddedPayments?: any;
-  }
-}
-
-type BookingLine = {
-  dates: string[];
-  numberOfHunters: number;
-  partyDeckDates?: string[];
-  seasonConfig?: SeasonConfig;
-};
-
-type MerchItem = { skuCode: string; name: string; qty: number; price: number };
-
 export type SeasonConfig = {
   seasonStart: string;
   seasonEnd: string;
@@ -49,6 +52,15 @@ export type SeasonConfig = {
   };
   partyDeckRatePerDay?: number;
 };
+
+type BookingLine = {
+  dates: string[];
+  numberOfHunters: number;
+  partyDeckDates?: string[];
+  seasonConfig?: SeasonConfig;
+};
+
+type MerchItem = { skuCode: string; name: string; qty: number; price: number };
 
 type OrderDoc = {
   userId: string;
@@ -104,9 +116,9 @@ type OrderDoc = {
 const ORDER_ID_KEY = "rdpb:orderId";
 const EMBEDDED_CONTAINER_ID = "embeddedpayments";
 
+/** Recursively remove any fields with value `undefined`. */
 function pruneUndefinedDeep<T>(obj: T): T {
-  if (Array.isArray(obj))
-    return obj.map((v) => pruneUndefinedDeep(v)) as unknown as T;
+  if (Array.isArray(obj)) return obj.map((v) => pruneUndefinedDeep(v)) as any;
   if (
     obj &&
     typeof obj === "object" &&
@@ -117,136 +129,85 @@ function pruneUndefinedDeep<T>(obj: T): T {
       if (v === undefined) continue;
       out[k] = pruneUndefinedDeep(v as any);
     }
-    return out as unknown as T;
+    return out as any;
   }
   return obj;
 }
 
+/** Load the Deluxe SDK script (sandbox by default). */
 function loadDeluxeSdk(src?: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const url =
       src || "https://payments2.deluxe.com/embedded/javascripts/deluxe.js";
-    // If the SDK has already been attached, resolve immediately.
-    if ((window as any).EmbeddedPayments) {
-      resolve();
-      return;
-    }
 
-    // Polyfill Node-like globals expected by Deluxe’s SDK.
-    // Without these, the script may throw and never attach to window.
-    (window as any).global = (window as any).global || window;
-    (window as any).process = (window as any).process || { env: {} };
-
-    // Some bundlers define AMD/CommonJS globals (define, module) which the
-    // Deluxe SDK uses to register itself instead of attaching to `window`.
-    // Temporarily remove them so the SDK falls back to the global export.
-    const savedDefine = (window as any).define;
-    const savedModule = (window as any).module;
+    // Remove any mismatched copies (switching envs)
     try {
-      delete (window as any).define;
-    } catch {}
-    try {
-      delete (window as any).module;
+      document
+        .querySelectorAll(
+          'script[src*="deluxe.com/embedded/javascripts/deluxe.js"]'
+        )
+        .forEach((el) => {
+          if ((el as HTMLScriptElement).src !== url)
+            el.parentElement?.removeChild(el);
+        });
     } catch {}
 
-    const finish = () => {
-      // Restore AMD/CommonJS definitions after the script has executed.
-      if (savedDefine !== undefined) (window as any).define = savedDefine;
-      if (savedModule !== undefined) (window as any).module = savedModule;
-
-      // After the SDK file executes it declares `DigitalWalletsPay` and `EmbeddedPayments`
-      // as top-level consts, but it does not export them as properties of `window`.
-      // To make these identifiers accessible on the global object we inject a tiny
-      // bridging script that runs in global scope.  This script attempts to copy
-      // any of the internal identifiers onto `window` and their camel-case or
-      // namespaced variants.  If nothing is defined, it simply does nothing.
-      try {
-        const attachGlobals = document.createElement("script");
-        attachGlobals.type = "text/javascript";
-        attachGlobals.textContent = `try {
-          if (typeof EmbeddedPayments !== 'undefined' && !window.EmbeddedPayments) window.EmbeddedPayments = EmbeddedPayments;
-          if (typeof DigitalWalletsPay !== 'undefined' && !window.DigitalWalletsPay) window.DigitalWalletsPay = DigitalWalletsPay;
-          if (typeof DigitalWallets !== 'undefined' && !window.DigitalWallets) window.DigitalWallets = DigitalWallets;
-          if (typeof DeluxeEmbedded !== 'undefined' && !window.DeluxeEmbedded) window.DeluxeEmbedded = DeluxeEmbedded;
-          if (typeof deluxe !== 'undefined' && !window.deluxe) window.deluxe = deluxe;
-          if (typeof Deluxe !== 'undefined' && !window.Deluxe) window.Deluxe = Deluxe;
-        } catch (e) { /* ignore */ }`;
-        document.head.appendChild(attachGlobals);
-      } catch (err) {
-        // If injection fails, continue without attaching globals.  Access will
-        // fallback to namespaced lookups below.
-        console.warn("Failed to attach Deluxe globals", err);
-      }
-
-      const start = Date.now();
-      (function waitForGlobal() {
-        const w = window as any;
-        // The Deluxe SDK may export the EmbeddedPayments object under
-        // different names depending on the build.  Check a few common
-        // locations before giving up.
-        if (
-          w.EmbeddedPayments ||
-          (w.Deluxe && w.Deluxe.EmbeddedPayments) ||
-          (w.deluxe && w.deluxe.EmbeddedPayments) ||
-          w.DigitalWalletsPay ||
-          w.DigitalWallets ||
-          w.DeluxeEmbedded
-        ) {
-          resolve();
-        } else if (Date.now() - start > 15000) {
-          reject(
-            new Error(
-              "Deluxe SDK loaded but could not locate the EmbeddedPayments object."
-            )
-          );
-        } else {
-          setTimeout(waitForGlobal, 50);
-        }
-      })();
-    };
-
-    // If the script already exists, attach listeners to it.
     const existing = document.querySelector(
       `script[src="${url}"]`
     ) as HTMLScriptElement | null;
     if (existing) {
-      existing.addEventListener("load", finish, { once: true });
+      existing.addEventListener("load", () => resolve(), { once: true });
       existing.addEventListener(
         "error",
-        () => {
-          // restore saved definitions on error
-          if (savedDefine !== undefined) (window as any).define = savedDefine;
-          if (savedModule !== undefined) (window as any).module = savedModule;
-          reject(new Error("Failed to load Deluxe SDK"));
-        },
+        () => reject(new Error("Failed to load Deluxe SDK")),
         { once: true }
       );
       return;
     }
 
-    // Create the script element.
     const script = document.createElement("script");
     script.src = url;
-    // Do not specify `async`; using defer ensures execution order but allows
-    // the browser to download in parallel.  Leaving off async also avoids
-    // issues where the SDK runs before our polyfills.
+    script.async = true;
     script.defer = true;
-    script.onload = finish;
-    script.onerror = () => {
-      // restore saved definitions on error
-      if (savedDefine !== undefined) (window as any).define = savedDefine;
-      if (savedModule !== undefined) (window as any).module = savedModule;
-      reject(new Error("Failed to load Deluxe SDK"));
-    };
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load Deluxe SDK"));
     document.head.appendChild(script);
   });
+}
+
+/** Find the EP object (from window or global lexical) */
+function resolveEP(): EPApi | undefined {
+  const w = window as any;
+  if (w.EmbeddedPayments) return w.EmbeddedPayments;
+  if (w.Deluxe?.EmbeddedPayments) return w.Deluxe.EmbeddedPayments;
+  if (w.deluxe?.EmbeddedPayments) return w.deluxe.EmbeddedPayments;
+  try {
+    // indirect eval to access global lexical bindings
+    // eslint-disable-next-line no-eval
+    const EP = (0, eval)(
+      "typeof EmbeddedPayments !== 'undefined' ? EmbeddedPayments : undefined"
+    ) as EPApi | undefined;
+    if (EP) return EP;
+  } catch {}
+  return undefined;
+}
+
+async function waitForEmbeddedPayments(timeoutMs = 8000): Promise<EPApi> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const EP = resolveEP();
+    if (EP && typeof EP.init === "function" && typeof EP.render === "function")
+      return EP;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  throw new Error(
+    "Deluxe SDK loaded but could not locate the EmbeddedPayments object."
+  );
 }
 
 function isConsecutive(d0: string, d1: string): boolean {
   const a = new Date(`${d0}T00:00:00`);
   const b = new Date(`${d1}T00:00:00`);
-  // --- Render: page layout & payment panel container ---
-
   return (b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24) === 1;
 }
 function sortIsoDates(dates: string[]) {
@@ -372,9 +333,6 @@ function calculateTotals(args: {
 }
 
 export default function CheckoutPage() {
-  // Component entry — orchestrates order persistence, EmbeddedPayments lifecycle,
-  // JWT minting via backend, and hosted-link fallback. No business logic changed.
-
   const navigate = useNavigate();
   const { user } = useAuth();
   const { booking, merchItems, isHydrated } = useCart();
@@ -525,6 +483,7 @@ export default function CheckoutPage() {
 
   const startEmbeddedPayment = useCallback(async () => {
     setErrorMsg("");
+
     if (!customer.firstName || !customer.lastName || !customer.email) {
       setErrorMsg(
         "Please complete your customer information before starting payment."
@@ -535,8 +494,10 @@ export default function CheckoutPage() {
       setErrorMsg("Amount must be greater than zero to initiate payment.");
       return;
     }
+
     setIsSubmitting(true);
     try {
+      // destroy any earlier instance
       try {
         const inst = instanceRef.current;
         if (inst?.destroy) inst.destroy();
@@ -544,17 +505,36 @@ export default function CheckoutPage() {
         instanceRef.current = null;
       } catch {}
 
+      // ensure order
       await ensureOrder();
 
+      // figure out which methods to show
       let paymentMethods: ("cc" | "ach")[] = ["cc"];
+      let applePayEnabled = false;
+      let googlePayEnabled = false;
       try {
         const statusResp = await fetch("/api/getEmbeddedMerchantStatus");
         if (statusResp.ok) {
           const status = await statusResp.json();
           if (status?.achEnabled === true) paymentMethods = ["cc", "ach"];
+          if (
+            Array.isArray(status?.methods) &&
+            status.methods.includes("ach")
+          ) {
+            if (!paymentMethods.includes("ach")) paymentMethods.push("ach");
+          }
+          applePayEnabled =
+            !!status?.applePayEnabled ||
+            (Array.isArray(status?.methods) &&
+              status.methods.includes("applePay"));
+          googlePayEnabled =
+            !!status?.googlePayEnabled ||
+            (Array.isArray(status?.methods) &&
+              status.methods.includes("googlePay"));
         }
       } catch {}
 
+      // get short-lived JWT
       const jwtResp = await fetch("/api/createEmbeddedJwt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -570,7 +550,7 @@ export default function CheckoutPage() {
               city: customer.billingAddress?.city,
               state: customer.billingAddress?.state,
               zipCode: customer.billingAddress?.postalCode,
-              countryCode: toIsoAlpha3(customer.billingAddress?.country), // backend normalizes to alpha‑3
+              countryCode: toIsoAlpha3(customer.billingAddress?.country),
             },
           },
           products: buildProductsForJwt({
@@ -598,92 +578,101 @@ export default function CheckoutPage() {
       };
       if (!jwt) throw new Error("JWT missing from response");
 
+      // load the SDK from the correct base
       const scriptSrc = embeddedBase
         ? `${embeddedBase}/embedded/javascripts/deluxe.js`
         : undefined;
       await loadDeluxeSdk(scriptSrc);
 
-      // After the SDK script loads, the global may be exposed under different
-      // names depending on how the Deluxe bundle is built.  In some builds
-      // there is no window.EmbeddedPayments; instead the object is exported as
-      // DigitalWalletsPay.  To make our integration resilient, check both
-      // properties before aborting.
-      const EP =
-        (window as any).EmbeddedPayments ||
-        ((window as any).Deluxe && (window as any).Deluxe.EmbeddedPayments) ||
-        ((window as any).deluxe && (window as any).deluxe.EmbeddedPayments) ||
-        (window as any).DigitalWalletsPay ||
-        (window as any).DigitalWallets ||
-        (window as any).DeluxeEmbedded ||
-        undefined;
-      if (!EP || typeof EP.init !== "function") {
-        throw new Error("Deluxe SDK not initialized (global missing)");
-      }
+      // resolve EP object and init
+      const EP = await waitForEmbeddedPayments();
       setSdkReady(true);
 
       const isSandbox = (embeddedBase || "").includes("payments2.");
       const config = {
-        countryCode: "USA",
+        countryCode: "US",
         currencyCode: "USD",
         paymentMethods,
         supportedNetworks: ["visa", "masterCard", "amex", "discover"],
         googlePayEnv: isSandbox ? "TEST" : "PRODUCTION",
         merchantCapabilities: ["supports3DS"],
         allowedCardAuthMethods: ["PAN_ONLY", "CRYPTOGRAM_3DS"],
+        hideApplePayButton: !applePayEnabled,
+        hideGooglePayButton: !googlePayEnabled,
       } as any;
 
-      const instance = await EP.init(jwt, config).setEventHandlers({
-        onTxnSuccess: async (_g: any, data: any) => {
-          try {
-            const ref = doc(db, "orders", orderId);
-            const paymentId =
-              data?.paymentId ||
-              data?.PaymentId ||
-              data?.transactionId ||
-              data?.id ||
-              null;
-            await setDoc(
-              ref,
-              {
-                status: "paid",
-                deluxe: {
-                  lastEvent: data || null,
-                  updatedAt: serverTimestamp(),
-                  paymentId,
-                },
-              },
-              { merge: true }
-            );
-          } catch (err) {
-            console.warn("Failed to record Deluxe lastEvent", err);
-          }
-          navigate(`/dashboard?status=paid&orderId=${orderId}`);
-        },
-        onTxnFailed: (_g: any, data: any) => {
-          console.warn("[Deluxe] Failed:", data);
-          setErrorMsg("Payment failed. Please try again.");
-        },
-        onTxnCancelled: (_g: any, data: any) => {
-          console.log("[Deluxe] Cancelled:", data);
-          setErrorMsg("Payment cancelled.");
-        },
-        onValidationError: (_g: any, data: any) => {
-          console.warn("[Deluxe] Validation error:", data);
-          setErrorMsg("Validation error — please check your info.");
-        },
-        onTokenSuccess: (_g: any, data: any) => {
-          console.log("[Deluxe] Token success", data);
-        },
-        onTokenFailed: (_g: any, data: any) => {
-          console.warn("[Deluxe] Token failed", data);
-        },
-      });
-      instanceRef.current = instance;
+      // IMPORTANT: init may return void OR an instance; setEventHandlers may exist on EP or return value.
+      const initResult = EP.init(jwt, config);
+      const handlerHost: any =
+        (initResult &&
+          typeof initResult.setEventHandlers === "function" &&
+          initResult) ||
+        (typeof (EP as any).setEventHandlers === "function" && EP) ||
+        null;
+
+      if (handlerHost) {
+        await Promise.resolve(
+          handlerHost.setEventHandlers({
+            onTxnSuccess: async (_g: any, data: any) => {
+              try {
+                const ref = doc(db, "orders", orderId);
+                const paymentId =
+                  data?.paymentId ||
+                  data?.PaymentId ||
+                  data?.transactionId ||
+                  data?.id ||
+                  null;
+                await setDoc(
+                  ref,
+                  {
+                    status: "paid",
+                    deluxe: {
+                      lastEvent: data || null,
+                      updatedAt: serverTimestamp(),
+                      paymentId,
+                    },
+                  },
+                  { merge: true }
+                );
+              } catch (err) {
+                console.warn("Failed to record Deluxe lastEvent", err);
+              }
+              navigate(`/dashboard?status=paid&orderId=${orderId}`);
+            },
+            onTxnFailed: (_g: any, data: any) => {
+              console.warn("[Deluxe] Failed:", data);
+              setErrorMsg("Payment failed. Please try again.");
+            },
+            onTxnCancelled: (_g: any, data: any) => {
+              console.log("[Deluxe] Cancelled:", data);
+              setErrorMsg("Payment cancelled.");
+            },
+            onValidationError: (_g: any, data: any) => {
+              console.warn("[Deluxe] Validation error:", data);
+              setErrorMsg("Validation error — please check your info.");
+            },
+            onTokenSuccess: (_g: any, data: any) => {
+              console.log("[Deluxe] Token success", data);
+            },
+            onTokenFailed: (_g: any, data: any) => {
+              console.warn("[Deluxe] Token failed", data);
+            },
+          })
+        );
+      } else {
+        console.warn(
+          "Deluxe: setEventHandlers() not available on this build; continuing without explicit handlers."
+        );
+      }
+
+      instanceRef.current = handlerHost || EP;
 
       if (!document.getElementById(EMBEDDED_CONTAINER_ID))
         throw new Error(`Missing container #${EMBEDDED_CONTAINER_ID}`);
 
-      EP.render({
+      const renderHost: any =
+        handlerHost && handlerHost.render ? handlerHost : EP;
+      renderHost.render({
         containerId: EMBEDDED_CONTAINER_ID,
         paymentpanelstyle: "light",
       });
@@ -735,8 +724,8 @@ export default function CheckoutPage() {
         const inst = instanceRef.current;
         if (inst?.destroy) inst.destroy();
         else if (inst?.unmount) inst.unmount();
-        else if (window.EmbeddedPayments?.destroy)
-          window.EmbeddedPayments.destroy();
+        const EP = resolveEP();
+        if (EP?.destroy) EP.destroy();
       } catch {}
     };
   }, []);
@@ -748,7 +737,6 @@ export default function CheckoutPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-10">
-      {/* Page container: header, errors, customer info, embedded pay panel */}
       <div className="mb-6">
         <h1 className="text-3xl font-semibold">Checkout</h1>
         <p className="text-sm opacity-70">
@@ -764,7 +752,6 @@ export default function CheckoutPage() {
 
       <section className="mb-8 p-4 rounded-xl border bg-white">
         <h2 className="text-xl mb-4">Customer Info</h2>
-        {/* Controlled form: updates `customer` state used to mint the JWT */}
         <CustomerInfoForm value={customer} onChange={setCustomer} />
         <div className="mt-10 p-4">
           <h2 className="text-xl mb-3">Order Summary</h2>
@@ -777,7 +764,6 @@ export default function CheckoutPage() {
 
       <section className="mb-6 p-4 rounded-xl border bg-neutral-100">
         <h2 className="text-xl mb-3">Pay Securely (Embedded)</h2>
-        {/* Primary flow: loads SDK → init → set handlers → render panel */}
         <div className="flex flex-wrap gap-3 mb-4">
           <button
             disabled={!canStart || isSubmitting}
