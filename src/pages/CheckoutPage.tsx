@@ -592,7 +592,7 @@ export default function CheckoutPage() {
                   ?.toString()
                   .trim()
                   .slice(0, 2)
-                  .toUpperCase() || "US",
+                  .toUpperCase() || "USA",
             },
           },
           products: buildProductsForJwt({
@@ -606,7 +606,6 @@ export default function CheckoutPage() {
               : null,
             merchItems: merchArray,
           }),
-          summary: { hide: false, hideTotals: false },
         }),
       });
       if (!jwtResp.ok) {
