@@ -7,9 +7,6 @@ import { useCart } from "../context/CartContext";
 import CustomerInfoForm from "../components/CustomerInfoForm";
 import { getSeasonConfig } from "../utils/getSeasonConfig";
 import toIsoAlpha3 from "../utils/toIsoAlpha3";
-import { formatLongDate } from "../utils/formatDate";
-import { groupIsoDatesIntoRanges } from "../utils/dateUtils";
-
 /**
  * Deluxe Embedded Payments SDK (runtime global).  We support multiple attachment
  * points because the SDK sometimes exposes the object at different paths.
@@ -31,6 +28,7 @@ declare global {
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 declare const EmbeddedPayments: EPApi | undefined;
 
+/** Types mirrored from app Types.ts (kept local here for isolation) **/
 export type CustomerInfo = {
   firstName: string;
   lastName: string;
@@ -456,31 +454,6 @@ export default function CheckoutPage() {
     [booking, merchArray, seasonConfig]
   );
   const amount = totals.amount;
-
-  /** Step 3: formatted date range chips using your utils */
-  const dateRangeLabels = useMemo(() => {
-    if (!booking?.dates?.length) return [];
-    return groupIsoDatesIntoRanges(booking.dates).map(({ start, end }) =>
-      start === end
-        ? formatLongDate(start, { weekday: true })
-        : `${formatLongDate(start, { weekday: true })} – ${formatLongDate(end, {
-            weekday: true,
-          })}`
-    );
-  }, [booking?.dates]);
-
-  const partyDeckRangeLabels = useMemo(() => {
-    if (!booking?.partyDeckDates?.length) return [];
-    return groupIsoDatesIntoRanges(booking.partyDeckDates).map(
-      ({ start, end }) =>
-        start === end
-          ? formatLongDate(start, { weekday: true })
-          : `${formatLongDate(start, { weekday: true })} – ${formatLongDate(
-              end,
-              { weekday: true }
-            )}`
-    );
-  }, [booking?.partyDeckDates]);
 
   /** Embedded lifecycle */
   const [sdkReady, setSdkReady] = useState(false);
@@ -981,53 +954,6 @@ export default function CheckoutPage() {
           <div className="mb-3 text-sm opacity-70">
             Total: ${amount.toFixed(2)}
           </div>
-
-          {/* Order quick summary (dates via your utils) */}
-          {booking && (
-            <div className="mb-4 p-3 rounded-lg border bg-white/70">
-              <div className="grid sm:grid-cols-3 gap-3">
-                <div>
-                  <div className="text-[11px] uppercase tracking-wide opacity-60">
-                    Hunters
-                  </div>
-                  <div className="font-semibold">{booking.numberOfHunters}</div>
-                </div>
-                <div>
-                  <div className="text-[11px] uppercase tracking-wide opacity-60">
-                    Days
-                  </div>
-                  <div className="font-semibold">{booking.dates.length}</div>
-                </div>
-                <div>
-                  <div className="text-[11px] uppercase tracking-wide opacity-60">
-                    Dates
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {dateRangeLabels.map((label, i) => (
-                      <span
-                        key={i}
-                        className="inline-block px-2 py-1 rounded-full bg-neutral-100 border text-xs"
-                      >
-                        {label}
-                      </span>
-                    ))}
-                    {dateRangeLabels.length === 0 && (
-                      <span className="text-xs opacity-70">—</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-              {booking.partyDeckDates?.length ? (
-                <div className="mt-3 text-xs">
-                  <span className="opacity-60 mr-1">Party Deck:</span>
-                  <span className="font-medium">
-                    {partyDeckRangeLabels.join(", ")}
-                  </span>
-                </div>
-              ) : null}
-            </div>
-          )}
-
           <div
             id={EMBEDDED_CONTAINER_ID}
             className={[
