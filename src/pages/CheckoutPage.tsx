@@ -58,6 +58,8 @@ type BookingLine = {
   numberOfHunters: number;
   partyDeckDates?: string[];
   seasonConfig?: SeasonConfig;
+  /** New: booking subtotal used to compute per‑hunter unit price for products panel */
+  bookingTotal?: number;
 };
 
 type MerchItem = { skuCode: string; name: string; qty: number; price: number };
@@ -220,6 +222,13 @@ function inRange(iso: string, startIso: string, endIso: string) {
   return t >= s && t <= e;
 }
 
+/**
+ * Build the products array for the Embedded Payments JWT.
+ * New: we now pass numeric prices so the panel can render per‑line totals,
+ * avoiding $NaN. We split the booking into two lines:
+ *  • Dove Hunt Package — per‑hunter unit price × numberOfHunters
+ *  • Party Deck — per‑day price × days (if any)
+ */
 function buildProductsForJwt(args: {
   booking: BookingLine | null;
   merchItems: MerchItem[];
@@ -233,22 +242,48 @@ function buildProductsForJwt(args: {
     description?: string;
     unitOfMeasure?: string;
   }> = [];
+
   if (booking) {
+    const hunters = Math.max(1, Number(booking.numberOfHunters || 1));
+    const partyDays = booking.partyDeckDates?.length || 0;
+    const partyRate = booking.seasonConfig?.partyDeckRatePerDay ?? 500;
+    const partySubtotal = partyDays * partyRate;
+
+    // Use the booking subtotal provided by calculateTotals, fall back to 0
+    const bookingSubtotal = Number(booking.bookingTotal || 0);
+
+    // Compute per‑hunter unit price for the main package line (exclude party deck)
+    const perHunterUnit = Math.max(
+      0,
+      Math.round((bookingSubtotal - partySubtotal) / hunters)
+    );
+
     products.push({
       name: "Dove Hunt Package",
       skuCode: "HUNT",
-      quantity: booking.numberOfHunters,
-      price: 0,
-      description: `${booking.dates.length} day(s) • ${booking.numberOfHunters} hunter(s)`,
+      quantity: hunters,
+      price: perHunterUnit, // numeric unit price
+      description: `${booking.dates.length} day(s) • ${hunters} hunter(s)`,
       unitOfMeasure: "Each",
     });
+
+    if (partyDays > 0) {
+      products.push({
+        name: "Party Deck",
+        skuCode: "PARTY",
+        quantity: partyDays,
+        price: partyRate,
+        unitOfMeasure: "Day",
+      });
+    }
   }
+
   for (const m of merchItems)
     products.push({
       name: m.name,
       skuCode: m.skuCode,
       quantity: m.qty,
-      price: m.price,
+      price: m.price, // unit price
       unitOfMeasure: "Each",
     });
   return products;
@@ -396,7 +431,8 @@ export default function CheckoutPage() {
     return initial;
   }) as unknown as [CustomerInfo, any];
 
-  const { amount } = useMemo(
+  // Compute totals once and share across both Order writing and JWT creation
+  const totals = useMemo(
     () =>
       calculateTotals({
         booking: booking
@@ -412,6 +448,7 @@ export default function CheckoutPage() {
       }),
     [booking, merchArray, seasonConfig]
   );
+  const amount = totals.amount;
 
   const [sdkReady, setSdkReady] = useState(false);
   const [instanceReady, setInstanceReady] = useState(false);
@@ -553,6 +590,7 @@ export default function CheckoutPage() {
               countryCode: toIsoAlpha3(customer.billingAddress?.country),
             },
           },
+          // NEW: pass a products array with numeric unit prices
           products: buildProductsForJwt({
             booking: booking
               ? {
@@ -560,6 +598,7 @@ export default function CheckoutPage() {
                   numberOfHunters: booking.numberOfHunters,
                   partyDeckDates: booking.partyDeckDates,
                   seasonConfig: seasonConfig || undefined,
+                  bookingTotal: totals.bookingTotal,
                 }
               : null,
             merchItems: merchArray,
@@ -692,6 +731,7 @@ export default function CheckoutPage() {
     navigate,
     orderId,
     seasonConfig,
+    totals.bookingTotal,
   ]);
 
   const fallbackHostedCheckout = useCallback(async () => {
@@ -774,7 +814,7 @@ export default function CheckoutPage() {
           </button>
           <button
             onClick={fallbackHostedCheckout}
-            className="hidden px-4 py-2 rounded-lg bg-gray-700 text-white"
+            className="hidden px-4 py-2 rounded-lg border hover:bg-white transition-colors"
           >
             Use hosted checkout (fallback)
           </button>
@@ -788,6 +828,7 @@ export default function CheckoutPage() {
             "transition-opacity",
           ].join(" ")}
         />
+
         {!sdkReady && (
           <p className="mt-2 text-sm opacity-70">
             The payment panel will appear here after you click “Start secure
