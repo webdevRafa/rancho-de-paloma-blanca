@@ -7,17 +7,14 @@ import { useCart } from "../context/CartContext";
 import CustomerInfoForm from "../components/CustomerInfoForm";
 import { getSeasonConfig } from "../utils/getSeasonConfig";
 import toIsoAlpha3 from "../utils/toIsoAlpha3";
-/**
- * Deluxe Embedded Payments SDK (runtime global).  We support multiple attachment
- * points because the SDK sometimes exposes the object at different paths.
- */
+
 type EPApi = {
   init: (jwt: string, config: Record<string, any>) => any;
   setEventHandlers?: (map: Record<string, (gw: any, data: any) => void>) => any;
   render: (opts: { containerId: string } & Record<string, any>) => void;
-  pay?: (jwt: string) => void;
   destroy?: () => void;
 };
+
 declare global {
   interface Window {
     EmbeddedPayments?: EPApi;
@@ -25,10 +22,10 @@ declare global {
     deluxe?: { EmbeddedPayments?: EPApi };
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+
+// Allow for a global lexical binding in some SDK builds
 declare const EmbeddedPayments: EPApi | undefined;
 
-/** Types mirrored from app Types.ts (kept local here for isolation) **/
 export type CustomerInfo = {
   firstName: string;
   lastName: string;
@@ -43,6 +40,7 @@ export type CustomerInfo = {
     country?: string;
   };
 };
+
 export type SeasonConfig = {
   seasonStart: string;
   seasonEnd: string;
@@ -54,13 +52,14 @@ export type SeasonConfig = {
   };
   partyDeckRatePerDay?: number;
 };
+
 type BookingLine = {
   dates: string[];
   numberOfHunters: number;
   partyDeckDates?: string[];
   seasonConfig?: SeasonConfig;
-  bookingTotal?: number; // computed at runtime (used to derive per-hunter price for JWT products)
 };
+
 type MerchItem = { skuCode: string; name: string; qty: number; price: number };
 
 type OrderDoc = {
@@ -117,7 +116,7 @@ type OrderDoc = {
 const ORDER_ID_KEY = "rdpb:orderId";
 const EMBEDDED_CONTAINER_ID = "embeddedpayments";
 
-/** Recursively drop undefined so Firestore merges cleanly. */
+/** Recursively remove any fields with value `undefined`. */
 function pruneUndefinedDeep<T>(obj: T): T {
   if (Array.isArray(obj)) return obj.map((v) => pruneUndefinedDeep(v)) as any;
   if (
@@ -135,37 +134,13 @@ function pruneUndefinedDeep<T>(obj: T): T {
   return obj;
 }
 
-/** Inject (or update) a style tag specifically for the embedded panel */
-function ensureEmbeddedStyles() {
-  const id = "rdpb-embedded-styles";
-  let style = document.getElementById(id) as HTMLStyleElement | null;
-  if (!style) {
-    style = document.createElement("style");
-    style.id = id;
-    document.head.appendChild(style);
-  }
-  style.textContent = `
-    /* Make the panel responsive */
-    #${EMBEDDED_CONTAINER_ID} { width: 100%; }
-    #${EMBEDDED_CONTAINER_ID} .purchase-summary { font-family: inherit; }
-    /* Hide the blank image thumbnail and tighten layout */
-    #${EMBEDDED_CONTAINER_ID} .product-thumbnail { display: none !important; }
-    #${EMBEDDED_CONTAINER_ID} .product-info { padding-left: 0 !important; }
-    /* Sane mobile font sizes */
-    @media (max-width: 480px) {
-      #${EMBEDDED_CONTAINER_ID} .summary-title { font-size: 1rem !important; }
-      #${EMBEDDED_CONTAINER_ID} .summary-attribute { font-size: 0.875rem !important; }
-    }
-  `;
-}
-
-/** Load the Deluxe SDK (sandbox by default unless server tells us base). */
+/** Load the Deluxe SDK script (sandbox by default). */
 function loadDeluxeSdk(src?: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const url =
       src || "https://payments2.deluxe.com/embedded/javascripts/deluxe.js";
 
-    // Clean mismatched copies (switching envs)
+    // Remove any mismatched copies (switching envs)
     try {
       document
         .querySelectorAll(
@@ -180,23 +155,8 @@ function loadDeluxeSdk(src?: string): Promise<void> {
     const existing = document.querySelector(
       `script[src="${url}"]`
     ) as HTMLScriptElement | null;
-    const finish = () => {
-      const t0 = Date.now();
-      const poll = () => {
-        const w = window as any;
-        const EP =
-          w.EmbeddedPayments ||
-          w?.Deluxe?.EmbeddedPayments ||
-          w?.deluxe?.EmbeddedPayments;
-        if (EP) return resolve();
-        if (Date.now() - t0 > 10000)
-          return reject(new Error("Deluxe SDK loaded but object not found"));
-        setTimeout(poll, 50);
-      };
-      poll();
-    };
     if (existing) {
-      existing.addEventListener("load", finish, { once: true });
+      existing.addEventListener("load", () => resolve(), { once: true });
       existing.addEventListener(
         "error",
         () => reject(new Error("Failed to load Deluxe SDK")),
@@ -204,17 +164,47 @@ function loadDeluxeSdk(src?: string): Promise<void> {
       );
       return;
     }
+
     const script = document.createElement("script");
     script.src = url;
     script.async = true;
     script.defer = true;
-    script.onload = finish;
+    script.onload = () => resolve();
     script.onerror = () => reject(new Error("Failed to load Deluxe SDK"));
     document.head.appendChild(script);
   });
 }
 
-/** Helpers for pricing logic **/
+/** Find the EP object (from window or global lexical) */
+function resolveEP(): EPApi | undefined {
+  const w = window as any;
+  if (w.EmbeddedPayments) return w.EmbeddedPayments;
+  if (w.Deluxe?.EmbeddedPayments) return w.Deluxe.EmbeddedPayments;
+  if (w.deluxe?.EmbeddedPayments) return w.deluxe.EmbeddedPayments;
+  try {
+    // indirect eval to access global lexical bindings
+    // eslint-disable-next-line no-eval
+    const EP = (0, eval)(
+      "typeof EmbeddedPayments !== 'undefined' ? EmbeddedPayments : undefined"
+    ) as EPApi | undefined;
+    if (EP) return EP;
+  } catch {}
+  return undefined;
+}
+
+async function waitForEmbeddedPayments(timeoutMs = 8000): Promise<EPApi> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const EP = resolveEP();
+    if (EP && typeof EP.init === "function" && typeof EP.render === "function")
+      return EP;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  throw new Error(
+    "Deluxe SDK loaded but could not locate the EmbeddedPayments object."
+  );
+}
+
 function isConsecutive(d0: string, d1: string): boolean {
   const a = new Date(`${d0}T00:00:00`);
   const b = new Date(`${d1}T00:00:00`);
@@ -230,7 +220,6 @@ function inRange(iso: string, startIso: string, endIso: string) {
   return t >= s && t <= e;
 }
 
-/** Build products for the Embedded JWT (unit pricing is critical to avoid $NaN). */
 function buildProductsForJwt(args: {
   booking: BookingLine | null;
   merchItems: MerchItem[];
@@ -240,53 +229,31 @@ function buildProductsForJwt(args: {
     name?: string;
     skuCode?: string;
     quantity?: number;
-    price?: number; // unit price in whole currency units
+    price?: number;
     description?: string;
     unitOfMeasure?: string;
   }> = [];
-
   if (booking) {
-    const hunters = Math.max(1, Number(booking.numberOfHunters || 1));
-    const partyDays = booking.partyDeckDates?.length || 0;
-    const partyRate = booking.seasonConfig?.partyDeckRatePerDay ?? 500; // default
-    const partySubtotal = partyDays * partyRate;
-    const bookingSubtotal = Number(booking.bookingTotal || 0);
-    const perHunterUnit = Math.max(
-      0,
-      Math.round((bookingSubtotal - partySubtotal) / hunters)
-    );
-
     products.push({
       name: "Dove Hunt Package",
       skuCode: "HUNT",
-      quantity: hunters,
-      price: perHunterUnit, // ✅ fixes NaN in product-cost
-      description: `${booking.dates.length} day(s) • ${hunters} hunter(s)`,
+      quantity: booking.numberOfHunters,
+      price: 0,
+      description: `${booking.dates.length} day(s) • ${booking.numberOfHunters} hunter(s)`,
       unitOfMeasure: "Each",
     });
-    if (partyDays > 0) {
-      products.push({
-        name: "Party Deck",
-        skuCode: "PARTY",
-        quantity: partyDays,
-        price: partyRate,
-        unitOfMeasure: "Day",
-      });
-    }
   }
-  for (const m of merchItems) {
+  for (const m of merchItems)
     products.push({
       name: m.name,
       skuCode: m.skuCode,
       quantity: m.qty,
-      price: m.price, // unit price
+      price: m.price,
       unitOfMeasure: "Each",
     });
-  }
   return products;
 }
 
-/** Calculate booking + merch totals. All values are whole currency units (no cents). */
 function calculateTotals(args: {
   booking: BookingLine | null;
   merchItems: MerchItem[];
@@ -370,10 +337,6 @@ export default function CheckoutPage() {
   const { user } = useAuth();
   const { booking, merchItems, isHydrated } = useCart();
 
-  /** STEP STATE — 1: Customer, 2: Review, 3: Pay */
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-
-  /** Persist/derive orderId */
   const [orderId] = useState(() => {
     const existing = localStorage.getItem(ORDER_ID_KEY);
     if (existing) return existing;
@@ -385,7 +348,6 @@ export default function CheckoutPage() {
     return uuid;
   }) as unknown as [string, any];
 
-  /** Season config */
   const [seasonConfig, setSeasonConfig] = useState(null as SeasonConfig | null);
   const [cfgError, setCfgError] = useState("") as unknown as [string, any];
   useEffect(() => {
@@ -403,7 +365,6 @@ export default function CheckoutPage() {
     };
   }, []);
 
-  /** Merch array from cart */
   const merchArray: MerchItem[] = useMemo(() => {
     const arr: MerchItem[] = [];
     const items = merchItems as any;
@@ -420,7 +381,6 @@ export default function CheckoutPage() {
     return arr;
   }, [merchItems]);
 
-  /** Customer state */
   const [customer, setCustomer] = useState(() => {
     const displayName = user?.displayName || "";
     const parts = displayName.split(" ");
@@ -436,8 +396,7 @@ export default function CheckoutPage() {
     return initial;
   }) as unknown as [CustomerInfo, any];
 
-  /** Totals (and stash bookingTotal so products[] can get unit prices) */
-  const totals = useMemo(
+  const { amount } = useMemo(
     () =>
       calculateTotals({
         booking: booking
@@ -453,16 +412,13 @@ export default function CheckoutPage() {
       }),
     [booking, merchArray, seasonConfig]
   );
-  const amount = totals.amount;
 
-  /** Embedded lifecycle */
   const [sdkReady, setSdkReady] = useState(false);
   const [instanceReady, setInstanceReady] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("") as unknown as [string, any];
   const instanceRef = useRef(null) as unknown as { current: any };
 
-  /** Firestore ensure order */
   const ensureOrder = useCallback(async () => {
     const ref = doc(db, "orders", orderId);
     const snap = await getDoc(ref);
@@ -525,11 +481,9 @@ export default function CheckoutPage() {
       );
   }, [amount, booking, customer, merchArray, orderId, seasonConfig, user]);
 
-  /** Start Embedded flow */
   const startEmbeddedPayment = useCallback(async () => {
     setErrorMsg("");
 
-    // Basic validation
     if (!customer.firstName || !customer.lastName || !customer.email) {
       setErrorMsg(
         "Please complete your customer information before starting payment."
@@ -543,11 +497,7 @@ export default function CheckoutPage() {
 
     setIsSubmitting(true);
     try {
-      // Place the container in the DOM (step 3) and give the browser a tick
-      setStep(3);
-      await new Promise((r) => setTimeout(r));
-
-      // Destroy any prior instance
+      // destroy any earlier instance
       try {
         const inst = instanceRef.current;
         if (inst?.destroy) inst.destroy();
@@ -555,10 +505,10 @@ export default function CheckoutPage() {
         instanceRef.current = null;
       } catch {}
 
-      // Ensure order
+      // ensure order
       await ensureOrder();
 
-      // Discover methods/wallets
+      // figure out which methods to show
       let paymentMethods: ("cc" | "ach")[] = ["cc"];
       let applePayEnabled = false;
       let googlePayEnabled = false;
@@ -584,7 +534,7 @@ export default function CheckoutPage() {
         }
       } catch {}
 
-      // Server-minted JWT
+      // get short-lived JWT
       const jwtResp = await fetch("/api/createEmbeddedJwt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -610,12 +560,10 @@ export default function CheckoutPage() {
                   numberOfHunters: booking.numberOfHunters,
                   partyDeckDates: booking.partyDeckDates,
                   seasonConfig: seasonConfig || undefined,
-                  bookingTotal: totals.bookingTotal, // provide to compute unit prices
                 }
               : null,
             merchItems: merchArray,
           }),
-          summary: { hide: false, hideTotals: false },
         }),
       });
       if (!jwtResp.ok) {
@@ -630,22 +578,15 @@ export default function CheckoutPage() {
       };
       if (!jwt) throw new Error("JWT missing from response");
 
-      // Load correct SDK base (sandbox vs prod)
+      // load the SDK from the correct base
       const scriptSrc = embeddedBase
         ? `${embeddedBase}/embedded/javascripts/deluxe.js`
         : undefined;
       await loadDeluxeSdk(scriptSrc);
 
-      const w = window as any;
-      const EP: EPApi | undefined =
-        w.EmbeddedPayments ||
-        w?.Deluxe?.EmbeddedPayments ||
-        w?.deluxe?.EmbeddedPayments;
-      if (!EP || typeof EP.init !== "function")
-        throw new Error("Deluxe SDK not initialized");
-
+      // resolve EP object and init
+      const EP = await waitForEmbeddedPayments();
       setSdkReady(true);
-      ensureEmbeddedStyles();
 
       const isSandbox = (embeddedBase || "").includes("payments2.");
       const config = {
@@ -660,7 +601,8 @@ export default function CheckoutPage() {
         hideGooglePayButton: !googlePayEnabled,
       } as any;
 
-      const initResult: any = EP.init(jwt, config);
+      // IMPORTANT: init may return void OR an instance; setEventHandlers may exist on EP or return value.
+      const initResult = EP.init(jwt, config);
       const handlerHost: any =
         (initResult &&
           typeof initResult.setEventHandlers === "function" &&
@@ -671,7 +613,7 @@ export default function CheckoutPage() {
       if (handlerHost) {
         await Promise.resolve(
           handlerHost.setEventHandlers({
-            onTxnSuccess: async (_gw: any, data: any) => {
+            onTxnSuccess: async (_g: any, data: any) => {
               try {
                 const ref = doc(db, "orders", orderId);
                 const paymentId =
@@ -692,51 +634,41 @@ export default function CheckoutPage() {
                   },
                   { merge: true }
                 );
-                // Best-effort capacity increment (webhook remains source of truth)
-                try {
-                  await fetch("/api/incrementAvailability", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ orderId }),
-                  });
-                } catch {}
               } catch (err) {
                 console.warn("Failed to record Deluxe lastEvent", err);
               }
               navigate(`/dashboard?status=paid&orderId=${orderId}`);
             },
-            onTxnFailed: (_gw: any, data: any) => {
+            onTxnFailed: (_g: any, data: any) => {
               console.warn("[Deluxe] Failed:", data);
               setErrorMsg("Payment failed. Please try again.");
-              setStep(2);
             },
-            onTxnCancelled: (_gw: any, data: any) => {
+            onTxnCancelled: (_g: any, data: any) => {
               console.log("[Deluxe] Cancelled:", data);
               setErrorMsg("Payment cancelled.");
-              setStep(2);
             },
-            onValidationError: (_gw: any, data: any) => {
+            onValidationError: (_g: any, data: any) => {
               console.warn("[Deluxe] Validation error:", data);
               setErrorMsg("Validation error — please check your info.");
             },
-            onTokenSuccess: (_gw: any, data: any) => {
+            onTokenSuccess: (_g: any, data: any) => {
               console.log("[Deluxe] Token success", data);
             },
-            onTokenFailed: (_gw: any, data: any) => {
+            onTokenFailed: (_g: any, data: any) => {
               console.warn("[Deluxe] Token failed", data);
             },
           })
         );
       } else {
-        console.warn("Deluxe: setEventHandlers() unavailable; continuing.");
+        console.warn(
+          "Deluxe: setEventHandlers() not available on this build; continuing without explicit handlers."
+        );
       }
 
       instanceRef.current = handlerHost || EP;
 
-      // Ensure container exists before render
-      if (!document.getElementById(EMBEDDED_CONTAINER_ID)) {
+      if (!document.getElementById(EMBEDDED_CONTAINER_ID))
         throw new Error(`Missing container #${EMBEDDED_CONTAINER_ID}`);
-      }
 
       const renderHost: any =
         handlerHost && handlerHost.render ? handlerHost : EP;
@@ -746,19 +678,13 @@ export default function CheckoutPage() {
         productsbgcolor: "#f8f8f8",
         productsfontcolor: "#333333",
         productsfontsize: "15px",
-        paybuttoncolor: "#0F13E2",
-        cancelbuttoncolor: "#69D717",
-        walletsbgcolor: "#000",
-        walletsborderadius: "10px",
-        walletspadding: "10px",
-        walletsgap: "10px",
-        walletswidth: "100%",
+        paybuttoncolor: "#4CAF50",
+        cancelbuttoncolor: "#f44336",
       });
       setInstanceReady(true);
     } catch (err: any) {
       console.error(err);
       setErrorMsg(err?.message || "Unable to start embedded payment.");
-      setStep(2); // go back to review
     } finally {
       setIsSubmitting(false);
     }
@@ -771,221 +697,112 @@ export default function CheckoutPage() {
     navigate,
     orderId,
     seasonConfig,
-    totals.bookingTotal,
   ]);
 
-  /** Cleanup SDK instance */
+  const fallbackHostedCheckout = useCallback(async () => {
+    try {
+      await ensureOrder();
+      const origin = window.location.origin;
+      const resp = await fetch("/api/createDeluxePayment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId,
+          successUrl: `${origin}/dashboard?status=paid&orderId=${orderId}`,
+          cancelUrl: `${origin}/dashboard?status=cancelled&orderId=${orderId}`,
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data?.error || "Hosted checkout failed");
+      const url = data?.paymentUrl;
+      if (!url) throw new Error("Missing paymentUrl");
+      window.location.href = url;
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(err?.message || "Hosted checkout failed");
+    }
+  }, [ensureOrder, orderId]);
+
   useEffect(() => {
     return () => {
       try {
         const inst = instanceRef.current;
         if (inst?.destroy) inst.destroy();
         else if (inst?.unmount) inst.unmount();
-        const w = window as any;
-        const EP =
-          w.EmbeddedPayments ||
-          w?.Deluxe?.EmbeddedPayments ||
-          w?.deluxe?.EmbeddedPayments;
+        const EP = resolveEP();
         if (EP?.destroy) EP.destroy();
       } catch {}
     };
   }, []);
 
-  /** Derived flags */
   const canStart = useMemo(() => amount > 0 && !!orderId, [amount, orderId]);
-  const canNextFromStep1 = !!(
-    customer.firstName &&
-    customer.lastName &&
-    customer.email
-  );
 
   if (!isHydrated)
     return <div className="text-center py-20">Loading cart…</div>;
 
-  /** Small stepper header */
-  const Stepper = () => (
-    <div className="flex items-center gap-3 mb-6 text-sm select-none mt-20">
-      {[1, 2, 3].map((n) => (
-        <div key={n} className="flex items-center gap-2">
-          <div
-            className={`rounded-full flex items-center justify-center font-semibold transition-transform duration-300 ease-in-out ${
-              step === n
-                ? "bg-[var(--color-accent-gold)] text-white h-10 w-10 animate-pulse"
-                : "bg-[var(--color-accent-sage)] text-black h-8 w-8"
-            }`}
-          >
-            {n}
-          </div>
-          <span className="mr-2">
-            {n === 1 ? "Customer" : n === 2 ? "Review" : "Pay"}
-          </span>
-          {n < 3 && <div className="w-8 h-px bg-neutral-300" />}
-        </div>
-      ))}
-    </div>
-  );
-
-  /** Order line-item renderer for Step 2 */
-  const OrderLines = () => {
-    const lines: Array<{
-      label: string;
-      qty?: number;
-      price?: number;
-      note?: string;
-    }> = [];
-    if (booking) {
-      const hunters = booking.numberOfHunters || 1;
-      const days = booking.dates.length;
-      lines.push({
-        label: "Dove Hunt Package",
-        qty: hunters,
-        price: Math.max(
-          0,
-          Math.round(
-            (totals.bookingTotal -
-              (booking.partyDeckDates?.length || 0) *
-                (seasonConfig?.partyDeckRatePerDay ?? 500)) /
-              Math.max(1, hunters)
-          )
-        ),
-        note: `${days} day(s)`,
-      });
-      const partyDays = booking.partyDeckDates?.length || 0;
-      if (partyDays > 0)
-        lines.push({
-          label: "Party Deck",
-          qty: partyDays,
-          price: seasonConfig?.partyDeckRatePerDay ?? 500,
-        });
-    }
-    for (const m of merchArray)
-      lines.push({ label: m.name, qty: m.qty, price: m.price });
-    return (
-      <div className="divide-y">
-        {lines.map((l, idx) => (
-          <div key={idx} className="flex items-center justify-between py-2">
-            <div>
-              <div className="font-medium">{l.label}</div>
-              {l.note && <div className="text-xs opacity-70">{l.note}</div>}
-            </div>
-            <div className="text-right">
-              <div className="text-sm">x{l.qty ?? 1}</div>
-              <div className="font-semibold">${(l.price ?? 0).toFixed(2)}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
   return (
     <div className="max-w-4xl mx-auto px-4 py-10">
-      <div className="mb-3">
+      <div className="mb-6">
         <h1 className="text-3xl font-semibold">Checkout</h1>
         <p className="text-sm opacity-70">
           Order ID: <span className="font-mono">{orderId}</span>
         </p>
       </div>
 
-      {(errorMsg || cfgError) && (
+      {(errorMsg || (cfgError as any)) && (
         <div className="mb-6 rounded-lg border border-red-500/30 bg-red-500/10 text-red-700 p-3">
-          {errorMsg || cfgError}
+          {errorMsg || (cfgError as any)}
         </div>
       )}
 
-      <Stepper />
-
-      {/* STEP 1 — CUSTOMER */}
-      {step === 1 && (
-        <section className="mb-8 p-4 rounded-xl border bg-white">
-          <h2 className="text-xl mb-4 font-acumin">Customer Info</h2>
-          <CustomerInfoForm value={customer} onChange={setCustomer} />
-          <div className="mt-6 flex justify-between">
-            <button
-              onClick={() => navigate(-1)}
-              className="px-4 py-2 rounded-lg border"
-            >
-              Back
-            </button>
-            <button
-              onClick={() => setStep(2)}
-              disabled={!canNextFromStep1}
-              className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50"
-            >
-              Next: Review Order
-            </button>
-          </div>
-        </section>
-      )}
-
-      {/* STEP 2 — REVIEW */}
-      {step === 2 && (
-        <section className="mb-8 px-4 py-10 rounded-xl border bg-white">
-          <h2 className="text-2xl mb-4 font-acumin">Order Summary</h2>
-          <OrderLines />
-          <div className="mt-4 flex items-center justify-between">
+      <section className="mb-8 p-4 rounded-xl border bg-white">
+        <h2 className="text-xl mb-4">Customer Info</h2>
+        <CustomerInfoForm value={customer} onChange={setCustomer} />
+        <div className="mt-10 p-4">
+          <h2 className="text-xl mb-3">Order Summary</h2>
+          <div className="flex items-center gap-2 max-w-[200px]">
             <div className="text-lg">Total</div>
             <div className="text-2xl font-bold">${amount.toFixed(2)}</div>
           </div>
-          <div className="mt-6 flex flex-wrap gap-3 justify-between">
-            <button
-              onClick={() => setStep(1)}
-              className="px-4 py-2 rounded-lg border"
-            >
-              Back
-            </button>
-            <div className="flex gap-3">
-              <button
-                disabled={!canStart || isSubmitting}
-                onClick={startEmbeddedPayment}
-                className="px-4 py-2 rounded-lg bg-[var(--color-background)] text-white font-bold disabled:opacity-50 transition-colors"
-              >
-                {isSubmitting ? "Starting…" : "Start secure payment"}
-              </button>
-            </div>
-          </div>
-        </section>
-      )}
+        </div>
+      </section>
 
-      {/* STEP 3 — PAY */}
-      {step === 3 && (
-        <section className="mb-6 p-4 rounded-xl border bg-neutral-100">
-          <h2 className="text-xl mb-3">Pay Securely</h2>
-          <div className="mb-3 text-sm opacity-70">
-            Total: ${amount.toFixed(2)}
-          </div>
-          <div
-            id={EMBEDDED_CONTAINER_ID}
-            className={[
-              "min-h-[260px] rounded-xl border",
-              sdkReady ? "opacity-100" : "opacity-60",
-              "transition-opacity bg-white",
-            ].join(" ")}
-          />
-          {!sdkReady && (
-            <p className="mt-2 text-sm opacity-70">Loading payment panel…</p>
-          )}
-          {sdkReady && !instanceReady && (
-            <p className="mt-2 text-sm opacity-70">
-              Initializing payment panel…
-            </p>
-          )}
-          <div className="mt-6 flex justify-between">
-            <button
-              onClick={() => setStep(2)}
-              className="px-4 py-2 rounded-lg border"
-            >
-              Back to Review
-            </button>
-            <button
-              onClick={() => setStep(1)}
-              className="px-4 py-2 rounded-lg border"
-            >
-              Edit Customer Info
-            </button>
-          </div>
-        </section>
-      )}
+      <section className="mb-6 p-4 rounded-xl border bg-neutral-100">
+        <h2 className="text-xl mb-3">Pay Securely (Embedded)</h2>
+        <div className="flex flex-wrap gap-3 mb-4">
+          <button
+            disabled={!canStart || isSubmitting}
+            onClick={startEmbeddedPayment}
+            className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50 transition-colors"
+          >
+            {isSubmitting ? "Starting…" : "Start secure payment"}
+          </button>
+          <button
+            onClick={fallbackHostedCheckout}
+            className="hidden px-4 py-2 rounded-lg bg-gray-700 text-white"
+          >
+            Use hosted checkout (fallback)
+          </button>
+        </div>
+
+        <div
+          id={EMBEDDED_CONTAINER_ID}
+          className={[
+            "min-h-[240px] rounded-xl border",
+            sdkReady ? "opacity-100" : "opacity-60",
+            "transition-opacity",
+          ].join(" ")}
+        />
+        {!sdkReady && (
+          <p className="mt-2 text-sm opacity-70">
+            The payment panel will appear here after you click “Start secure
+            payment.”
+          </p>
+        )}
+        {sdkReady && !instanceReady && (
+          <p className="mt-2 text-sm opacity-70">Loading payment panel…</p>
+        )}
+      </section>
 
       <p className="text-xs opacity-60">
         By paying, you agree to the ranch’s property rules and cancellation
