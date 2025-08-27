@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  serverTimestamp,
+  setDoc,
+  writeBatch,
+  increment,
+} from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
@@ -58,6 +65,13 @@ type BookingLine = {
   numberOfHunters: number;
   partyDeckDates?: string[];
   seasonConfig?: SeasonConfig;
+  /**
+   * Subtotal for this booking.  When provided, this value will be used to
+   * calculate per‑hunter pricing for the embedded payments products array.  If
+   * omitted, the hunt package line will default to zero, which causes the
+   * embedded panel to display $NaN for that line.  Make sure to include
+   * `bookingTotal` when calling `buildProductsForJwt`.
+   */
   bookingTotal?: number;
 };
 
@@ -226,52 +240,50 @@ function buildProductsForJwt(args: {
   merchItems: MerchItem[];
 }) {
   const { booking, merchItems } = args;
-
   const products: Array<{
     name?: string;
     skuCode?: string;
     quantity?: number;
-    price?: number; // unit price in whole currency units (USD)
+    price?: number; // unit price per item
     description?: string;
     unitOfMeasure?: string;
   }> = [];
 
+  // If there is a booking, include a line for the hunt and optionally the party deck.
   if (booking) {
     const hunters = Math.max(1, Number(booking.numberOfHunters || 1));
+    // Party deck subtotal: number of party deck days times the configured rate.  Default to 500 if seasonConfig undefined.
     const partyDays = booking.partyDeckDates?.length || 0;
-    const partyRate = booking.seasonConfig?.partyDeckRatePerDay ?? 500; // your default
+    const partyRate = booking.seasonConfig?.partyDeckRatePerDay ?? 500;
     const partySubtotal = partyDays * partyRate;
-
-    // bookingTotal comes from calculateTotals; fall back to 0 if missing
+    // Total for the booking portion (may be undefined).  Use 0 if missing.
     const bookingSubtotal = Number(booking.bookingTotal || 0);
-
-    // Per-hunter unit price for the hunt package (exclude party deck so it’s a separate line)
+    // Compute per‑hunter unit price by subtracting the party deck subtotal and dividing by hunters.
     const perHunterUnit = Math.max(
       0,
       Math.round((bookingSubtotal - partySubtotal) / hunters)
     );
-
     products.push({
       name: "Dove Hunt Package",
       skuCode: "HUNT",
       quantity: hunters,
-      price: perHunterUnit, // ✅ real unit price, fixes $NaN
+      price: perHunterUnit,
       description: `${booking.dates.length} day(s) • ${hunters} hunter(s)`,
       unitOfMeasure: "Each",
     });
-
+    // If the party deck is reserved for any days, add a separate line.
     if (partyDays > 0) {
       products.push({
         name: "Party Deck",
         skuCode: "PARTY",
         quantity: partyDays,
-        price: partyRate, // per-day unit price
+        price: partyRate,
         unitOfMeasure: "Day",
       });
     }
   }
 
-  // merch (unchanged, but make sure price is unit price, not extended)
+  // Add each merch item.  Note: price must be a unit price (not extended).
   for (const m of merchItems) {
     products.push({
       name: m.name,
@@ -281,7 +293,6 @@ function buildProductsForJwt(args: {
       unitOfMeasure: "Each",
     });
   }
-
   return products;
 }
 
@@ -427,6 +438,9 @@ export default function CheckoutPage() {
     return initial;
   }) as unknown as [CustomerInfo, any];
 
+  // Compute booking and merch totals.  We keep the full totals object so we can
+  // reference bookingTotal later when building the products array for the embedded
+  // panel.  Amount is extracted from totals.amount for convenience.
   const totals = useMemo(
     () =>
       calculateTotals({
@@ -450,6 +464,32 @@ export default function CheckoutPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("") as unknown as [string, any];
   const instanceRef = useRef(null) as unknown as { current: any };
+
+  // Inject a small stylesheet to hide the default thumbnail placeholder in the
+  // embedded products list.  Without this, the panel shows a blank white
+  // square before each product name.  By removing the element and adjusting
+  // margins, the UI looks cleaner, especially on mobile.  Cleanup the style
+  // when the component unmounts to avoid leaking styles into other pages.
+  useEffect(() => {
+    const styleEl = document.createElement("style");
+    styleEl.id = "embedded-payments-custom-style";
+    styleEl.textContent = `
+      /* Hide product thumbnails */
+      #${EMBEDDED_CONTAINER_ID} .product-thumbnail {
+        display: none !important;
+      }
+      /* Remove left margin on the product info when thumbnail is hidden */
+      #${EMBEDDED_CONTAINER_ID} .product-info {
+        margin-left: 0 !important;
+      }
+    `;
+    document.head.appendChild(styleEl);
+    return () => {
+      try {
+        styleEl.parentElement?.removeChild(styleEl);
+      } catch {}
+    };
+  }, []);
 
   const ensureOrder = useCallback(async () => {
     const ref = doc(db, "orders", orderId);
@@ -592,6 +632,7 @@ export default function CheckoutPage() {
                   numberOfHunters: booking.numberOfHunters,
                   partyDeckDates: booking.partyDeckDates,
                   seasonConfig: seasonConfig || undefined,
+                  // Include bookingTotal so per‑hunter pricing can be computed.
                   bookingTotal: totals.bookingTotal,
                 }
               : null,
@@ -649,11 +690,18 @@ export default function CheckoutPage() {
             onTxnSuccess: async (_g: any, data: any) => {
               try {
                 const ref = doc(db, "orders", orderId);
+                // Extract a reasonable payment identifier from various possible fields on the
+                // event.  Some gateways return PaymentId or TransactionId rather than
+                // paymentId (case sensitivity differs), so check a few options.  If
+                // nothing matches, this will remain null.
                 const paymentId =
-                  data?.paymentId ||
-                  data?.PaymentId ||
-                  data?.transactionId ||
-                  data?.id ||
+                  data?.paymentId ??
+                  data?.PaymentId ??
+                  data?.transactionId ??
+                  data?.TransactionId ??
+                  data?.transactionRecordId ??
+                  data?.TransactionRecordId ??
+                  data?.id ??
                   null;
                 await setDoc(
                   ref,
@@ -667,8 +715,35 @@ export default function CheckoutPage() {
                   },
                   { merge: true }
                 );
+
+                // Increment huntersBooked for each booked date.  This mirrors the
+                // behaviour performed in the server-side webhook for hosted
+                // payments.  It ensures availability is updated immediately for
+                // embedded checkout, even if a webhook is not received.
+                if (
+                  booking &&
+                  booking.dates?.length &&
+                  booking.numberOfHunters
+                ) {
+                  const batch = writeBatch(db);
+                  for (const date of booking.dates) {
+                    const availRef = doc(db, "availability", date);
+                    batch.set(
+                      availRef,
+                      {
+                        huntersBooked: increment(booking.numberOfHunters),
+                        updatedAt: serverTimestamp(),
+                      },
+                      { merge: true }
+                    );
+                  }
+                  await batch.commit();
+                }
               } catch (err) {
-                console.warn("Failed to record Deluxe lastEvent", err);
+                console.warn(
+                  "Failed to record Deluxe lastEvent or update availability",
+                  err
+                );
               }
               navigate(`/dashboard?status=paid&orderId=${orderId}`);
             },
@@ -690,6 +765,13 @@ export default function CheckoutPage() {
             onTokenFailed: (_g: any, data: any) => {
               console.warn("[Deluxe] Token failed", data);
             },
+            // Some builds of the Deluxe SDK emit an onCancel event (especially for
+            // digital wallets).  Define a no‑op handler to suppress console
+            // warnings like "onCancel is not defined".
+            onCancel: (_g: any, data: any) => {
+              console.log("[Deluxe] Payment cancelled", data);
+              setErrorMsg("Payment cancelled.");
+            },
           })
         );
       } else {
@@ -705,12 +787,18 @@ export default function CheckoutPage() {
 
       const renderHost: any =
         handlerHost && handlerHost.render ? handlerHost : EP;
+      // Customize the embedded form styling.  See Deluxe documentation for
+      // additional options such as walletsbgcolor, walletsborderadius, etc.
       renderHost.render({
         containerId: EMBEDDED_CONTAINER_ID,
         paymentpanelstyle: "light",
+        // Background color for the products panel
         productsbgcolor: "#f8f8f8",
+        // Font color for line items
         productsfontcolor: "#333333",
+        // Font size for line items
         productsfontsize: "15px",
+        // Colors for the pay and cancel buttons
         paybuttoncolor: "#4CAF50",
         cancelbuttoncolor: "#f44336",
       });
