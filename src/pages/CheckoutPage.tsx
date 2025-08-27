@@ -23,7 +23,7 @@ declare global {
   }
 }
 
-// Allow for a global lexical binding in some SDK builds
+// Some SDK builds expose a global lexical "EmbeddedPayments" (not on window)
 declare const EmbeddedPayments: EPApi | undefined;
 
 export type CustomerInfo = {
@@ -58,6 +58,7 @@ type BookingLine = {
   numberOfHunters: number;
   partyDeckDates?: string[];
   seasonConfig?: SeasonConfig;
+  bookingTotal?: number; // we compute this client-side to derive per-hunter unit prices
 };
 
 type MerchItem = { skuCode: string; name: string; qty: number; price: number };
@@ -116,7 +117,7 @@ type OrderDoc = {
 const ORDER_ID_KEY = "rdpb:orderId";
 const EMBEDDED_CONTAINER_ID = "embeddedpayments";
 
-/** Recursively remove any fields with value `undefined`. */
+/** Remove any undefined fields (for cleaner Firestore writes). */
 function pruneUndefinedDeep<T>(obj: T): T {
   if (Array.isArray(obj)) return obj.map((v) => pruneUndefinedDeep(v)) as any;
   if (
@@ -175,14 +176,14 @@ function loadDeluxeSdk(src?: string): Promise<void> {
   });
 }
 
-/** Find the EP object (from window or global lexical) */
+/** Locate EmbeddedPayments in any of the places Deluxe might expose it. */
 function resolveEP(): EPApi | undefined {
   const w = window as any;
   if (w.EmbeddedPayments) return w.EmbeddedPayments;
   if (w.Deluxe?.EmbeddedPayments) return w.Deluxe.EmbeddedPayments;
   if (w.deluxe?.EmbeddedPayments) return w.deluxe.EmbeddedPayments;
   try {
-    // indirect eval to access global lexical bindings
+    // Access global lexical binding (some SDK builds use this pattern)
     // eslint-disable-next-line no-eval
     const EP = (0, eval)(
       "typeof EmbeddedPayments !== 'undefined' ? EmbeddedPayments : undefined"
@@ -192,7 +193,7 @@ function resolveEP(): EPApi | undefined {
   return undefined;
 }
 
-async function waitForEmbeddedPayments(timeoutMs = 8000): Promise<EPApi> {
+async function waitForEmbeddedPayments(timeoutMs = 10000): Promise<EPApi> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     const EP = resolveEP();
@@ -205,6 +206,7 @@ async function waitForEmbeddedPayments(timeoutMs = 8000): Promise<EPApi> {
   );
 }
 
+/** Helpers for pricing logic **/
 function isConsecutive(d0: string, d1: string): boolean {
   const a = new Date(`${d0}T00:00:00`);
   const b = new Date(`${d1}T00:00:00`);
@@ -220,6 +222,10 @@ function inRange(iso: string, startIso: string, endIso: string) {
   return t >= s && t <= e;
 }
 
+/** Build products for the Embedded JWT.
+ * We must send *unit* prices (per hunter / per day) — not the grand total.
+ * Otherwise Deluxe shows $NaN in the item list.
+ */
 function buildProductsForJwt(args: {
   booking: BookingLine | null;
   merchItems: MerchItem[];
@@ -234,16 +240,36 @@ function buildProductsForJwt(args: {
     unitOfMeasure?: string;
   }> = [];
   if (booking) {
+    const hunters = Math.max(1, Number(booking.numberOfHunters || 1));
+    const partyDays = booking.partyDeckDates?.length || 0;
+    const partyRate = booking.seasonConfig?.partyDeckRatePerDay ?? 500;
+    const partySubtotal = partyDays * partyRate;
+    const bookingSubtotal = Number(booking.bookingTotal || 0);
+    const perHunterUnit = Math.max(
+      0,
+      Math.round((bookingSubtotal - partySubtotal) / hunters)
+    );
+
     products.push({
       name: "Dove Hunt Package",
       skuCode: "HUNT",
-      quantity: booking.numberOfHunters,
-      price: 0,
-      description: `${booking.dates.length} day(s) • ${booking.numberOfHunters} hunter(s)`,
+      quantity: hunters,
+      price: perHunterUnit, // ✅ prevents $NaN
+      description: `${booking.dates.length} day(s) • ${hunters} hunter(s)`,
       unitOfMeasure: "Each",
     });
+
+    if (partyDays > 0) {
+      products.push({
+        name: "Party Deck",
+        skuCode: "PARTY",
+        quantity: partyDays,
+        price: partyRate,
+        unitOfMeasure: "Day",
+      });
+    }
   }
-  for (const m of merchItems)
+  for (const m of merchItems) {
     products.push({
       name: m.name,
       skuCode: m.skuCode,
@@ -251,9 +277,11 @@ function buildProductsForJwt(args: {
       price: m.price,
       unitOfMeasure: "Each",
     });
+  }
   return products;
 }
 
+/** Calculate booking + merch totals (all values as whole currency units). */
 function calculateTotals(args: {
   booking: BookingLine | null;
   merchItems: MerchItem[];
@@ -337,6 +365,10 @@ export default function CheckoutPage() {
   const { user } = useAuth();
   const { booking, merchItems, isHydrated } = useCart();
 
+  // ----- NEW: Step flow 1 → 2 → 3 (Customer → Review → Pay)
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+
+  // Persist/derive orderId
   const [orderId] = useState(() => {
     const existing = localStorage.getItem(ORDER_ID_KEY);
     if (existing) return existing;
@@ -348,6 +380,7 @@ export default function CheckoutPage() {
     return uuid;
   }) as unknown as [string, any];
 
+  // Season config
   const [seasonConfig, setSeasonConfig] = useState(null as SeasonConfig | null);
   const [cfgError, setCfgError] = useState("") as unknown as [string, any];
   useEffect(() => {
@@ -365,6 +398,7 @@ export default function CheckoutPage() {
     };
   }, []);
 
+  // Merch array
   const merchArray: MerchItem[] = useMemo(() => {
     const arr: MerchItem[] = [];
     const items = merchItems as any;
@@ -381,6 +415,7 @@ export default function CheckoutPage() {
     return arr;
   }, [merchItems]);
 
+  // Customer state
   const [customer, setCustomer] = useState(() => {
     const displayName = user?.displayName || "";
     const parts = displayName.split(" ");
@@ -396,7 +431,8 @@ export default function CheckoutPage() {
     return initial;
   }) as unknown as [CustomerInfo, any];
 
-  const { amount } = useMemo(
+  // Totals
+  const totals = useMemo(
     () =>
       calculateTotals({
         booking: booking
@@ -412,13 +448,16 @@ export default function CheckoutPage() {
       }),
     [booking, merchArray, seasonConfig]
   );
+  const amount = totals.amount;
 
+  // Embedded lifecycle
   const [sdkReady, setSdkReady] = useState(false);
   const [instanceReady, setInstanceReady] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("") as unknown as [string, any];
   const instanceRef = useRef(null) as unknown as { current: any };
 
+  // Firestore ensure order
   const ensureOrder = useCallback(async () => {
     const ref = doc(db, "orders", orderId);
     const snap = await getDoc(ref);
@@ -481,6 +520,7 @@ export default function CheckoutPage() {
       );
   }, [amount, booking, customer, merchArray, orderId, seasonConfig, user]);
 
+  // Start Embedded flow (Step 3)
   const startEmbeddedPayment = useCallback(async () => {
     setErrorMsg("");
 
@@ -497,7 +537,11 @@ export default function CheckoutPage() {
 
     setIsSubmitting(true);
     try {
-      // destroy any earlier instance
+      // 1) Switch UI to Step 3 so the container exists, then give the DOM a tick
+      setStep(3);
+      await new Promise((r) => setTimeout(r, 0));
+
+      // 2) Destroy any earlier instance
       try {
         const inst = instanceRef.current;
         if (inst?.destroy) inst.destroy();
@@ -505,10 +549,10 @@ export default function CheckoutPage() {
         instanceRef.current = null;
       } catch {}
 
-      // ensure order
+      // 3) Ensure order exists
       await ensureOrder();
 
-      // figure out which methods to show
+      // 4) Wallet/method flags
       let paymentMethods: ("cc" | "ach")[] = ["cc"];
       let applePayEnabled = false;
       let googlePayEnabled = false;
@@ -534,7 +578,7 @@ export default function CheckoutPage() {
         }
       } catch {}
 
-      // get short-lived JWT
+      // 5) Mint JWT from server
       const jwtResp = await fetch("/api/createEmbeddedJwt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -560,6 +604,7 @@ export default function CheckoutPage() {
                   numberOfHunters: booking.numberOfHunters,
                   partyDeckDates: booking.partyDeckDates,
                   seasonConfig: seasonConfig || undefined,
+                  bookingTotal: totals.bookingTotal, // <— provide for unit pricing
                 }
               : null,
             merchItems: merchArray,
@@ -578,13 +623,13 @@ export default function CheckoutPage() {
       };
       if (!jwt) throw new Error("JWT missing from response");
 
-      // load the SDK from the correct base
+      // 6) Load SDK
       const scriptSrc = embeddedBase
         ? `${embeddedBase}/embedded/javascripts/deluxe.js`
         : undefined;
       await loadDeluxeSdk(scriptSrc);
 
-      // resolve EP object and init
+      // 7) Resolve EmbeddedPayments
       const EP = await waitForEmbeddedPayments();
       setSdkReady(true);
 
@@ -601,7 +646,6 @@ export default function CheckoutPage() {
         hideGooglePayButton: !googlePayEnabled,
       } as any;
 
-      // IMPORTANT: init may return void OR an instance; setEventHandlers may exist on EP or return value.
       const initResult = EP.init(jwt, config);
       const handlerHost: any =
         (initResult &&
@@ -642,10 +686,12 @@ export default function CheckoutPage() {
             onTxnFailed: (_g: any, data: any) => {
               console.warn("[Deluxe] Failed:", data);
               setErrorMsg("Payment failed. Please try again.");
+              setStep(2);
             },
             onTxnCancelled: (_g: any, data: any) => {
               console.log("[Deluxe] Cancelled:", data);
               setErrorMsg("Payment cancelled.");
+              setStep(2);
             },
             onValidationError: (_g: any, data: any) => {
               console.warn("[Deluxe] Validation error:", data);
@@ -659,14 +705,11 @@ export default function CheckoutPage() {
             },
           })
         );
-      } else {
-        console.warn(
-          "Deluxe: setEventHandlers() not available on this build; continuing without explicit handlers."
-        );
       }
 
       instanceRef.current = handlerHost || EP;
 
+      // 8) Render into container (which exists now on step 3)
       if (!document.getElementById(EMBEDDED_CONTAINER_ID))
         throw new Error(`Missing container #${EMBEDDED_CONTAINER_ID}`);
 
@@ -697,32 +740,10 @@ export default function CheckoutPage() {
     navigate,
     orderId,
     seasonConfig,
+    totals.bookingTotal,
   ]);
 
-  const fallbackHostedCheckout = useCallback(async () => {
-    try {
-      await ensureOrder();
-      const origin = window.location.origin;
-      const resp = await fetch("/api/createDeluxePayment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orderId,
-          successUrl: `${origin}/dashboard?status=paid&orderId=${orderId}`,
-          cancelUrl: `${origin}/dashboard?status=cancelled&orderId=${orderId}`,
-        }),
-      });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data?.error || "Hosted checkout failed");
-      const url = data?.paymentUrl;
-      if (!url) throw new Error("Missing paymentUrl");
-      window.location.href = url;
-    } catch (err: any) {
-      console.error(err);
-      setErrorMsg(err?.message || "Hosted checkout failed");
-    }
-  }, [ensureOrder, orderId]);
-
+  // Cleanup
   useEffect(() => {
     return () => {
       try {
@@ -736,13 +757,89 @@ export default function CheckoutPage() {
   }, []);
 
   const canStart = useMemo(() => amount > 0 && !!orderId, [amount, orderId]);
+  const canNextFromStep1 = !!(
+    customer.firstName &&
+    customer.lastName &&
+    customer.email
+  );
 
   if (!isHydrated)
     return <div className="text-center py-20">Loading cart…</div>;
 
+  // Simple stepper UI
+  const Stepper = () => (
+    <div className="flex items-center gap-3 mb-6 text-sm select-none mt-20">
+      {[1, 2, 3].map((n) => (
+        <div key={n} className="flex items-center gap-2">
+          <div
+            className={`rounded-full flex items-center justify-center font-semibold ${
+              step === n
+                ? "bg-black text-white h-9 w-9"
+                : "bg-neutral-200 text-black h-8 w-8"
+            }`}
+          >
+            {n}
+          </div>
+          <span className="mr-2">
+            {n === 1 ? "Customer" : n === 2 ? "Review" : "Pay"}
+          </span>
+          {n < 3 && <div className="w-8 h-px bg-neutral-300" />}
+        </div>
+      ))}
+    </div>
+  );
+
+  // Itemized lines for Step 2
+  const OrderLines = () => {
+    const lines: Array<{
+      label: string;
+      qty?: number;
+      price?: number;
+      note?: string;
+    }> = [];
+    if (booking) {
+      const hunters = booking.numberOfHunters || 1;
+      const days = booking.dates.length;
+      const partyDays = booking.partyDeckDates?.length || 0;
+      const partyRate = seasonConfig?.partyDeckRatePerDay ?? 500;
+      const perHunter = Math.max(
+        0,
+        Math.round(
+          (totals.bookingTotal - partyDays * partyRate) / Math.max(1, hunters)
+        )
+      );
+      lines.push({
+        label: "Dove Hunt Package",
+        qty: hunters,
+        price: perHunter,
+        note: `${days} day(s)`,
+      });
+      if (partyDays > 0)
+        lines.push({ label: "Party Deck", qty: partyDays, price: partyRate });
+    }
+    for (const m of merchArray)
+      lines.push({ label: m.name, qty: m.qty, price: m.price });
+    return (
+      <div className="divide-y">
+        {lines.map((l, idx) => (
+          <div key={idx} className="flex items-center justify-between py-2">
+            <div>
+              <div className="font-medium">{l.label}</div>
+              {l.note && <div className="text-xs opacity-70">{l.note}</div>}
+            </div>
+            <div className="text-right">
+              <div className="text-sm">x{l.qty ?? 1}</div>
+              <div className="font-semibold">${(l.price ?? 0).toFixed(2)}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-10">
-      <div className="mb-6">
+      <div className="mb-2">
         <h1 className="text-3xl font-semibold">Checkout</h1>
         <p className="text-sm opacity-70">
           Order ID: <span className="font-mono">{orderId}</span>
@@ -755,51 +852,91 @@ export default function CheckoutPage() {
         </div>
       )}
 
-      <section className="mb-8 p-4 rounded-xl border bg-white">
-        <h2 className="text-xl mb-4 font-acumin">Customer Info</h2>
-        <CustomerInfoForm value={customer} onChange={setCustomer} />
-        <div className="mt-10 p-4">
-          <h2 className="text-xl mb-3 font-acumin">Order Summary</h2>
-          <div className="flex items-center gap-2 max-w-[200px]">
+      <Stepper />
+
+      {/* STEP 1 — CUSTOMER */}
+      {step === 1 && (
+        <section className="mb-8 p-4 rounded-xl border bg-white">
+          <h2 className="text-xl mb-4">Customer Info</h2>
+          <CustomerInfoForm value={customer} onChange={setCustomer} />
+          <div className="mt-6 flex justify-between">
+            <button
+              onClick={() => navigate(-1)}
+              className="px-4 py-2 rounded-lg border"
+            >
+              Back
+            </button>
+            <button
+              onClick={() => setStep(2)}
+              disabled={!canNextFromStep1}
+              className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50"
+            >
+              Next: Review Order
+            </button>
+          </div>
+        </section>
+      )}
+
+      {/* STEP 2 — REVIEW */}
+      {step === 2 && (
+        <section className="mb-8 px-4 py-8 rounded-xl border bg-white">
+          <h2 className="text-2xl mb-3 font-acumin">Order Summary</h2>
+          <OrderLines />
+          <div className="mt-4 flex items-center justify-between">
             <div className="text-lg">Total</div>
             <div className="text-2xl font-bold">${amount.toFixed(2)}</div>
           </div>
-        </div>
-        <h2 className="text-xl mb-3 font-acumin">Pay Securely (Embedded)</h2>
-        <div className="flex flex-wrap gap-3 mb-4">
-          <button
-            disabled={!canStart || isSubmitting}
-            onClick={startEmbeddedPayment}
-            className="px-4 py-2 rounded-lg bg-[var(--color-background)] text-white disabled:opacity-50 transition-colors"
-          >
-            {isSubmitting ? "Starting…" : "Start secure payment"}
-          </button>
-          <button
-            onClick={fallbackHostedCheckout}
-            className="hidden px-4 py-2 rounded-lg bg-gray-700 text-white"
-          >
-            Use hosted checkout (fallback)
-          </button>
-        </div>
+          <div className="mt-6 flex flex-wrap gap-3 justify-between">
+            <button
+              onClick={() => setStep(1)}
+              className="px-4 py-2 rounded-lg border"
+            >
+              Back
+            </button>
+            <button
+              disabled={!canStart || isSubmitting}
+              onClick={startEmbeddedPayment}
+              className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50 transition-colors"
+            >
+              {isSubmitting ? "Starting…" : "Start secure payment"}
+            </button>
+          </div>
+        </section>
+      )}
 
-        <div
-          id={EMBEDDED_CONTAINER_ID}
-          className={[
-            "min-h-[240px] rounded-xl border",
-            sdkReady ? "opacity-100" : "opacity-60",
-            "transition-opacity",
-          ].join(" ")}
-        />
-        {!sdkReady && (
-          <p className="mt-2 text-sm opacity-70">
-            The payment panel will appear here after you click “Start secure
-            payment.”
-          </p>
-        )}
-        {sdkReady && !instanceReady && (
-          <p className="mt-2 text-sm opacity-70">Loading payment panel…</p>
-        )}
-      </section>
+      {/* STEP 3 — PAY (Embedded) */}
+      {step === 3 && (
+        <section className="mb-6 p-4 rounded-xl border bg-neutral-100">
+          <h2 className="text-xl mb-2">Pay Securely (Embedded)</h2>
+          <div className="mb-3 text-sm opacity-70">
+            Total: ${amount.toFixed(2)}
+          </div>
+
+          <div
+            id={EMBEDDED_CONTAINER_ID}
+            className={[
+              "min-h-[260px] rounded-xl border bg-white",
+              sdkReady ? "opacity-100" : "opacity-60",
+              "transition-opacity",
+            ].join(" ")}
+          />
+          {!sdkReady && (
+            <p className="mt-2 text-sm opacity-70">Loading payment panel…</p>
+          )}
+          {sdkReady && !instanceReady && (
+            <p className="mt-2 text-sm opacity-70">Initializing…</p>
+          )}
+
+          <div className="mt-6 flex justify-between">
+            <button
+              onClick={() => setStep(2)}
+              className="px-4 py-2 rounded-lg border"
+            >
+              Back to review
+            </button>
+          </div>
+        </section>
+      )}
 
       <p className="text-xs opacity-60">
         By paying, you agree to the ranch’s property rules and cancellation
