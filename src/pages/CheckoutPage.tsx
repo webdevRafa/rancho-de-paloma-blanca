@@ -756,24 +756,21 @@ export default function CheckoutPage() {
       )}
 
       <section className="mb-8 p-4 rounded-xl border bg-white">
-        <h2 className="text-xl mb-4">Customer Info</h2>
+        <h2 className="text-xl mb-4 font-acumin">Customer Info</h2>
         <CustomerInfoForm value={customer} onChange={setCustomer} />
         <div className="mt-10 p-4">
-          <h2 className="text-xl mb-3">Order Summary</h2>
+          <h2 className="text-xl mb-3 font-acumin">Order Summary</h2>
           <div className="flex items-center gap-2 max-w-[200px]">
             <div className="text-lg">Total</div>
             <div className="text-2xl font-bold">${amount.toFixed(2)}</div>
           </div>
         </div>
-      </section>
-
-      <section className="mb-6 p-4 rounded-xl border bg-neutral-100">
-        <h2 className="text-xl mb-3">Pay Securely (Embedded)</h2>
+        <h2 className="text-xl mb-3 font-acumin">Pay Securely (Embedded)</h2>
         <div className="flex flex-wrap gap-3 mb-4">
           <button
             disabled={!canStart || isSubmitting}
             onClick={startEmbeddedPayment}
-            className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50 transition-colors"
+            className="px-4 py-2 rounded-lg bg-[var(--color-background)] text-white disabled:opacity-50 transition-colors"
           >
             {isSubmitting ? "Starting…" : "Start secure payment"}
           </button>
