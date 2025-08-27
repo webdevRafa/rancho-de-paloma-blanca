@@ -60,7 +60,7 @@ const CustomerInfoForm = ({ value, onChange }: Props) => {
   };
 
   return (
-    <div className="bg-neutral-100 p-3 rounded border">
+    <div className="bg-white shadow-lg p-3 rounded">
       <h3 className="text-lg font-semibold font-acumin mb-2">
         Payer Information
       </h3>
