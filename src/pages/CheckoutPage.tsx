@@ -58,6 +58,7 @@ type BookingLine = {
   numberOfHunters: number;
   partyDeckDates?: string[];
   seasonConfig?: SeasonConfig;
+  bookingTotal?: number;
 };
 
 type MerchItem = { skuCode: string; name: string; qty: number; price: number };
@@ -225,25 +226,53 @@ function buildProductsForJwt(args: {
   merchItems: MerchItem[];
 }) {
   const { booking, merchItems } = args;
+
   const products: Array<{
     name?: string;
     skuCode?: string;
     quantity?: number;
-    price?: number;
+    price?: number; // unit price in whole currency units (USD)
     description?: string;
     unitOfMeasure?: string;
   }> = [];
+
   if (booking) {
+    const hunters = Math.max(1, Number(booking.numberOfHunters || 1));
+    const partyDays = booking.partyDeckDates?.length || 0;
+    const partyRate = booking.seasonConfig?.partyDeckRatePerDay ?? 500; // your default
+    const partySubtotal = partyDays * partyRate;
+
+    // bookingTotal comes from calculateTotals; fall back to 0 if missing
+    const bookingSubtotal = Number(booking.bookingTotal || 0);
+
+    // Per-hunter unit price for the hunt package (exclude party deck so it’s a separate line)
+    const perHunterUnit = Math.max(
+      0,
+      Math.round((bookingSubtotal - partySubtotal) / hunters)
+    );
+
     products.push({
       name: "Dove Hunt Package",
       skuCode: "HUNT",
-      quantity: booking.numberOfHunters,
-      price: 0,
-      description: `${booking.dates.length} day(s) • ${booking.numberOfHunters} hunter(s)`,
+      quantity: hunters,
+      price: perHunterUnit, // ✅ real unit price, fixes $NaN
+      description: `${booking.dates.length} day(s) • ${hunters} hunter(s)`,
       unitOfMeasure: "Each",
     });
+
+    if (partyDays > 0) {
+      products.push({
+        name: "Party Deck",
+        skuCode: "PARTY",
+        quantity: partyDays,
+        price: partyRate, // per-day unit price
+        unitOfMeasure: "Day",
+      });
+    }
   }
-  for (const m of merchItems)
+
+  // merch (unchanged, but make sure price is unit price, not extended)
+  for (const m of merchItems) {
     products.push({
       name: m.name,
       skuCode: m.skuCode,
@@ -251,6 +280,8 @@ function buildProductsForJwt(args: {
       price: m.price,
       unitOfMeasure: "Each",
     });
+  }
+
   return products;
 }
 
@@ -396,7 +427,7 @@ export default function CheckoutPage() {
     return initial;
   }) as unknown as [CustomerInfo, any];
 
-  const { amount } = useMemo(
+  const totals = useMemo(
     () =>
       calculateTotals({
         booking: booking
@@ -412,6 +443,7 @@ export default function CheckoutPage() {
       }),
     [booking, merchArray, seasonConfig]
   );
+  const amount = totals.amount;
 
   const [sdkReady, setSdkReady] = useState(false);
   const [instanceReady, setInstanceReady] = useState(false);
@@ -560,6 +592,7 @@ export default function CheckoutPage() {
                   numberOfHunters: booking.numberOfHunters,
                   partyDeckDates: booking.partyDeckDates,
                   seasonConfig: seasonConfig || undefined,
+                  bookingTotal: totals.bookingTotal,
                 }
               : null,
             merchItems: merchArray,
@@ -697,6 +730,7 @@ export default function CheckoutPage() {
     navigate,
     orderId,
     seasonConfig,
+    totals.bookingTotal,
   ]);
 
   const fallbackHostedCheckout = useCallback(async () => {
