@@ -496,7 +496,7 @@ function calculateTotals(args: {
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { booking, merchItems, isHydrated } = useCart();
+  const { booking, merchItems, isHydrated, clearCart } = useCart();
 
   // Track which step of the checkout the user is on.  Step 1 collects
   // customer info, step 2 reviews the order, and step 3 displays the
@@ -949,8 +949,15 @@ export default function CheckoutPage() {
                   "Failed to record Deluxe lastEvent or update availability",
                   err
                 );
+              } finally {
+                try {
+                  clearCart?.();
+                } catch {}
+                try {
+                  localStorage.removeItem(ORDER_ID_KEY);
+                } catch {}
+                navigate(`/dashboard?status=paid&orderId=${orderId}`);
               }
-              navigate(`/dashboard?status=paid&orderId=${orderId}`);
             },
             onTxnFailed: (_g: any, data: any) => {
               console.warn("[Deluxe] Failed:", data);
