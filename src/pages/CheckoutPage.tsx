@@ -14,9 +14,6 @@ import { useCart } from "../context/CartContext";
 import CustomerInfoForm from "../components/CustomerInfoForm";
 import { getSeasonConfig } from "../utils/getSeasonConfig";
 import toIsoAlpha3 from "../utils/toIsoAlpha3";
-// Bring in our date formatting helpers.  formatLongDate creates readable
-// labels like "Wednesday, September 17th, 2025".  We will use it to
-// present hunt and party deck dates in the Review/Pay steps.
 import { formatLongDate } from "../utils/formatDate";
 
 type EPApi = {
@@ -33,8 +30,6 @@ declare global {
     deluxe?: { EmbeddedPayments?: EPApi };
   }
 }
-
-// Allow for a global lexical binding in some SDK builds
 declare const EmbeddedPayments: EPApi | undefined;
 
 export type CustomerInfo = {
@@ -69,13 +64,11 @@ type BookingLine = {
   numberOfHunters: number;
   partyDeckDates?: string[];
   seasonConfig?: SeasonConfig;
-  /**
-   * Subtotal for this booking.  When provided, this value will be used to
+  /** Subtotal for this booking.  When provided, this value will be used to
    * calculate per‑hunter pricing for the embedded payments products array.  If
    * omitted, the hunt package line will default to zero, which causes the
    * embedded panel to display $NaN for that line.  Make sure to include
-   * `bookingTotal` when calling `buildProductsForJwt`.
-   */
+   * `bookingTotal` when calling `buildProductsForJwt`. */
   bookingTotal?: number;
 };
 
@@ -368,6 +361,17 @@ function buildProductsForJwt(args: {
     unitOfMeasure?: string;
   }> = [];
 
+  /**
+   * Coerce a value into a numeric amount with 2 decimal places.  Accepts
+   * strings or numbers.  Returns 0 for invalid or negative inputs.  This
+   * helper ensures that any price passed to Deluxe is a finite number to
+   * prevent NaN from appearing in the embedded panel.
+   */
+  const toMoney = (v: unknown): number => {
+    const n = typeof v === "string" ? Number(v) : (v as number);
+    return Number.isFinite(n) && n >= 0 ? Number(n.toFixed(2)) : 0;
+  };
+
   // If there is a booking, include a line for the hunt and optionally the party deck.
   if (booking) {
     const hunters = Math.max(1, Number(booking.numberOfHunters || 1));
@@ -386,7 +390,9 @@ function buildProductsForJwt(args: {
       name: "Dove Hunt Package",
       skuCode: "HUNT",
       quantity: hunters,
-      price: perHunterUnit,
+      // Convert the computed unit into a proper money value.  Using toMoney
+      // ensures the price is a valid, finite number with two decimals.
+      price: toMoney(perHunterUnit),
       description: `${booking.dates.length} day(s) • ${hunters} hunter(s)`,
       unitOfMeasure: "Each",
     });
@@ -396,7 +402,7 @@ function buildProductsForJwt(args: {
         name: "Party Deck",
         skuCode: "PARTY",
         quantity: partyDays,
-        price: partyRate,
+        price: toMoney(partyRate),
         unitOfMeasure: "Day",
       });
     }
@@ -408,7 +414,8 @@ function buildProductsForJwt(args: {
       name: m.name,
       skuCode: m.skuCode,
       quantity: m.qty,
-      price: m.price,
+      // Ensure merch item unit price is a valid money value
+      price: toMoney(m.price),
       unitOfMeasure: "Each",
     });
   }
@@ -674,11 +681,6 @@ export default function CheckoutPage() {
       }
     );
   }, [booking?.partyDeckDates]);
-
-  // The per‑page styles for the embedded panel are injected via
-  // ensureEmbeddedStyles() inside startEmbeddedPayment().  That helper
-  // inserts a dedicated style tag into the document head and reuses it on
-  // subsequent renders, so we no longer inject styles here.
 
   const ensureOrder = useCallback(async () => {
     const ref = doc(db, "orders", orderId);
@@ -1379,7 +1381,7 @@ export default function CheckoutPage() {
             <p className="mt-2 text-sm opacity-70">Loading payment panel…</p>
           )}
           {/* Back button */}
-          <div className="mt-6 flex justify-start">
+          <div class-time="mt-6 flex justify-start">
             <button
               onClick={handleBackToReview}
               className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50"

@@ -80,6 +80,11 @@ function embeddedBase(): string {
 }
 
 // ---- Helpers ----
+// Money sanitizer: coerce numbers/strings to a 2-decimal number; return null if invalid
+function asMoney(n: unknown): number | null {
+  const v = typeof n === "string" ? Number(n) : (n as number);
+  return Number.isFinite(v) && v >= 0 ? Number((v as number).toFixed(2)) : null;
+}
 const base64url = (obj: object) => Buffer.from(JSON.stringify(obj)).toString("base64url");
 
 // Sign a payload with HS256 for Embedded endpoints (and for the embedded SDK token)
@@ -312,27 +317,28 @@ export const api = onRequest(
       if (req.method === "POST" && url === "/api/createEmbeddedJwt") {
         try {
           const body = (req.body || {}) as any;
-          const amount = Number(body.amount);
+          const rawAmount = asMoney(body.amount);
           const currency = (body.currency || "USD") as "USD" | "CAD";
           const orderId = body.orderId ? String(body.orderId) : undefined;
           const customerRaw = body.customer;
           const productsRaw = body.products as any[] | undefined;
           const summary = body.summary as { hide?: boolean; hideTotals?: boolean } | undefined;
 
-          if (!amount || amount <= 0) {
+          if (rawAmount === null || rawAmount <= 0) {
             res.status(400).json({ error: "invalid-amount" });
             return;
           }
 
           // Optionally override amount from order total
-          let finalAmount = amount;
+          let finalAmount = rawAmount;
           if (orderId) {
             try {
               const snap = await db.collection("orders").doc(orderId).get();
               if (snap.exists) {
                 const orderData = snap.data() as OrderDoc;
-                if (typeof orderData.total === "number" && orderData.total > 0) {
-                  finalAmount = orderData.total;
+                const t = asMoney(orderData.total);
+                if (t !== null && t > 0) {
+                  finalAmount = t;
                 }
               } else {
                 logger.warn("createEmbeddedJwt: orderId provided but not found", { orderId });
@@ -364,22 +370,33 @@ export const api = onRequest(
             }
           }
 
-          // Sanitize products: array of objects with allowed keys only (name, skuCode, quantity, price, description, unitOfMeasure, itemDiscountAmount, itemDiscountRate)
+          // Sanitize products for Embedded: expects { name, amount } (and optional fields)
           let products: any[] | undefined = undefined;
           if (Array.isArray(productsRaw)) {
-            products = productsRaw.map((p) => {
-              const out: any = {};
-              if (typeof p.name === "string") out.name = p.name;
-              if (typeof p.skuCode === "string") out.skuCode = p.skuCode;
-              if (typeof p.quantity === "number") out.quantity = p.quantity;
-              if (typeof p.price === "number") out.price = p.price;
-              if (typeof p.description === "string") out.description = p.description;
-              if (typeof p.unitOfMeasure === "string") out.unitOfMeasure = p.unitOfMeasure;
-              if (typeof p.itemDiscountAmount === "number") out.itemDiscountAmount = p.itemDiscountAmount;
-              if (typeof p.itemDiscountRate === "number") out.itemDiscountRate = p.itemDiscountRate;
-              return out;
-            }).filter((item) => Object.keys(item).length > 0);
-            if (!products.length) products = undefined;
+            products = productsRaw
+              .map((p) => {
+                const out: any = {};
+                if (typeof p.name === "string") out.name = p.name;
+
+                // Accept either p.amount or p.price; normalize to `amount`
+                const money = asMoney(typeof p.amount !== "undefined" ? p.amount : p.price);
+                if (money !== null) out.amount = money;
+
+                if (typeof p.skuCode === "string") out.skuCode = p.skuCode;
+                if (typeof p.quantity === "number") out.quantity = p.quantity;
+                if (typeof p.description === "string") out.description = p.description;
+                if (typeof p.unitOfMeasure === "string") out.unitOfMeasure = p.unitOfMeasure;
+                if (typeof p.itemDiscountAmount === "number") {
+                  const disc = asMoney(p.itemDiscountAmount);
+                  if (disc !== null) out.itemDiscountAmount = disc;
+                }
+                if (typeof p.itemDiscountRate === "number") out.itemDiscountRate = p.itemDiscountRate;
+                return out;
+              })
+              // Only keep products that have both a name and a valid numeric amount
+              .filter((item) => typeof item.name === "string" && typeof item.amount === "number");
+
+            if (products.length === 0) products = undefined;
           }
 
           const now = Math.floor(Date.now() / 1000);
@@ -492,27 +509,46 @@ export const api = onRequest(
       if (req.method === "POST" && url === "/api/refundDeluxePayment") {
         try {
           const body = (req.body || {}) as any;
-          const amount = Number(body.amount);
-          const currency = (body.currency || "USD") as "USD" | "CAD";
-          const paymentId = body.paymentId;
-          const transactionId = body.transactionId; // originalTransactionId
-          const reason = body.reason;
-          if (!amount || amount <= 0) {
+      
+          // Coerce and validate inputs
+          const refundAmount = asMoney(body.amount ?? body.refundAmount);
+          const currency = (body.currency ?? "USD").toString().toUpperCase() as "USD" | "CAD";
+      
+          // Either paymentId OR original transaction id is required
+          const paymentId = typeof body.paymentId === "string" && body.paymentId.trim() ? body.paymentId.trim() : undefined;
+          const originalTransactionId =
+            typeof body.originalTransactionId === "string" && body.originalTransactionId.trim()
+              ? body.originalTransactionId.trim()
+              : typeof body.transactionId === "string" && body.transactionId.trim()
+              ? body.transactionId.trim()
+              : undefined;
+      
+          const reason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim() : undefined;
+      
+          if (refundAmount === null || refundAmount <= 0) {
             res.status(400).json({ error: "invalid-amount" });
             return;
           }
-          if (!paymentId && !transactionId) {
+          if (!paymentId && !originalTransactionId) {
             res.status(400).json({ error: "paymentId-or-transactionId-required" });
             return;
           }
+      
+          // Auth
           const bearer = await getGatewayBearer();
+      
+          // Endpoint
           const endpoint = `${gatewayBase()}/dpp/v1/gateway/refunds`;
+      
+          // Deluxe request body
           const requestBody: any = {
-            amount: { amount, currency },
+            amount: { amount: refundAmount, currency },
           };
           if (paymentId) requestBody.paymentId = paymentId;
-          if (transactionId) requestBody.originalTransactionId = transactionId;
+          if (originalTransactionId) requestBody.originalTransactionId = originalTransactionId;
           if (reason) requestBody.reason = reason;
+      
+          // Call Deluxe
           const resp = await fetch(endpoint, {
             method: "POST",
             headers: {
@@ -523,21 +559,32 @@ export const api = onRequest(
             },
             body: JSON.stringify(requestBody),
           });
+      
+          // Parse response safely
           const text = await resp.text();
-          let json: any = {};
+          let json: any;
           try {
             json = text ? JSON.parse(text) : {};
-          } catch {}
+          } catch {
+            json = { raw: text };
+          }
+      
           if (!resp.ok) {
             logger.error("refunds failed", { status: resp.status, body: text });
-            res.status(resp.status).json({ error: "refunds-failed", status: resp.status, body: json || text });
+            res.status(resp.status).json({
+              error: "refunds-failed",
+              status: resp.status,
+              body: json,
+            });
             return;
           }
+      
+          // Success
           res.status(200).json(json);
           return;
         } catch (err: any) {
           logger.error("refundDeluxePayment error", err);
-          res.status(500).json({ error: "refund-failed", message: err?.message || String(err) });
+          res.status(500).json({ error: "refund-failed", message: err?.message ?? String(err) });
           return;
         }
       }

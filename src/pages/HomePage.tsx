@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import HeroSection from "../components/HeroSection";
 import InfoCards from "../components/InfoCards";
 import birds from "../assets/images/palomas.webp";
+import heroImg from "../assets/images/1000024263.webp";
+import logo from "../assets/logo-official.webp";
 
 const HomePage = () => {
   const [isIOS, setIsIOS] = useState(false);
@@ -13,46 +15,59 @@ const HomePage = () => {
   }, []);
 
   return (
-    <div className="flex flex-col min-h-screen  text-[var(--color-text)]">
-      {/* Hero Section */}
-      <HeroSection />
-      <div
-        data-aos="fade-in"
-        className="py-10 text-center bg-gradient-to-r from-[var(--color-dark)] via-[var(--color-footer)] to-[var(--color-dark)]"
-      >
-        <h2 id="info" className="text-4xl md:text-5xl mb-2 text-white pt-10">
-          Why Choose Rancho de Paloma Blanca?
-        </h2>
-        <p className="text-md max-w-3xl mx-auto mb-10">
-          We offer premium hunts, breathtaking Texas landscapes, and a ranch
-          experience designed for hunters of all levels.
-        </p>
-      </div>
-      {/* Section with birds background */}
-      <section
-        className="relative py-20 px-6 w-[90%] mx-auto text-center"
-        style={{
-          backgroundImage: `url(${birds})`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          backgroundRepeat: "no-repeat",
-          backgroundAttachment: isIOS ? "scroll" : "fixed",
-        }}
-      >
-        {/* Precise overlay gradient: 5% dark on left/right */}
-        <div
-          className="absolute inset-0 z-0 pointer-events-none"
-          style={{
-            backgroundImage: `linear-gradient(to right, var(--color-dark) 0%, transparent 1%, transparent 99%, var(--color-dark) 100%)`,
-          }}
-        />
-
-        {/* Content */}
-        <div className="relative z-10 py-10 ">
-          <InfoCards />
+    <>
+      <div className="w-full h-[100vh] flex items-center justify-center">
+        <div className="relative z-10 text-center px-6">
+          <img className="w-30 mx-auto" src={logo} alt="" />
+          <h1 className="font-light text-2xl md:text-3xl text-white mb-0 font-acumin">
+            Welcome to Rancho de Paloma Blanca
+          </h1>
+          <p className="text-xs md:text-md max-w-2xl mx-auto mb-6 text-neutral-200">
+            Experience premium hunts and the beauty of Texas outdoors.
+          </p>
+          <a
+            href="/book"
+            className="inline-block hero-btn px-4 text-white font-acumin font-light! border-2 border-[var(--color-button-hover)] py-1 bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-lg md:text-xl rounded-md transition duration-300 ease-in-out"
+          >
+            Book Your Hunt
+          </a>
         </div>
-      </section>
-    </div>
+        <img
+          className="w-full h-full object-cover opacity-30 absolute"
+          src={heroImg}
+          alt=""
+        />
+      </div>
+      <div className="flex flex-col min-h-screen  text-[var(--color-text)]">
+        {/* Hero Section */}
+        <HeroSection />
+
+        {/* Section with birds background */}
+        <section
+          className="relative py-20 mt-40 px-6 w-[90%] mx-auto text-center"
+          style={{
+            backgroundImage: `url(${birds})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            backgroundRepeat: "no-repeat",
+            backgroundAttachment: isIOS ? "scroll" : "fixed",
+          }}
+        >
+          {/* Precise overlay gradient: 5% dark on left/right */}
+          <div
+            className="absolute inset-0 z-0 pointer-events-none"
+            style={{
+              backgroundImage: `linear-gradient(to right, var(--color-dark) 0%, transparent 1%, transparent 99%, var(--color-dark) 100%)`,
+            }}
+          />
+
+          {/* Content */}
+          <div className="relative z-10 py-10 ">
+            <InfoCards />
+          </div>
+        </section>
+      </div>
+    </>
   );
 };
 
