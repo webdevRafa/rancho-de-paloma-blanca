@@ -932,7 +932,7 @@ export default function CheckoutPage() {
       {/* STEP 3 — PAY (Embedded) */}
       {step === 3 && (
         <section className="mb-6 p-4 rounded-xl border bg-neutral-100">
-          <h2 className="text-xl mb-2">Pay Securely (Embedded)</h2>
+          <h2 className="text-xl mb-2 font-acumin">Pay Securely (Embedded)</h2>
           <div className="mb-3 text-sm opacity-70">
             Total: ${amount.toFixed(2)}
           </div>
@@ -985,7 +985,7 @@ export default function CheckoutPage() {
           <div
             id={EMBEDDED_CONTAINER_ID}
             className={[
-              "min-h-[260px] rounded-xl border bg-white",
+              "min-h-[260px] rounded-xl border font-acumin! bg-white",
               sdkReady ? "opacity-100" : "opacity-60",
               "transition-opacity",
             ].join(" ")}
