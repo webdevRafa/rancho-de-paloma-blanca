@@ -845,7 +845,7 @@ export default function CheckoutPage() {
     for (const m of merchArray)
       lines.push({ label: m.name, qty: m.qty, price: m.price });
     return (
-      <div className="divide-y">
+      <div className="divide-y p-3 rounded-lg border bg-neutral-100">
         {lines.map((l, idx) => (
           <div key={idx} className="flex items-center justify-between py-2">
             <div>
@@ -854,7 +854,7 @@ export default function CheckoutPage() {
             </div>
             <div className="text-right">
               <div className="text-sm">x{l.qty ?? 1}</div>
-              <div className="font-semibold">${(l.price ?? 0).toFixed(2)}</div>
+              <div>${(l.price ?? 0).toFixed(2)}</div>
             </div>
           </div>
         ))}
