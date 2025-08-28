@@ -10,6 +10,10 @@ import {
   orderBy,
   doc,
   getDoc,
+  writeBatch,
+  updateDoc,
+  increment,
+  serverTimestamp,
 } from "firebase/firestore";
 import { useCart } from "../context/CartContext";
 import { useNavigate } from "react-router-dom";
@@ -42,6 +46,11 @@ const ClientDashboard = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [successOrder, setSuccessOrder] = useState<Order | null>(null);
   const [loadingSuccess, setLoadingSuccess] = useState(false);
+
+  // Track which order is currently being cancelled.  This allows the UI to
+  // disable the cancel button while an async cancellation is in progress and
+  // provide feedback to the user.
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === "pending") {
@@ -137,6 +146,152 @@ const ClientDashboard = () => {
     setShowSuccess(false);
     setActiveTab("orders");
     navigate("/dashboard", { replace: true });
+  };
+
+  /**
+   * Cancel an order and optionally issue a refund.  For paid orders this will
+   * compute the number of days until the earliest hunt date and, if there are
+   * 14 or more days remaining, refund 50% of the order total.  The order
+   * status is updated to "cancelled" and, for paid bookings, the hunters
+   * booked are decremented from each availability document.  For pending
+   * orders (not yet paid), only the status is updated.
+   *
+   * @param order The order being cancelled
+   */
+  const handleCancelOrder = async (order: Order) => {
+    if (!order?.id) return;
+    // Confirm intent with the user.  This prevents accidental cancellations.
+    const confirmMsg =
+      order.status === "paid"
+        ? "Are you sure you want to cancel this paid order? If your earliest hunt date is two weeks or more away, you'll receive a 50% refund. Otherwise there is no refund."
+        : "Are you sure you want to cancel this pending order?";
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      setCancellingId(order.id);
+
+      // Reference to the order document
+      const orderRef = doc(db, "orders", order.id);
+      // Load the full order to obtain any fields not present in local state
+      const snap = await getDoc(orderRef);
+      const fullData = snap.exists() ? (snap.data() as any) : {};
+      const isPaid = order.status === "paid";
+
+      // Initialize refund to zero; will be set if eligible
+      let refundAmount = 0;
+      let paymentId: string | undefined;
+
+      if (isPaid) {
+        // Determine the earliest booking date.  Use the booking dates array if
+        // provided; otherwise assume no refund.
+        const bookingDates = order.booking?.dates || [];
+        let earliestIso: string | undefined;
+        if (bookingDates.length > 0) {
+          // Sort ISO strings lexicographically; earliest comes first.
+          earliestIso = [...bookingDates].sort()[0];
+        }
+        if (earliestIso) {
+          // Parse the date in local time.  Append T00:00:00 to avoid timezone offset issues.
+          const earliestDate = new Date(`${earliestIso}T00:00:00`);
+          const now = new Date();
+          const diffMs = earliestDate.getTime() - now.getTime();
+          const diffDays = diffMs / (1000 * 60 * 60 * 24);
+          // If at least 14 days away, refund half of the total.
+          if (diffDays >= 14) {
+            refundAmount = order.total * 0.5;
+          }
+        }
+
+        // Extract the paymentId from the stored deluxe metadata.  Different
+        // gateways may use different casing, so check a few known variations.
+        paymentId =
+          (fullData?.deluxe?.paymentId as string | undefined) ||
+          (fullData?.deluxe?.paymentID as string | undefined) ||
+          (fullData?.deluxe?.transactionId as string | undefined) ||
+          undefined;
+
+        // Issue the refund if applicable and we have a paymentId
+        if (refundAmount > 0 && paymentId) {
+          try {
+            await fetch("/api/refundDeluxePayment", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                amount: refundAmount.toFixed(2),
+                currency: "USD",
+                paymentId,
+                reason: "Customer cancellation",
+              }),
+            });
+          } catch (err) {
+            console.warn("Failed to issue refund", err);
+            // If the refund API fails, continue cancelling the order.  The
+            // backend may handle the refund via other means or manual
+            // intervention.
+          }
+        }
+
+        // Decrement huntersBooked for each booked date.  Only perform this
+        // adjustment for paid orders since availability is only incremented
+        // after payment succeeds.
+        if (order.booking?.dates && order.booking.numberOfHunters) {
+          const batch = writeBatch(db);
+          for (const date of order.booking.dates) {
+            const availRef = doc(db, "availability", date);
+            batch.set(
+              availRef,
+              {
+                huntersBooked: increment(-order.booking.numberOfHunters),
+                updatedAt: serverTimestamp(),
+              },
+              { merge: true }
+            );
+          }
+          try {
+            await batch.commit();
+          } catch (err) {
+            console.warn("Failed to decrement availability", err);
+          }
+        }
+      }
+
+      // Update order status to cancelled along with metadata.  Always perform
+      // this regardless of payment status.  Record the refund amount and
+      // cancellation timestamp for auditing.
+      await updateDoc(orderRef, {
+        status: "cancelled",
+        updatedAt: serverTimestamp(),
+        cancelledAt: serverTimestamp(),
+        refundAmount: refundAmount > 0 ? refundAmount : 0,
+      });
+
+      // Update local state so the UI reflects the change immediately.
+      setOrders((prev) =>
+        prev.map((o) => (o.id === order.id ? { ...o, status: "cancelled" } : o))
+      );
+
+      // Notify the user about the outcome
+      if (isPaid) {
+        if (refundAmount > 0) {
+          toast.success(
+            `Order cancelled. A refund of $${refundAmount
+              .toFixed(2)
+              .toString()} has been initiated.`
+          );
+        } else {
+          toast.info(
+            "Order cancelled. No refund available for cancellations within 14 days."
+          );
+        }
+      } else {
+        toast.info("Order cancelled.");
+      }
+    } catch (err) {
+      console.error("Failed to cancel order", err);
+      toast.error("Failed to cancel order. Please try again later.");
+    } finally {
+      setCancellingId(null);
+    }
   };
 
   return (
@@ -356,6 +511,30 @@ const ClientDashboard = () => {
                         <p className="mt-2 font-semibold">
                           Total: ${order.total.toFixed(2)}
                         </p>
+                        {/* Offer a cancel option for paid or pending orders that have not been cancelled. */}
+                        {order.status !== "cancelled" &&
+                          (order.status === "paid" ||
+                            order.status === "pending") && (
+                            <button
+                              onClick={() => handleCancelOrder(order)}
+                              disabled={cancellingId === order.id}
+                              className={`mt-2 px-4 py-1 rounded-md text-white ${
+                                order.status === "paid"
+                                  ? "bg-red-600 hover:bg-red-700"
+                                  : "bg-yellow-600 hover:bg-yellow-700"
+                              } ${
+                                cancellingId === order.id
+                                  ? "opacity-50 cursor-not-allowed"
+                                  : ""
+                              }`}
+                            >
+                              {cancellingId === order.id
+                                ? "Cancelling..."
+                                : order.status === "paid"
+                                ? "Cancel Order"
+                                : "Cancel Pending Order"}
+                            </button>
+                          )}
                       </li>
                     ))}
                   </ul>
