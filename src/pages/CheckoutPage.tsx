@@ -14,6 +14,9 @@ import { useCart } from "../context/CartContext";
 import CustomerInfoForm from "../components/CustomerInfoForm";
 import { getSeasonConfig } from "../utils/getSeasonConfig";
 import toIsoAlpha3 from "../utils/toIsoAlpha3";
+// Bring in our date formatting helpers.  formatLongDate creates readable
+// labels like "Wednesday, September 17th, 2025".  We will use it to
+// present hunt and party deck dates in the Review/Pay steps.
 import { formatLongDate } from "../utils/formatDate";
 
 type EPApi = {
@@ -150,109 +153,6 @@ function pruneUndefinedDeep<T>(obj: T): T {
   return obj;
 }
 
-/**
- * Ensure a global onCancel handler exists.  Some builds of the Deluxe SDK will
- * attempt to invoke window.onCancel when a wallet checkout is cancelled.  If
- * it isn't defined, the browser logs a warning.  Defining a no‑op handler
- * silences the warning without changing behaviour.
- */
-function ensureGlobalOnCancelNoop() {
-  const w = window as any;
-  if (typeof w.onCancel !== "function") {
-    w.onCancel = () => {};
-  }
-}
-
-/**
- * Load the Apple Pay JavaScript SDK.  Deluxe will display an Apple Pay button
- * if the merchant account and browser support it, but only after the Apple
- * Pay SDK has been loaded.  Without this script, Safari logs
- * "Applepay SDK is not loaded" and the button never appears.  This helper
- * loads the script once; subsequent calls resolve immediately.  If the
- * script fails to load, the returned promise rejects and the caller may
- * optionally ignore the error (the button will remain hidden).
- */
-async function loadApplePaySdk(): Promise<void> {
-  if ((window as any).ApplePaySession) return;
-  await new Promise<void>((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = "https://applepay.cdn-apple.com/jsapi/v1/apple-pay-sdk.js";
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Failed to load Apple Pay SDK"));
-    document.head.appendChild(script);
-  });
-}
-
-/**
- * Group an array of ISO date strings into consecutive ranges.  Each range
- * represents one or more dates that are adjacent on the calendar.  This
- * helper sorts the dates before grouping and returns an array of
- * { start: string, end: string } objects.
- */
-function groupIsoDatesIntoRanges(
-  dates: string[]
-): Array<{ start: string; end: string }> {
-  if (!Array.isArray(dates) || dates.length === 0) return [];
-  const sorted = [...dates].sort();
-  const out: Array<{ start: string; end: string }> = [];
-  for (let i = 0; i < sorted.length; i++) {
-    let start = sorted[i];
-    let end = start;
-    while (i + 1 < sorted.length) {
-      const a = new Date(`${sorted[i]}T00:00:00`);
-      const b = new Date(`${sorted[i + 1]}T00:00:00`);
-      const isNextDay = (b.getTime() - a.getTime()) / 86400000 === 1;
-      if (!isNextDay) break;
-      end = sorted[++i];
-    }
-    out.push({ start, end });
-  }
-  return out;
-}
-
-/**
- * Inject custom styles for the Deluxe embedded panel.  Without these styles
- * the default layout leaves a blank thumbnail placeholder and aligns the
- * container to the far left on large screens.  Centering the panel and
- * removing unused thumbnails results in a cleaner, more professional look.
- * This helper ensures a single style tag is added to the document head.
- */
-function ensureEmbeddedStyles() {
-  const styleId = "rdpb-embedded-styles";
-  let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
-  if (!styleEl) {
-    styleEl = document.createElement("style");
-    styleEl.id = styleId;
-    document.head.appendChild(styleEl);
-  }
-  styleEl.textContent = `
-    /* Center the entire embedded form within its container */
-    #${EMBEDDED_CONTAINER_ID} .embedded-form-container {
-      max-width: 720px;
-      margin-left: auto;
-      margin-right: auto;
-    }
-    /* Hide the blank product thumbnail and adjust spacing */
-    #${EMBEDDED_CONTAINER_ID} .product-thumbnail {
-      display: none !important;
-    }
-    #${EMBEDDED_CONTAINER_ID} .product-info {
-      margin-left: 0 !important;
-      padding-left: 0 !important;
-    }
-    /* Improve readability on smaller screens */
-    @media (max-width: 480px) {
-      #${EMBEDDED_CONTAINER_ID} .summary-title {
-        font-size: 1rem !important;
-      }
-      #${EMBEDDED_CONTAINER_ID} .summary-attribute {
-        font-size: 0.875rem !important;
-      }
-    }
-  `;
-}
-
 /** Load the Deluxe SDK script (sandbox by default). */
 function loadDeluxeSdk(src?: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -332,11 +232,126 @@ function isConsecutive(d0: string, d1: string): boolean {
 function sortIsoDates(dates: string[]) {
   return [...dates].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
+
+/**
+ * Inject custom styles for the Deluxe embedded panel.  The default layout
+ * positions the panel flush left and includes a blank square next to each
+ * product name.  This helper inserts a style tag into the document head
+ * that centers the panel, hides the blank thumbnail, and applies our
+ * preferred font family to the order summary heading.  It also tweaks
+ * typography for small screens.  Calling this function multiple times
+ * safely reuses the same style element.
+ */
+function ensureEmbeddedStyles() {
+  const styleId = "rdpb-embedded-styles";
+  let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
+  if (!styleEl) {
+    styleEl = document.createElement("style");
+    styleEl.id = styleId;
+    document.head.appendChild(styleEl);
+  }
+  styleEl.textContent = `
+    /* Center the embedded form within its container */
+    #${EMBEDDED_CONTAINER_ID} .embedded-form-container {
+      max-width: 720px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    /* Hide the blank product thumbnail to prevent layout shifts */
+    #${EMBEDDED_CONTAINER_ID} .product-thumbnail {
+      display: none !important;
+    }
+    /* Remove extra left spacing when the thumbnail is hidden */
+    #${EMBEDDED_CONTAINER_ID} .product-info {
+      margin-left: 0 !important;
+      padding-left: 0 !important;
+    }
+    /* Use our Acumin font for the order summary heading */
+    #${EMBEDDED_CONTAINER_ID} .summary-title {
+      font-family: var(--font-acumin, sans-serif) !important;
+    }
+    /* Adjust font sizes on very small screens for better readability */
+    @media (max-width: 480px) {
+      #${EMBEDDED_CONTAINER_ID} .summary-title {
+        font-size: 1rem !important;
+      }
+      #${EMBEDDED_CONTAINER_ID} .summary-attribute {
+        font-size: 0.875rem !important;
+      }
+    }
+  `;
+}
 function inRange(iso: string, startIso: string, endIso: string) {
   const t = new Date(`${iso}T00:00:00`).getTime();
   const s = new Date(`${startIso}T00:00:00`).getTime();
   const e = new Date(`${endIso}T00:00:00`).getTime();
   return t >= s && t <= e;
+}
+
+/**
+ * Group an array of ISO dates into consecutive ranges.  Returns an array of
+ * objects with `start` and `end` ISO dates.  If a single day has no
+ * consecutive neighbour, its `start` and `end` will be the same.  This
+ * helper is used to produce compact labels like "Wed, Sep 17th, 2025" or
+ * "Wed, Sep 17th, 2025 – Fri, Sep 19th, 2025" for the Review and Pay steps.
+ */
+function groupIsoDatesIntoRanges(
+  dates: string[]
+): Array<{ start: string; end: string }> {
+  if (!Array.isArray(dates) || dates.length === 0) return [];
+  const sorted = [...dates].sort();
+  const ranges: Array<{ start: string; end: string }> = [];
+  for (let i = 0; i < sorted.length; i++) {
+    let start = sorted[i];
+    let end = start;
+    while (i + 1 < sorted.length) {
+      const a = new Date(`${sorted[i]}T00:00:00`);
+      const b = new Date(`${sorted[i + 1]}T00:00:00`);
+      const diffDays = (b.getTime() - a.getTime()) / 86400000;
+      if (diffDays === 1) {
+        // consecutive day
+        end = sorted[i + 1];
+        i++;
+      } else {
+        break;
+      }
+    }
+    ranges.push({ start, end });
+  }
+  return ranges;
+}
+
+/**
+ * Define a global no‑op onCancel function.  Some builds of the Deluxe
+ * Embedded Payments SDK expect a global onCancel handler (for example,
+ * when digital wallets are cancelled).  Without this, the SDK logs a
+ * warning: "onCancel is not defined".  Assigning a noop suppresses
+ * that message without affecting functionality.
+ */
+function ensureGlobalOnCancelNoop(): void {
+  const w: any = window;
+  if (typeof w.onCancel !== "function") {
+    w.onCancel = () => {};
+  }
+}
+
+/**
+ * Dynamically load the Apple Pay JS if it hasn't been loaded yet.  This
+ * prevents the "Applepay SDK is not loaded" warning in the console when
+ * Apple Pay is enabled for the merchant.  If Apple Pay isn't enabled or
+ * supported by the browser, loading this script will have no effect.
+ */
+async function loadApplePaySdk(): Promise<void> {
+  const w: any = window;
+  if (w.ApplePaySession) return;
+  await new Promise<void>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://applepay.cdn-apple.com/jsapi/v1/apple-pay-sdk.js";
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load Apple Pay SDK"));
+    document.head.appendChild(script);
+  });
 }
 
 function buildProductsForJwt(args: {
@@ -483,6 +498,11 @@ export default function CheckoutPage() {
   const { user } = useAuth();
   const { booking, merchItems, isHydrated } = useCart();
 
+  // Track which step of the checkout the user is on.  Step 1 collects
+  // customer info, step 2 reviews the order, and step 3 displays the
+  // embedded payment panel.  Starting at 1 renders the Customer Info form.
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+
   const [orderId] = useState(() => {
     const existing = localStorage.getItem(ORDER_ID_KEY);
     if (existing) return existing;
@@ -542,6 +562,19 @@ export default function CheckoutPage() {
     return initial;
   }) as unknown as [CustomerInfo, any];
 
+  /**
+   * Determine if the customer info form is sufficiently filled out to allow
+   * continuing to the review step.  Require at minimum a first name,
+   * last name, and email.  The phone and billing address are optional.
+   */
+  const customerInfoComplete = useMemo(() => {
+    return (
+      !!customer.firstName?.trim() &&
+      !!customer.lastName?.trim() &&
+      !!customer.email?.trim()
+    );
+  }, [customer.firstName, customer.lastName, customer.email]);
+
   // Compute booking and merch totals.  We keep the full totals object so we can
   // reference bookingTotal later when building the products array for the embedded
   // panel.  Amount is extracted from totals.amount for convenience.
@@ -563,12 +596,54 @@ export default function CheckoutPage() {
   );
   const amount = totals.amount;
 
-  // Build friendly date labels for booked hunt dates and party deck dates.  We
-  // group consecutive dates into ranges and use formatLongDate to produce
-  // human‑readable labels (e.g. "Wed, September 17th, 2025" or
-  // "Wed, September 17th, 2025 – Fri, September 19th, 2025").
+  const [sdkReady, setSdkReady] = useState(false);
+  const [instanceReady, setInstanceReady] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("") as unknown as [string, any];
+  const instanceRef = useRef(null) as unknown as { current: any };
+
+  /**
+   * Build a list of products for the review step using the same
+   * buildProductsForJwt() helper that constructs the payload for the JWT.  We
+   * pass bookingTotal so the per‑hunter unit price is computed.  Each item
+   * returned has a name, quantity, unit price, and we compute an extended
+   * price (unit price × quantity) here for display purposes.  This list
+   * mirrors the order summary that Deluxe displays internally.
+   */
+  const reviewProducts = useMemo(() => {
+    const products = buildProductsForJwt({
+      booking: booking
+        ? {
+            dates: booking.dates,
+            numberOfHunters: booking.numberOfHunters,
+            partyDeckDates: booking.partyDeckDates,
+            seasonConfig: seasonConfig || undefined,
+            bookingTotal: totals.bookingTotal,
+          }
+        : null,
+      merchItems: merchArray,
+    });
+    return products.map((p) => {
+      const quantity = p.quantity || 0;
+      const unit = p.price || 0;
+      return {
+        ...p,
+        quantity,
+        unit,
+        extended: unit * quantity,
+      };
+    });
+  }, [booking, merchArray, seasonConfig, totals.bookingTotal]);
+
+  /**
+   * Generate friendly labels for the hunt dates.  Consecutive dates are
+   * collapsed into a single range.  Each label uses formatLongDate() with
+   * weekday names for readability, e.g. "Wednesday, September 17th, 2025 –
+   * Thursday, September 18th, 2025".  Single days will produce a single
+   * date without a range.  These labels are used in the review and pay steps.
+   */
   const dateRangeLabels = useMemo(() => {
-    if (!booking?.dates || booking.dates.length === 0) return [] as string[];
+    if (!booking?.dates || booking.dates.length === 0) return [];
     return groupIsoDatesIntoRanges(booking.dates).map(({ start, end }) => {
       if (start === end) {
         return formatLongDate(start, { weekday: true });
@@ -580,9 +655,13 @@ export default function CheckoutPage() {
     });
   }, [booking?.dates]);
 
+  /**
+   * Generate friendly labels for the party deck dates (if any).  Same logic
+   * as dateRangeLabels but applied to booking.partyDeckDates.
+   */
   const partyDeckRangeLabels = useMemo(() => {
     if (!booking?.partyDeckDates || booking.partyDeckDates.length === 0)
-      return [] as string[];
+      return [];
     return groupIsoDatesIntoRanges(booking.partyDeckDates).map(
       ({ start, end }) => {
         if (start === end) {
@@ -596,42 +675,10 @@ export default function CheckoutPage() {
     );
   }, [booking?.partyDeckDates]);
 
-  const [sdkReady, setSdkReady] = useState(false);
-  const [instanceReady, setInstanceReady] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("") as unknown as [string, any];
-  const instanceRef = useRef(null) as unknown as { current: any };
-
-  // Step control: 1 = customer info, 2 = review, 3 = pay.  We start on the
-  // customer step.  Users can navigate between steps to review or edit
-  // information before initiating payment.
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-
-  // Inject a small stylesheet to hide the default thumbnail placeholder in the
-  // embedded products list.  Without this, the panel shows a blank white
-  // square before each product name.  By removing the element and adjusting
-  // margins, the UI looks cleaner, especially on mobile.  Cleanup the style
-  // when the component unmounts to avoid leaking styles into other pages.
-  useEffect(() => {
-    const styleEl = document.createElement("style");
-    styleEl.id = "embedded-payments-custom-style";
-    styleEl.textContent = `
-      /* Hide product thumbnails */
-      #${EMBEDDED_CONTAINER_ID} .product-thumbnail {
-        display: none !important;
-      }
-      /* Remove left margin on the product info when thumbnail is hidden */
-      #${EMBEDDED_CONTAINER_ID} .product-info {
-        margin-left: 0 !important;
-      }
-    `;
-    document.head.appendChild(styleEl);
-    return () => {
-      try {
-        styleEl.parentElement?.removeChild(styleEl);
-      } catch {}
-    };
-  }, []);
+  // The per‑page styles for the embedded panel are injected via
+  // ensureEmbeddedStyles() inside startEmbeddedPayment().  That helper
+  // inserts a dedicated style tag into the document head and reuses it on
+  // subsequent renders, so we no longer inject styles here.
 
   const ensureOrder = useCallback(async () => {
     const ref = doc(db, "orders", orderId);
@@ -711,6 +758,8 @@ export default function CheckoutPage() {
 
     setIsSubmitting(true);
     try {
+      // Define a global no‑op onCancel handler to silence wallet warnings
+      ensureGlobalOnCancelNoop();
       // destroy any earlier instance
       try {
         const inst = instanceRef.current;
@@ -747,6 +796,16 @@ export default function CheckoutPage() {
               status.methods.includes("googlePay"));
         }
       } catch {}
+
+      // Load Apple Pay SDK ahead of initialization if Apple Pay is enabled.
+      // This prevents a "Applepay SDK is not loaded" warning in Safari.
+      if (applePayEnabled) {
+        try {
+          await loadApplePaySdk();
+        } catch (err) {
+          console.warn("Failed to load Apple Pay SDK", err);
+        }
+      }
 
       // get short-lived JWT
       const jwtResp = await fetch("/api/createEmbeddedJwt", {
@@ -803,22 +862,9 @@ export default function CheckoutPage() {
       // resolve EP object and init
       const EP = await waitForEmbeddedPayments();
       setSdkReady(true);
-      // Provide global no‑op cancel handler to silence wallet warnings and load
-      // Apple Pay JS if enabled.  These helpers must run after the SDK
-      // script loads but before calling init().
-      ensureGlobalOnCancelNoop();
-      if (applePayEnabled) {
-        try {
-          await loadApplePaySdk();
-        } catch (e) {
-          console.warn("Apple Pay SDK failed to load", e);
-        }
-      }
 
-      // Inject custom styles for the embedded panel.  This call adds a
-      // single style tag to the document head to center the panel, hide the
-      // blank thumbnail, and improve readability across breakpoints.  See
-      // ensureEmbeddedStyles() for details.
+      // Inject styling tweaks for the embedded panel: center it,
+      // remove thumbnails, and apply the Acumin font to headings.
       ensureEmbeddedStyles();
 
       const isSandbox = (embeddedBase || "").includes("payments2.");
@@ -950,20 +996,22 @@ export default function CheckoutPage() {
       // additional options such as walletsbgcolor, walletsborderadius, etc.
       renderHost.render({
         containerId: EMBEDDED_CONTAINER_ID,
-        // Use the light theme for consistency with our site design.
+        // Use the light theme for the overall panel
         paymentpanelstyle: "light",
-        // Products panel styling: white background, dark text, comfortable font size.
-        productsbgcolor: "#ffffff",
+        // Products panel (left side) styling
+        productsbgcolor: "#f7f7f7",
         productsfontcolor: "#333333",
         productsfontsize: "14px",
-        // Wallet panel styling: light background, rounded corners and generous padding.
-        walletsbgcolor: "#ffffff",
-        walletsfontcolor: "#333333",
-        walletsborderradius: "8px",
+        // Digital wallets section styling
+        walletsbgcolor: "#fafafa",
+        walletsborderadius: "8px",
         walletspadding: "12px",
-        walletsgap: "12px",
+        walletsgap: "8px",
         walletswidth: "100%",
-        // Buttons: match our brand palette (green pay button, muted cancel button).
+        walletsheight: "auto",
+        walletsfontfamily: "var(--font-acumin, sans-serif)",
+        walletsfontcolor: "#333333",
+        // Button colors
         paybuttoncolor: "#4CAF50",
         cancelbuttoncolor: "#f44336",
       });
@@ -986,6 +1034,63 @@ export default function CheckoutPage() {
     totals.bookingTotal,
   ]);
 
+  const fallbackHostedCheckout = useCallback(async () => {
+    try {
+      await ensureOrder();
+      const origin = window.location.origin;
+      const resp = await fetch("/api/createDeluxePayment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId,
+          successUrl: `${origin}/dashboard?status=paid&orderId=${orderId}`,
+          cancelUrl: `${origin}/dashboard?status=cancelled&orderId=${orderId}`,
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data?.error || "Hosted checkout failed");
+      const url = data?.paymentUrl;
+      if (!url) throw new Error("Missing paymentUrl");
+      window.location.href = url;
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(err?.message || "Hosted checkout failed");
+    }
+  }, [ensureOrder, orderId]);
+
+  /**
+   * Move from the review step to the payment step.  We first set the
+   * `step` state to 3 so the embedded payment container exists in the DOM.
+   * Then we wait for a microtask and call startEmbeddedPayment().  This
+   * ensures the panel is mounted and ready when the Deluxe SDK renders.
+   */
+  const handleStartSecurePayment = useCallback(async () => {
+    // Switch to the Pay step so the container is present
+    setStep(3);
+    // Wait for the next tick to allow the DOM to update
+    await new Promise((r) => setTimeout(r, 0));
+    await startEmbeddedPayment();
+  }, [startEmbeddedPayment]);
+
+  /**
+   * Navigate back from the Pay step to the Review step.  If there is an
+   * embedded payment instance mounted, destroy it.  This prevents duplicate
+   * SDK instances from lingering when the user returns to the previous
+   * step.  We also clear any error messages.
+   */
+  const handleBackToReview = useCallback(() => {
+    setErrorMsg("");
+    setStep(2);
+    try {
+      const inst = instanceRef.current;
+      if (inst?.destroy) inst.destroy();
+      else if (inst?.unmount) inst.unmount();
+      instanceRef.current = null;
+    } catch {}
+    setSdkReady(false);
+    setInstanceReady(false);
+  }, []);
+
   useEffect(() => {
     return () => {
       try {
@@ -1000,70 +1105,14 @@ export default function CheckoutPage() {
 
   const canStart = useMemo(() => amount > 0 && !!orderId, [amount, orderId]);
 
-  // Build the products array for the review panel.  This mirrors what we
-  // will send to the server for the JWT but includes per‑hunter pricing via
-  // totals.bookingTotal.  We compute this once per render for the review
-  // screen.
-  const reviewProducts = useMemo(() => {
-    return buildProductsForJwt({
-      booking: booking
-        ? {
-            dates: booking.dates,
-            numberOfHunters: booking.numberOfHunters,
-            partyDeckDates: booking.partyDeckDates,
-            seasonConfig: seasonConfig || undefined,
-            bookingTotal: totals.bookingTotal,
-          }
-        : null,
-      merchItems: merchArray,
-    });
-  }, [booking, merchArray, seasonConfig, totals.bookingTotal]);
-
-  // Disable the "Next" button on step 1 if required customer info is missing.
-  const customerInfoComplete = Boolean(
-    customer.firstName && customer.lastName && customer.email
-  );
-
-  // Handler to return from the pay step back to the review step.  We tear
-  // down any existing Deluxe instance to avoid duplicate panels and reset
-  // readiness flags.
-  const handleBackToReview = useCallback(() => {
-    try {
-      const inst = instanceRef.current;
-      if (inst?.destroy) inst.destroy();
-      else if (inst?.unmount) inst.unmount();
-      instanceRef.current = null;
-      const EP = resolveEP();
-      if (EP?.destroy) EP.destroy();
-    } catch (err) {
-      console.warn("Failed to destroy embedded instance", err);
-    }
-    setSdkReady(false);
-    setInstanceReady(false);
-    setStep(2);
-  }, []);
-
-  // When the user clicks "Start secure payment" on the review step, advance
-  // to step 3 then trigger the embedded payment initialization.  We wait one
-  // tick after changing steps to allow the embedded container to mount in
-  // the DOM before starting the SDK.  Without this, the SDK may render
-  // into a stale or missing container.
-  const handleStartSecurePayment = useCallback(async () => {
-    setStep(3);
-    // Allow the DOM to update with the new container before starting
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    await startEmbeddedPayment();
-  }, [startEmbeddedPayment]);
-
-  if (!isHydrated) {
+  if (!isHydrated)
     return <div className="text-center py-20">Loading cart…</div>;
-  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-10">
       {/* Header */}
-      <div className="mb-4">
-        <h1 className="text-3xl font-semibold font-acumin">Checkout</h1>
+      <div className="mb-6">
+        <h1 className="text-3xl font-semibold">Checkout</h1>
         <p className="text-sm opacity-70">
           Order ID: <span className="font-mono">{orderId}</span>
         </p>
@@ -1077,39 +1126,47 @@ export default function CheckoutPage() {
       )}
 
       {/* Step indicator */}
-      <div className="mb-6 flex items-center justify-center gap-4">
-        <div
-          className={
-            "flex items-center gap-1 px-3 py-1 rounded-full text-sm " +
-            (step === 1
-              ? "bg-[var(--color-accent-sage)] text-white"
-              : "bg-neutral-200 text-neutral-600")
-          }
-        >
-          <span className="font-bold">1</span>
-          <span className="hidden sm:inline">Customer</span>
+      <div className="flex items-center justify-center gap-4 mb-8">
+        <div className="flex items-center gap-1">
+          <div
+            className={[
+              "w-8 h-8 rounded-full flex items-center justify-center font-semibold",
+              step === 1
+                ? "bg-[var(--color-accent-sage)] text-white"
+                : "bg-gray-200 text-gray-600",
+            ].join(" ")}
+          >
+            1
+          </div>
+          <span className="hidden sm:inline text-sm">Customer</span>
         </div>
-        <div
-          className={
-            "flex items-center gap-1 px-3 py-1 rounded-full text-sm " +
-            (step === 2
-              ? "bg-[var(--color-accent-sage)] text-white"
-              : "bg-neutral-200 text-neutral-600")
-          }
-        >
-          <span className="font-bold">2</span>
-          <span className="hidden sm:inline">Review</span>
+        <div className="w-4 h-px bg-gray-300" />
+        <div className="flex items-center gap-1">
+          <div
+            className={[
+              "w-8 h-8 rounded-full flex items-center justify-center font-semibold",
+              step === 2
+                ? "bg-[var(--color-accent-sage)] text-white"
+                : "bg-gray-200 text-gray-600",
+            ].join(" ")}
+          >
+            2
+          </div>
+          <span className="hidden sm:inline text-sm">Review</span>
         </div>
-        <div
-          className={
-            "flex items-center gap-1 px-3 py-1 rounded-full text-sm " +
-            (step === 3
-              ? "bg-[var(--color-accent-sage)] text-white"
-              : "bg-neutral-200 text-neutral-600")
-          }
-        >
-          <span className="font-bold">3</span>
-          <span className="hidden sm:inline">Pay</span>
+        <div className="w-4 h-px bg-gray-300" />
+        <div className="flex items-center gap-1">
+          <div
+            className={[
+              "w-8 h-8 rounded-full flex items-center justify-center font-semibold",
+              step === 3
+                ? "bg-[var(--color-accent-sage)] text-white"
+                : "bg-gray-200 text-gray-600",
+            ].join(" ")}
+          >
+            3
+          </div>
+          <span className="hidden sm:inline text-sm">Pay</span>
         </div>
       </div>
 
@@ -1118,196 +1175,189 @@ export default function CheckoutPage() {
         <section className="mb-8 p-4 rounded-xl border bg-neutral-100">
           <h2 className="text-xl mb-4 font-acumin">Customer Info</h2>
           <CustomerInfoForm value={customer} onChange={setCustomer} />
-          {/* Total at bottom of step 1 */}
-          <div className="mt-6 flex items-center justify-between">
-            <div className="text-lg font-semibold">Total</div>
-            <div className="text-2xl font-bold">${amount.toFixed(2)}</div>
-          </div>
-          <div className="mt-4 flex justify-end">
+          <div className="mt-6 flex justify-end">
             <button
               disabled={!customerInfoComplete}
               onClick={() => setStep(2)}
               className="px-4 py-2 rounded-lg bg-[var(--color-accent-sage)] text-white disabled:opacity-50"
             >
-              Next: Review
+              Next: Review Order
             </button>
           </div>
         </section>
       )}
 
-      {/* Step 2: Review */}
+      {/* Step 2: Review Order */}
       {step === 2 && (
         <section className="mb-8 p-4 rounded-xl border bg-neutral-100">
-          <h2 className="text-xl mb-4 font-acumin">Review Order</h2>
-          {/* Summary of hunt details */}
-          {booking && (
-            <div className="mb-4 grid sm:grid-cols-3 gap-3">
+          <h2 className="text-xl mb-4 font-acumin">Review Your Order</h2>
+          {/* Summary details */}
+          <div className="mb-4 p-3 rounded-lg border bg-white/70">
+            <div className="grid sm:grid-cols-3 gap-3">
               <div>
                 <div className="text-[11px] uppercase tracking-wide opacity-60">
                   Hunters
                 </div>
-                <div className="font-semibold">{booking.numberOfHunters}</div>
+                <div className="font-semibold">
+                  {booking?.numberOfHunters ?? 0}
+                </div>
               </div>
               <div>
                 <div className="text-[11px] uppercase tracking-wide opacity-60">
                   Days
                 </div>
-                <div className="font-semibold">{booking.dates.length}</div>
+                <div className="font-semibold">
+                  {booking?.dates?.length ?? 0}
+                </div>
               </div>
               <div>
                 <div className="text-[11px] uppercase tracking-wide opacity-60">
                   Dates
                 </div>
                 <div className="flex flex-wrap gap-1">
-                  {dateRangeLabels.length > 0 ? (
-                    dateRangeLabels.map((label, i) => (
-                      <span
-                        key={i}
-                        className="inline-block px-2 py-1 rounded-full bg-neutral-200 border text-xs"
-                      >
-                        {label}
-                      </span>
-                    ))
-                  ) : (
+                  {dateRangeLabels.map((label, i) => (
+                    <span
+                      key={i}
+                      className="inline-block px-2 py-1 rounded-full bg-neutral-100 border text-xs"
+                      title={label}
+                    >
+                      {label}
+                    </span>
+                  ))}
+                  {dateRangeLabels.length === 0 && (
                     <span className="text-xs opacity-70">—</span>
                   )}
                 </div>
               </div>
-              {booking.partyDeckDates && booking.partyDeckDates.length > 0 && (
-                <div className="col-span-full">
-                  <div className="text-[11px] uppercase tracking-wide opacity-60">
-                    Party Deck
-                  </div>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {partyDeckRangeLabels.map((label, i) => (
-                      <span
-                        key={i}
-                        className="inline-block px-2 py-1 rounded-full bg-neutral-200 border text-xs"
-                      >
-                        {label}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
-          )}
-          {/* Itemized products */}
-          <div className="mb-4">
-            <h3 className="text-lg font-semibold mb-2">Items</h3>
-            <div className="divide-y divide-neutral-200">
-              {reviewProducts.map((p, i) => (
-                <div key={i} className="py-2 flex justify-between items-start">
-                  <div className="pr-2">
-                    <div className="font-medium">{p.name}</div>
-                    {p.description && (
-                      <div className="text-xs opacity-70">{p.description}</div>
-                    )}
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm">
-                      {p.quantity} × ${p.price?.toFixed(2)}
-                    </div>
-                    <div className="font-semibold">
-                      $
-                      {(p.price || 0) * (p.quantity || 0) === 0
-                        ? (p.price || 0) * (p.quantity || 0)
-                        : ((p.price || 0) * (p.quantity || 0)).toFixed(2)}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {booking?.partyDeckDates?.length ? (
+              <div className="mt-3 text-xs">
+                <span className="opacity-60 mr-1">Party Deck:</span>
+                <span className="font-medium">
+                  {partyDeckRangeLabels.join(", ")}
+                </span>
+              </div>
+            ) : null}
           </div>
-          {/* Review totals */}
-          <div className="mb-4 flex justify-end">
-            <div className="text-lg font-semibold mr-2">Total:</div>
+          {/* Line items */}
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="py-2 text-left">Item</th>
+                  <th className="py-2 text-right">Qty</th>
+                  <th className="py-2 text-right">Unit</th>
+                  <th className="py-2 text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reviewProducts.map((item, idx) => (
+                  <tr key={idx} className="border-b last:border-0">
+                    <td className="py-2 pr-2 font-medium">{item.name}</td>
+                    <td className="py-2 text-right">{item.quantity}</td>
+                    <td className="py-2 text-right">${item.unit.toFixed(2)}</td>
+                    <td className="py-2 text-right">
+                      ${item.extended.toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {/* Total */}
+          <div className="mt-4 flex justify-end">
+            <div className="text-lg mr-2">Total</div>
             <div className="text-2xl font-bold">${amount.toFixed(2)}</div>
           </div>
-          {/* Navigation buttons */}
-          <div className="mt-4 flex justify-between flex-wrap gap-3">
+          {/* Buttons */}
+          <div className="mt-6 flex flex-wrap gap-3 justify-between">
             <button
               onClick={() => setStep(1)}
-              className="px-4 py-2 rounded-lg border"
+              className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50"
             >
               Back
             </button>
-            <button
-              disabled={!canStart || isSubmitting}
-              onClick={handleStartSecurePayment}
-              className="px-4 py-2 rounded-lg bg-[var(--color-accent-sage)] text-white disabled:opacity-50"
-            >
-              {isSubmitting ? "Starting…" : "Start secure payment"}
-            </button>
+            <div className="flex gap-3">
+              <button
+                disabled={!canStart || isSubmitting}
+                onClick={handleStartSecurePayment}
+                className="px-4 py-2 rounded-lg bg-[var(--color-accent-sage)] text-white disabled:opacity-50"
+              >
+                {isSubmitting ? "Starting…" : "Start secure payment"}
+              </button>
+              <button
+                onClick={fallbackHostedCheckout}
+                className="hidden px-4 py-2 rounded-lg bg-gray-700 text-white"
+              >
+                Use hosted checkout
+              </button>
+            </div>
           </div>
         </section>
       )}
 
-      {/* Step 3: Pay */}
+      {/* Step 3: Pay Securely */}
       {step === 3 && (
         <section className="mb-8 p-4 rounded-xl border bg-neutral-100">
           <h2 className="text-xl mb-4 font-acumin">Pay Securely (Embedded)</h2>
           {/* Quick summary */}
-          {booking && (
-            <div className="mb-4 grid sm:grid-cols-3 gap-3">
+          <div className="mb-4 p-3 rounded-lg border bg-white/70">
+            <div className="grid sm:grid-cols-3 gap-3">
               <div>
                 <div className="text-[11px] uppercase tracking-wide opacity-60">
                   Hunters
                 </div>
-                <div className="font-semibold">{booking.numberOfHunters}</div>
+                <div className="font-semibold">
+                  {booking?.numberOfHunters ?? 0}
+                </div>
               </div>
               <div>
                 <div className="text-[11px] uppercase tracking-wide opacity-60">
                   Days
                 </div>
-                <div className="font-semibold">{booking.dates.length}</div>
+                <div className="font-semibold">
+                  {booking?.dates?.length ?? 0}
+                </div>
               </div>
               <div>
                 <div className="text-[11px] uppercase tracking-wide opacity-60">
                   Dates
                 </div>
                 <div className="flex flex-wrap gap-1">
-                  {dateRangeLabels.length > 0 ? (
-                    dateRangeLabels.map((label, i) => (
-                      <span
-                        key={i}
-                        className="inline-block px-2 py-1 rounded-full bg-neutral-200 border text-xs"
-                      >
-                        {label}
-                      </span>
-                    ))
-                  ) : (
+                  {dateRangeLabels.map((label, i) => (
+                    <span
+                      key={i}
+                      className="inline-block px-2 py-1 rounded-full bg-neutral-100 border text-xs"
+                      title={label}
+                    >
+                      {label}
+                    </span>
+                  ))}
+                  {dateRangeLabels.length === 0 && (
                     <span className="text-xs opacity-70">—</span>
                   )}
                 </div>
               </div>
-              {booking.partyDeckDates && booking.partyDeckDates.length > 0 && (
-                <div className="col-span-full">
-                  <div className="text-[11px] uppercase tracking-wide opacity-60">
-                    Party Deck
-                  </div>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {partyDeckRangeLabels.map((label, i) => (
-                      <span
-                        key={i}
-                        className="inline-block px-2 py-1 rounded-full bg-neutral-200 border text-xs"
-                      >
-                        {label}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
-          )}
-          <div className="mb-4 flex justify-between items-center">
-            <div className="text-lg font-semibold">Total</div>
+            {booking?.partyDeckDates?.length ? (
+              <div className="mt-3 text-xs">
+                <span className="opacity-60 mr-1">Party Deck:</span>
+                <span className="font-medium">
+                  {partyDeckRangeLabels.join(", ")}
+                </span>
+              </div>
+            ) : null}
+          </div>
+          {/* Total */}
+          <div className="mb-4 flex justify-between items-baseline">
+            <div className="text-lg">Total</div>
             <div className="text-2xl font-bold">${amount.toFixed(2)}</div>
           </div>
+          {/* Embedded payments panel */}
           <div
             id={EMBEDDED_CONTAINER_ID}
             className={[
-              "min-h-[240px] rounded-xl shadow-lg bg-white mb-6",
+              "min-h-[260px] rounded-xl shadow-lg bg-white", // bigger min height to reveal card form
               sdkReady ? "opacity-100" : "opacity-60",
               "transition-opacity",
             ].join(" ")}
@@ -1321,10 +1371,11 @@ export default function CheckoutPage() {
           {sdkReady && !instanceReady && (
             <p className="mt-2 text-sm opacity-70">Loading payment panel…</p>
           )}
-          <div className="mt-4 flex justify-start">
+          {/* Back button */}
+          <div className="mt-6 flex justify-start">
             <button
               onClick={handleBackToReview}
-              className="px-4 py-2 rounded-lg border"
+              className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50"
             >
               Back to review
             </button>
@@ -1333,7 +1384,7 @@ export default function CheckoutPage() {
       )}
 
       {/* Footer note */}
-      <p className="text-xs opacity-60">
+      <p className="text-xs text-white opacity-80">
         By paying, you agree to the ranch’s property rules and cancellation
         policy.
       </p>

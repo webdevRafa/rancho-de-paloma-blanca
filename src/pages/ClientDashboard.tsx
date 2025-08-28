@@ -2,7 +2,15 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { db } from "../firebase/firebaseConfig";
-import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  orderBy,
+  doc,
+  getDoc,
+} from "firebase/firestore";
 import { useCart } from "../context/CartContext";
 import { useNavigate } from "react-router-dom";
 import type { Order } from "../types/Types";
@@ -21,6 +29,19 @@ const ClientDashboard = () => {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const status = params.get("status"); // will be 'pending'
+  const orderIdParam = params.get("orderId");
+
+  /**
+   * State to drive the payment success experience. When a user is redirected
+   * back from the checkout flow with `?status=paid&orderId=…` in the URL, we
+   * fetch the corresponding order from Firestore and present a friendly
+   * confirmation card. While the order is being fetched the page shows a
+   * loading indicator. Once the user acknowledges the success screen we
+   * remove the query params and return them to their dashboard.
+   */
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [successOrder, setSuccessOrder] = useState<Order | null>(null);
+  const [loadingSuccess, setLoadingSuccess] = useState(false);
 
   useEffect(() => {
     if (status === "pending") {
@@ -28,6 +49,40 @@ const ClientDashboard = () => {
       toast("You have an order waiting for payment.");
     }
   }, [status]);
+
+  // When redirected back from the checkout page with a successful payment,
+  // fetch the order details and display a confirmation card. We only run
+  // this effect when `status` is "paid" and an orderId is present. The
+  // dependencies ensure the order is fetched again if the query params
+  // change. Once the order is fetched we set `showSuccess` to true which
+  // triggers the success component in the render.
+  useEffect(() => {
+    if (status === "paid" && orderIdParam) {
+      // Immediately show the success container and load the order
+      setLoadingSuccess(true);
+      setShowSuccess(true);
+      const fetchOrder = async () => {
+        try {
+          const orderRef = doc(db, "orders", orderIdParam);
+          const snap = await getDoc(orderRef);
+          if (snap.exists()) {
+            const data = snap.data() as Order;
+            // Attach the id to the data object for convenience
+            const order: Order = { id: snap.id, ...data };
+            setSuccessOrder(order);
+          } else {
+            toast.error("Order not found.");
+          }
+        } catch (err) {
+          console.error("Failed to load order", err);
+          toast.error("Failed to load order details.");
+        } finally {
+          setLoadingSuccess(false);
+        }
+      };
+      fetchOrder();
+    }
+  }, [status, orderIdParam]);
   useEffect(() => {
     const fetchOrders = async () => {
       if (!user) return;
@@ -75,6 +130,15 @@ const ClientDashboard = () => {
   if (!user)
     return <div className="text-white text-center mt-10">Please sign in.</div>;
 
+  // Handler invoked when the user dismisses the success message. It removes
+  // the query parameters and returns the user to their dashboard. We set
+  // `replace: true` so the "?status=paid" page doesn't linger in history.
+  const handleSuccessDismiss = () => {
+    setShowSuccess(false);
+    setActiveTab("orders");
+    navigate("/dashboard", { replace: true });
+  };
+
   return (
     <div className="max-w-8xl mx-auto text-[var(--color-text)] py-16 px-6 flex flex-col md:flex-row gap-8 mt-20">
       {/* Sidebar */}
@@ -116,7 +180,97 @@ const ClientDashboard = () => {
 
       {/* Main Content */}
       <section className="flex-1 bg-[var(--color-card)] p-6 rounded-md shadow">
-        {loading ? (
+        {/* If we are showing the success message, render it first */}
+        {showSuccess && status === "paid" ? (
+          <div className="flex flex-col items-center justify-center text-center min-h-[300px]">
+            {/* Success indicator */}
+            <div className="flex items-center justify-center w-20 h-20 rounded-full bg-green-100 text-green-600 shadow-lg">
+              <span className="text-4xl">✓</span>
+            </div>
+            <h2 className="mt-6 text-2xl font-bold text-green-500">
+              Payment Successful
+            </h2>
+            <p className="mt-2 text-sm text-neutral-400 max-w-md">
+              Thank you for your purchase! Your order has been confirmed and is
+              now available in your dashboard. Below is a summary of your order
+              for your records.
+            </p>
+            {/* Order summary */}
+            {loadingSuccess ? (
+              <p className="mt-6 text-sm text-neutral-400">
+                Loading order details…
+              </p>
+            ) : successOrder ? (
+              <div className="mt-6 w-full max-w-lg text-left bg-[var(--color-footer)]/10 p-4 rounded-md space-y-4 border border-green-200">
+                {/* Order ID */}
+                <div>
+                  <p className="text-sm text-neutral-400">Order ID</p>
+                  <p className="font-mono text-sm break-all">
+                    {successOrder.id}
+                  </p>
+                </div>
+                {successOrder.booking && (
+                  <div className="space-y-1">
+                    <p className="font-semibold">Booking</p>
+                    <div className="ml-4 space-y-0.5">
+                      <p>
+                        Dates:{" "}
+                        {successOrder.booking.dates
+                          .map(formatFriendlyDate)
+                          .join(", ")}
+                      </p>
+                      <p>Hunters: {successOrder.booking.numberOfHunters}</p>
+                      {successOrder.booking.partyDeckDates?.length > 0 && (
+                        <p>
+                          Party Deck Days:{" "}
+                          {successOrder.booking.partyDeckDates
+                            .map(formatFriendlyDate)
+                            .join(", ")}
+                        </p>
+                      )}
+                      {typeof successOrder.booking.price !== "undefined" && (
+                        <p>
+                          Booking Total: $
+                          {successOrder.booking.price?.toFixed(2).toString()}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {successOrder.merchItems &&
+                  Object.keys(successOrder.merchItems).length > 0 && (
+                    <div className="space-y-1">
+                      <p className="font-semibold">Merch Items</p>
+                      <ul className="ml-4 list-disc space-y-0.5">
+                        {Object.entries(successOrder.merchItems).map(
+                          ([id, item]) => (
+                            <li key={id}>
+                              {item.product.name} × {item.quantity} = $
+                              {(item.product.price * item.quantity).toFixed(2)}
+                            </li>
+                          )
+                        )}
+                      </ul>
+                    </div>
+                  )}
+                <div>
+                  <p className="font-semibold">Total</p>
+                  <p className="ml-4">${successOrder.total.toFixed(2)}</p>
+                </div>
+              </div>
+            ) : (
+              <p className="mt-6 text-sm text-red-400">
+                Unable to load order details.
+              </p>
+            )}
+            <button
+              onClick={handleSuccessDismiss}
+              className="mt-8 px-6 py-2 rounded-md bg-[var(--color-button)] text-white hover:bg-[var(--color-button-hover)]"
+            >
+              View My Orders
+            </button>
+          </div>
+        ) : loading ? (
           <p className="text-sm text-neutral-400">Loading your data...</p>
         ) : (
           <>
@@ -168,10 +322,12 @@ const ClientDashboard = () => {
                                       .join(", ")}
                                   </p>
                                 )}
-                                <p>
-                                  Booking Total: $
-                                  {order.booking.price.toFixed(2)}
-                                </p>
+                                {typeof order.booking.price !== "undefined" && (
+                                  <p>
+                                    Booking Total: $
+                                    {order.booking.price.toFixed(2)}
+                                  </p>
+                                )}
                               </div>
                             </div>
                           </>
@@ -186,7 +342,9 @@ const ClientDashboard = () => {
                                   ([id, item]) => (
                                     <li key={id}>
                                       {item.product.name} × {item.quantity} = $
-                                      {item.product.price * item.quantity}
+                                      {(
+                                        item.product.price * item.quantity
+                                      ).toFixed(2)}
                                     </li>
                                   )
                                 )}
