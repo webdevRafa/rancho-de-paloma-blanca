@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  serverTimestamp,
+  setDoc,
+  writeBatch,
+  increment,
+} from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
@@ -8,7 +15,6 @@ import CustomerInfoForm from "../components/CustomerInfoForm";
 import { getSeasonConfig } from "../utils/getSeasonConfig";
 import toIsoAlpha3 from "../utils/toIsoAlpha3";
 import { formatLongDate } from "../utils/formatDate";
-import { groupIsoDatesIntoRanges } from "../utils/dateUtils";
 
 type EPApi = {
   init: (jwt: string, config: Record<string, any>) => any;
@@ -25,7 +31,7 @@ declare global {
   }
 }
 
-// Some SDK builds expose a global lexical "EmbeddedPayments" (not on window)
+// Allow for a global lexical binding in some SDK builds
 declare const EmbeddedPayments: EPApi | undefined;
 
 export type CustomerInfo = {
@@ -60,7 +66,14 @@ type BookingLine = {
   numberOfHunters: number;
   partyDeckDates?: string[];
   seasonConfig?: SeasonConfig;
-  bookingTotal?: number; // we compute this client-side to derive per-hunter unit prices
+  /**
+   * Subtotal for this booking.  When provided, this value will be used to
+   * calculate per‑hunter pricing for the embedded payments products array.  If
+   * omitted, the hunt package line will default to zero, which causes the
+   * embedded panel to display $NaN for that line.  Make sure to include
+   * `bookingTotal` when calling `buildProductsForJwt`.
+   */
+  bookingTotal?: number;
 };
 
 type MerchItem = { skuCode: string; name: string; qty: number; price: number };
@@ -119,7 +132,7 @@ type OrderDoc = {
 const ORDER_ID_KEY = "rdpb:orderId";
 const EMBEDDED_CONTAINER_ID = "embeddedpayments";
 
-/** Remove any undefined fields (for cleaner Firestore writes). */
+/** Recursively remove any fields with value `undefined`. */
 function pruneUndefinedDeep<T>(obj: T): T {
   if (Array.isArray(obj)) return obj.map((v) => pruneUndefinedDeep(v)) as any;
   if (
@@ -135,6 +148,109 @@ function pruneUndefinedDeep<T>(obj: T): T {
     return out as any;
   }
   return obj;
+}
+
+/**
+ * Ensure a global onCancel handler exists.  Some builds of the Deluxe SDK will
+ * attempt to invoke window.onCancel when a wallet checkout is cancelled.  If
+ * it isn't defined, the browser logs a warning.  Defining a no‑op handler
+ * silences the warning without changing behaviour.
+ */
+function ensureGlobalOnCancelNoop() {
+  const w = window as any;
+  if (typeof w.onCancel !== "function") {
+    w.onCancel = () => {};
+  }
+}
+
+/**
+ * Load the Apple Pay JavaScript SDK.  Deluxe will display an Apple Pay button
+ * if the merchant account and browser support it, but only after the Apple
+ * Pay SDK has been loaded.  Without this script, Safari logs
+ * "Applepay SDK is not loaded" and the button never appears.  This helper
+ * loads the script once; subsequent calls resolve immediately.  If the
+ * script fails to load, the returned promise rejects and the caller may
+ * optionally ignore the error (the button will remain hidden).
+ */
+async function loadApplePaySdk(): Promise<void> {
+  if ((window as any).ApplePaySession) return;
+  await new Promise<void>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://applepay.cdn-apple.com/jsapi/v1/apple-pay-sdk.js";
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load Apple Pay SDK"));
+    document.head.appendChild(script);
+  });
+}
+
+/**
+ * Group an array of ISO date strings into consecutive ranges.  Each range
+ * represents one or more dates that are adjacent on the calendar.  This
+ * helper sorts the dates before grouping and returns an array of
+ * { start: string, end: string } objects.
+ */
+function groupIsoDatesIntoRanges(
+  dates: string[]
+): Array<{ start: string; end: string }> {
+  if (!Array.isArray(dates) || dates.length === 0) return [];
+  const sorted = [...dates].sort();
+  const out: Array<{ start: string; end: string }> = [];
+  for (let i = 0; i < sorted.length; i++) {
+    let start = sorted[i];
+    let end = start;
+    while (i + 1 < sorted.length) {
+      const a = new Date(`${sorted[i]}T00:00:00`);
+      const b = new Date(`${sorted[i + 1]}T00:00:00`);
+      const isNextDay = (b.getTime() - a.getTime()) / 86400000 === 1;
+      if (!isNextDay) break;
+      end = sorted[++i];
+    }
+    out.push({ start, end });
+  }
+  return out;
+}
+
+/**
+ * Inject custom styles for the Deluxe embedded panel.  Without these styles
+ * the default layout leaves a blank thumbnail placeholder and aligns the
+ * container to the far left on large screens.  Centering the panel and
+ * removing unused thumbnails results in a cleaner, more professional look.
+ * This helper ensures a single style tag is added to the document head.
+ */
+function ensureEmbeddedStyles() {
+  const styleId = "rdpb-embedded-styles";
+  let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
+  if (!styleEl) {
+    styleEl = document.createElement("style");
+    styleEl.id = styleId;
+    document.head.appendChild(styleEl);
+  }
+  styleEl.textContent = `
+    /* Center the entire embedded form within its container */
+    #${EMBEDDED_CONTAINER_ID} .embedded-form-container {
+      max-width: 720px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    /* Hide the blank product thumbnail and adjust spacing */
+    #${EMBEDDED_CONTAINER_ID} .product-thumbnail {
+      display: none !important;
+    }
+    #${EMBEDDED_CONTAINER_ID} .product-info {
+      margin-left: 0 !important;
+      padding-left: 0 !important;
+    }
+    /* Improve readability on smaller screens */
+    @media (max-width: 480px) {
+      #${EMBEDDED_CONTAINER_ID} .summary-title {
+        font-size: 1rem !important;
+      }
+      #${EMBEDDED_CONTAINER_ID} .summary-attribute {
+        font-size: 0.875rem !important;
+      }
+    }
+  `;
 }
 
 /** Load the Deluxe SDK script (sandbox by default). */
@@ -178,14 +294,14 @@ function loadDeluxeSdk(src?: string): Promise<void> {
   });
 }
 
-/** Locate EmbeddedPayments in any of the places Deluxe might expose it. */
+/** Find the EP object (from window or global lexical) */
 function resolveEP(): EPApi | undefined {
   const w = window as any;
   if (w.EmbeddedPayments) return w.EmbeddedPayments;
   if (w.Deluxe?.EmbeddedPayments) return w.Deluxe.EmbeddedPayments;
   if (w.deluxe?.EmbeddedPayments) return w.deluxe.EmbeddedPayments;
   try {
-    // Access global lexical binding (some SDK builds use this pattern)
+    // indirect eval to access global lexical bindings
     // eslint-disable-next-line no-eval
     const EP = (0, eval)(
       "typeof EmbeddedPayments !== 'undefined' ? EmbeddedPayments : undefined"
@@ -195,7 +311,7 @@ function resolveEP(): EPApi | undefined {
   return undefined;
 }
 
-async function waitForEmbeddedPayments(timeoutMs = 10000): Promise<EPApi> {
+async function waitForEmbeddedPayments(timeoutMs = 8000): Promise<EPApi> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     const EP = resolveEP();
@@ -208,7 +324,6 @@ async function waitForEmbeddedPayments(timeoutMs = 10000): Promise<EPApi> {
   );
 }
 
-/** Helpers for pricing logic **/
 function isConsecutive(d0: string, d1: string): boolean {
   const a = new Date(`${d0}T00:00:00`);
   const b = new Date(`${d1}T00:00:00`);
@@ -224,10 +339,6 @@ function inRange(iso: string, startIso: string, endIso: string) {
   return t >= s && t <= e;
 }
 
-/** Build products for the Embedded JWT.
- * We must send *unit* prices (per hunter / per day) — not the grand total.
- * Otherwise Deluxe shows $NaN in the item list.
- */
 function buildProductsForJwt(args: {
   booking: BookingLine | null;
   merchItems: MerchItem[];
@@ -237,30 +348,34 @@ function buildProductsForJwt(args: {
     name?: string;
     skuCode?: string;
     quantity?: number;
-    price?: number;
+    price?: number; // unit price per item
     description?: string;
     unitOfMeasure?: string;
   }> = [];
+
+  // If there is a booking, include a line for the hunt and optionally the party deck.
   if (booking) {
     const hunters = Math.max(1, Number(booking.numberOfHunters || 1));
+    // Party deck subtotal: number of party deck days times the configured rate.  Default to 500 if seasonConfig undefined.
     const partyDays = booking.partyDeckDates?.length || 0;
     const partyRate = booking.seasonConfig?.partyDeckRatePerDay ?? 500;
     const partySubtotal = partyDays * partyRate;
+    // Total for the booking portion (may be undefined).  Use 0 if missing.
     const bookingSubtotal = Number(booking.bookingTotal || 0);
+    // Compute per‑hunter unit price by subtracting the party deck subtotal and dividing by hunters.
     const perHunterUnit = Math.max(
       0,
       Math.round((bookingSubtotal - partySubtotal) / hunters)
     );
-
     products.push({
       name: "Dove Hunt Package",
       skuCode: "HUNT",
       quantity: hunters,
-      price: perHunterUnit, // ✅ prevents $NaN
+      price: perHunterUnit,
       description: `${booking.dates.length} day(s) • ${hunters} hunter(s)`,
       unitOfMeasure: "Each",
     });
-
+    // If the party deck is reserved for any days, add a separate line.
     if (partyDays > 0) {
       products.push({
         name: "Party Deck",
@@ -271,6 +386,8 @@ function buildProductsForJwt(args: {
       });
     }
   }
+
+  // Add each merch item.  Note: price must be a unit price (not extended).
   for (const m of merchItems) {
     products.push({
       name: m.name,
@@ -283,7 +400,6 @@ function buildProductsForJwt(args: {
   return products;
 }
 
-/** Calculate booking + merch totals (all values as whole currency units). */
 function calculateTotals(args: {
   booking: BookingLine | null;
   merchItems: MerchItem[];
@@ -367,10 +483,6 @@ export default function CheckoutPage() {
   const { user } = useAuth();
   const { booking, merchItems, isHydrated } = useCart();
 
-  // ----- NEW: Step flow 1 → 2 → 3 (Customer → Review → Pay)
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-
-  // Persist/derive orderId
   const [orderId] = useState(() => {
     const existing = localStorage.getItem(ORDER_ID_KEY);
     if (existing) return existing;
@@ -382,7 +494,6 @@ export default function CheckoutPage() {
     return uuid;
   }) as unknown as [string, any];
 
-  // Season config
   const [seasonConfig, setSeasonConfig] = useState(null as SeasonConfig | null);
   const [cfgError, setCfgError] = useState("") as unknown as [string, any];
   useEffect(() => {
@@ -400,7 +511,6 @@ export default function CheckoutPage() {
     };
   }, []);
 
-  // Merch array
   const merchArray: MerchItem[] = useMemo(() => {
     const arr: MerchItem[] = [];
     const items = merchItems as any;
@@ -417,7 +527,6 @@ export default function CheckoutPage() {
     return arr;
   }, [merchItems]);
 
-  // Customer state
   const [customer, setCustomer] = useState(() => {
     const displayName = user?.displayName || "";
     const parts = displayName.split(" ");
@@ -433,7 +542,9 @@ export default function CheckoutPage() {
     return initial;
   }) as unknown as [CustomerInfo, any];
 
-  // Totals
+  // Compute booking and merch totals.  We keep the full totals object so we can
+  // reference bookingTotal later when building the products array for the embedded
+  // panel.  Amount is extracted from totals.amount for convenience.
   const totals = useMemo(
     () =>
       calculateTotals({
@@ -451,38 +562,77 @@ export default function CheckoutPage() {
     [booking, merchArray, seasonConfig]
   );
   const amount = totals.amount;
-  // Friendly grouped date labels for Step 2/3 summaries
+
+  // Build friendly date labels for booked hunt dates and party deck dates.  We
+  // group consecutive dates into ranges and use formatLongDate to produce
+  // human‑readable labels (e.g. "Wed, September 17th, 2025" or
+  // "Wed, September 17th, 2025 – Fri, September 19th, 2025").
   const dateRangeLabels = useMemo(() => {
-    if (!booking?.dates?.length) return [];
-    return groupIsoDatesIntoRanges(booking.dates).map(({ start, end }) =>
-      start === end
-        ? formatLongDate(start, { weekday: true })
-        : `${formatLongDate(start, { weekday: true })} – ${formatLongDate(end, {
-            weekday: true,
-          })}`
-    );
+    if (!booking?.dates || booking.dates.length === 0) return [] as string[];
+    return groupIsoDatesIntoRanges(booking.dates).map(({ start, end }) => {
+      if (start === end) {
+        return formatLongDate(start, { weekday: true });
+      }
+      return `${formatLongDate(start, { weekday: true })} – ${formatLongDate(
+        end,
+        { weekday: true }
+      )}`;
+    });
   }, [booking?.dates]);
 
   const partyDeckRangeLabels = useMemo(() => {
-    if (!booking?.partyDeckDates?.length) return [];
+    if (!booking?.partyDeckDates || booking.partyDeckDates.length === 0)
+      return [] as string[];
     return groupIsoDatesIntoRanges(booking.partyDeckDates).map(
-      ({ start, end }) =>
-        start === end
-          ? formatLongDate(start, { weekday: true })
-          : `${formatLongDate(start, { weekday: true })} – ${formatLongDate(
-              end,
-              { weekday: true }
-            )}`
+      ({ start, end }) => {
+        if (start === end) {
+          return formatLongDate(start, { weekday: true });
+        }
+        return `${formatLongDate(start, { weekday: true })} – ${formatLongDate(
+          end,
+          { weekday: true }
+        )}`;
+      }
     );
   }, [booking?.partyDeckDates]);
-  // Embedded lifecycle
+
   const [sdkReady, setSdkReady] = useState(false);
   const [instanceReady, setInstanceReady] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("") as unknown as [string, any];
   const instanceRef = useRef(null) as unknown as { current: any };
 
-  // Firestore ensure order
+  // Step control: 1 = customer info, 2 = review, 3 = pay.  We start on the
+  // customer step.  Users can navigate between steps to review or edit
+  // information before initiating payment.
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+
+  // Inject a small stylesheet to hide the default thumbnail placeholder in the
+  // embedded products list.  Without this, the panel shows a blank white
+  // square before each product name.  By removing the element and adjusting
+  // margins, the UI looks cleaner, especially on mobile.  Cleanup the style
+  // when the component unmounts to avoid leaking styles into other pages.
+  useEffect(() => {
+    const styleEl = document.createElement("style");
+    styleEl.id = "embedded-payments-custom-style";
+    styleEl.textContent = `
+      /* Hide product thumbnails */
+      #${EMBEDDED_CONTAINER_ID} .product-thumbnail {
+        display: none !important;
+      }
+      /* Remove left margin on the product info when thumbnail is hidden */
+      #${EMBEDDED_CONTAINER_ID} .product-info {
+        margin-left: 0 !important;
+      }
+    `;
+    document.head.appendChild(styleEl);
+    return () => {
+      try {
+        styleEl.parentElement?.removeChild(styleEl);
+      } catch {}
+    };
+  }, []);
+
   const ensureOrder = useCallback(async () => {
     const ref = doc(db, "orders", orderId);
     const snap = await getDoc(ref);
@@ -545,7 +695,6 @@ export default function CheckoutPage() {
       );
   }, [amount, booking, customer, merchArray, orderId, seasonConfig, user]);
 
-  // Start Embedded flow (Step 3)
   const startEmbeddedPayment = useCallback(async () => {
     setErrorMsg("");
 
@@ -562,11 +711,7 @@ export default function CheckoutPage() {
 
     setIsSubmitting(true);
     try {
-      // 1) Switch UI to Step 3 so the container exists, then give the DOM a tick
-      setStep(3);
-      await new Promise((r) => setTimeout(r, 0));
-
-      // 2) Destroy any earlier instance
+      // destroy any earlier instance
       try {
         const inst = instanceRef.current;
         if (inst?.destroy) inst.destroy();
@@ -574,10 +719,10 @@ export default function CheckoutPage() {
         instanceRef.current = null;
       } catch {}
 
-      // 3) Ensure order exists
+      // ensure order
       await ensureOrder();
 
-      // 4) Wallet/method flags
+      // figure out which methods to show
       let paymentMethods: ("cc" | "ach")[] = ["cc"];
       let applePayEnabled = false;
       let googlePayEnabled = false;
@@ -603,7 +748,7 @@ export default function CheckoutPage() {
         }
       } catch {}
 
-      // 5) Mint JWT from server
+      // get short-lived JWT
       const jwtResp = await fetch("/api/createEmbeddedJwt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -629,7 +774,8 @@ export default function CheckoutPage() {
                   numberOfHunters: booking.numberOfHunters,
                   partyDeckDates: booking.partyDeckDates,
                   seasonConfig: seasonConfig || undefined,
-                  bookingTotal: totals.bookingTotal, // <— provide for unit pricing
+                  // Include bookingTotal so per‑hunter pricing can be computed.
+                  bookingTotal: totals.bookingTotal,
                 }
               : null,
             merchItems: merchArray,
@@ -648,15 +794,32 @@ export default function CheckoutPage() {
       };
       if (!jwt) throw new Error("JWT missing from response");
 
-      // 6) Load SDK
+      // load the SDK from the correct base
       const scriptSrc = embeddedBase
         ? `${embeddedBase}/embedded/javascripts/deluxe.js`
         : undefined;
       await loadDeluxeSdk(scriptSrc);
 
-      // 7) Resolve EmbeddedPayments
+      // resolve EP object and init
       const EP = await waitForEmbeddedPayments();
       setSdkReady(true);
+      // Provide global no‑op cancel handler to silence wallet warnings and load
+      // Apple Pay JS if enabled.  These helpers must run after the SDK
+      // script loads but before calling init().
+      ensureGlobalOnCancelNoop();
+      if (applePayEnabled) {
+        try {
+          await loadApplePaySdk();
+        } catch (e) {
+          console.warn("Apple Pay SDK failed to load", e);
+        }
+      }
+
+      // Inject custom styles for the embedded panel.  This call adds a
+      // single style tag to the document head to center the panel, hide the
+      // blank thumbnail, and improve readability across breakpoints.  See
+      // ensureEmbeddedStyles() for details.
+      ensureEmbeddedStyles();
 
       const isSandbox = (embeddedBase || "").includes("payments2.");
       const config = {
@@ -671,6 +834,7 @@ export default function CheckoutPage() {
         hideGooglePayButton: !googlePayEnabled,
       } as any;
 
+      // IMPORTANT: init may return void OR an instance; setEventHandlers may exist on EP or return value.
       const initResult = EP.init(jwt, config);
       const handlerHost: any =
         (initResult &&
@@ -685,11 +849,18 @@ export default function CheckoutPage() {
             onTxnSuccess: async (_g: any, data: any) => {
               try {
                 const ref = doc(db, "orders", orderId);
+                // Extract a reasonable payment identifier from various possible fields on the
+                // event.  Some gateways return PaymentId or TransactionId rather than
+                // paymentId (case sensitivity differs), so check a few options.  If
+                // nothing matches, this will remain null.
                 const paymentId =
-                  data?.paymentId ||
-                  data?.PaymentId ||
-                  data?.transactionId ||
-                  data?.id ||
+                  data?.paymentId ??
+                  data?.PaymentId ??
+                  data?.transactionId ??
+                  data?.TransactionId ??
+                  data?.transactionRecordId ??
+                  data?.TransactionRecordId ??
+                  data?.id ??
                   null;
                 await setDoc(
                   ref,
@@ -703,20 +874,45 @@ export default function CheckoutPage() {
                   },
                   { merge: true }
                 );
+
+                // Increment huntersBooked for each booked date.  This mirrors the
+                // behaviour performed in the server-side webhook for hosted
+                // payments.  It ensures availability is updated immediately for
+                // embedded checkout, even if a webhook is not received.
+                if (
+                  booking &&
+                  booking.dates?.length &&
+                  booking.numberOfHunters
+                ) {
+                  const batch = writeBatch(db);
+                  for (const date of booking.dates) {
+                    const availRef = doc(db, "availability", date);
+                    batch.set(
+                      availRef,
+                      {
+                        huntersBooked: increment(booking.numberOfHunters),
+                        updatedAt: serverTimestamp(),
+                      },
+                      { merge: true }
+                    );
+                  }
+                  await batch.commit();
+                }
               } catch (err) {
-                console.warn("Failed to record Deluxe lastEvent", err);
+                console.warn(
+                  "Failed to record Deluxe lastEvent or update availability",
+                  err
+                );
               }
               navigate(`/dashboard?status=paid&orderId=${orderId}`);
             },
             onTxnFailed: (_g: any, data: any) => {
               console.warn("[Deluxe] Failed:", data);
               setErrorMsg("Payment failed. Please try again.");
-              setStep(2);
             },
             onTxnCancelled: (_g: any, data: any) => {
               console.log("[Deluxe] Cancelled:", data);
               setErrorMsg("Payment cancelled.");
-              setStep(2);
             },
             onValidationError: (_g: any, data: any) => {
               console.warn("[Deluxe] Validation error:", data);
@@ -728,24 +924,46 @@ export default function CheckoutPage() {
             onTokenFailed: (_g: any, data: any) => {
               console.warn("[Deluxe] Token failed", data);
             },
+            // Some builds of the Deluxe SDK emit an onCancel event (especially for
+            // digital wallets).  Define a no‑op handler to suppress console
+            // warnings like "onCancel is not defined".
+            onCancel: (_g: any, data: any) => {
+              console.log("[Deluxe] Payment cancelled", data);
+              setErrorMsg("Payment cancelled.");
+            },
           })
+        );
+      } else {
+        console.warn(
+          "Deluxe: setEventHandlers() not available on this build; continuing without explicit handlers."
         );
       }
 
       instanceRef.current = handlerHost || EP;
 
-      // 8) Render into container (which exists now on step 3)
       if (!document.getElementById(EMBEDDED_CONTAINER_ID))
         throw new Error(`Missing container #${EMBEDDED_CONTAINER_ID}`);
 
       const renderHost: any =
         handlerHost && handlerHost.render ? handlerHost : EP;
+      // Customize the embedded form styling.  See Deluxe documentation for
+      // additional options such as walletsbgcolor, walletsborderadius, etc.
       renderHost.render({
         containerId: EMBEDDED_CONTAINER_ID,
+        // Use the light theme for consistency with our site design.
         paymentpanelstyle: "light",
-        productsbgcolor: "#f8f8f8",
+        // Products panel styling: white background, dark text, comfortable font size.
+        productsbgcolor: "#ffffff",
         productsfontcolor: "#333333",
-        productsfontsize: "15px",
+        productsfontsize: "14px",
+        // Wallet panel styling: light background, rounded corners and generous padding.
+        walletsbgcolor: "#ffffff",
+        walletsfontcolor: "#333333",
+        walletsborderradius: "8px",
+        walletspadding: "12px",
+        walletsgap: "12px",
+        walletswidth: "100%",
+        // Buttons: match our brand palette (green pay button, muted cancel button).
         paybuttoncolor: "#4CAF50",
         cancelbuttoncolor: "#f44336",
       });
@@ -768,7 +986,6 @@ export default function CheckoutPage() {
     totals.bookingTotal,
   ]);
 
-  // Cleanup
   useEffect(() => {
     return () => {
       try {
@@ -782,136 +999,233 @@ export default function CheckoutPage() {
   }, []);
 
   const canStart = useMemo(() => amount > 0 && !!orderId, [amount, orderId]);
-  const canNextFromStep1 = !!(
-    customer.firstName &&
-    customer.lastName &&
-    customer.email
+
+  // Build the products array for the review panel.  This mirrors what we
+  // will send to the server for the JWT but includes per‑hunter pricing via
+  // totals.bookingTotal.  We compute this once per render for the review
+  // screen.
+  const reviewProducts = useMemo(() => {
+    return buildProductsForJwt({
+      booking: booking
+        ? {
+            dates: booking.dates,
+            numberOfHunters: booking.numberOfHunters,
+            partyDeckDates: booking.partyDeckDates,
+            seasonConfig: seasonConfig || undefined,
+            bookingTotal: totals.bookingTotal,
+          }
+        : null,
+      merchItems: merchArray,
+    });
+  }, [booking, merchArray, seasonConfig, totals.bookingTotal]);
+
+  // Disable the "Next" button on step 1 if required customer info is missing.
+  const customerInfoComplete = Boolean(
+    customer.firstName && customer.lastName && customer.email
   );
 
-  if (!isHydrated)
-    return <div className="text-center py-20">Loading cart…</div>;
-
-  // Simple stepper UI
-  const Stepper = () => (
-    <div className="flex items-center gap-3 mb-6 text-sm select-none mt-20">
-      {[1, 2, 3].map((n) => (
-        <div key={n} className="flex items-center gap-2">
-          <div
-            className={`rounded-full flex items-center justify-center font-semibold ${
-              step === n
-                ? "bg-black text-white h-9 w-9"
-                : "bg-neutral-200 text-black h-8 w-8"
-            }`}
-          >
-            {n}
-          </div>
-          <span className="mr-2">
-            {n === 1 ? "Customer" : n === 2 ? "Review" : "Pay"}
-          </span>
-          {n < 3 && <div className="w-8 h-px bg-neutral-300" />}
-        </div>
-      ))}
-    </div>
-  );
-
-  // Itemized lines for Step 2
-  const OrderLines = () => {
-    const lines: Array<{
-      label: string;
-      qty?: number;
-      price?: number;
-      note?: string;
-    }> = [];
-    if (booking) {
-      const hunters = booking.numberOfHunters || 1;
-      const days = booking.dates.length;
-      const partyDays = booking.partyDeckDates?.length || 0;
-      const partyRate = seasonConfig?.partyDeckRatePerDay ?? 500;
-      const perHunter = Math.max(
-        0,
-        Math.round(
-          (totals.bookingTotal - partyDays * partyRate) / Math.max(1, hunters)
-        )
-      );
-      lines.push({
-        label: "Dove Hunt Package",
-        qty: hunters,
-        price: perHunter,
-        note: `${days} day(s)`,
-      });
-      if (partyDays > 0)
-        lines.push({ label: "Party Deck", qty: partyDays, price: partyRate });
+  // Handler to return from the pay step back to the review step.  We tear
+  // down any existing Deluxe instance to avoid duplicate panels and reset
+  // readiness flags.
+  const handleBackToReview = useCallback(() => {
+    try {
+      const inst = instanceRef.current;
+      if (inst?.destroy) inst.destroy();
+      else if (inst?.unmount) inst.unmount();
+      instanceRef.current = null;
+      const EP = resolveEP();
+      if (EP?.destroy) EP.destroy();
+    } catch (err) {
+      console.warn("Failed to destroy embedded instance", err);
     }
-    for (const m of merchArray)
-      lines.push({ label: m.name, qty: m.qty, price: m.price });
-    return (
-      <div className="divide-y p-3 rounded-lg border bg-neutral-100">
-        {lines.map((l, idx) => (
-          <div key={idx} className="flex items-center justify-between py-2">
-            <div>
-              <div className="font-medium">{l.label}</div>
-              {l.note && <div className="text-xs opacity-70">{l.note}</div>}
-            </div>
-            <div className="text-right">
-              <div className="text-sm">x{l.qty ?? 1}</div>
-              <div>${(l.price ?? 0).toFixed(2)}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
+    setSdkReady(false);
+    setInstanceReady(false);
+    setStep(2);
+  }, []);
+
+  // When the user clicks "Start secure payment" on the review step, advance
+  // to step 3 then trigger the embedded payment initialization.  We wait one
+  // tick after changing steps to allow the embedded container to mount in
+  // the DOM before starting the SDK.  Without this, the SDK may render
+  // into a stale or missing container.
+  const handleStartSecurePayment = useCallback(async () => {
+    setStep(3);
+    // Allow the DOM to update with the new container before starting
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await startEmbeddedPayment();
+  }, [startEmbeddedPayment]);
+
+  if (!isHydrated) {
+    return <div className="text-center py-20">Loading cart…</div>;
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-10">
-      <div className="mb-2">
-        <h1 className="text-3xl font-semibold">Checkout</h1>
+      {/* Header */}
+      <div className="mb-4">
+        <h1 className="text-3xl font-semibold font-acumin">Checkout</h1>
         <p className="text-sm opacity-70">
           Order ID: <span className="font-mono">{orderId}</span>
         </p>
       </div>
 
+      {/* Display any error messages */}
       {(errorMsg || (cfgError as any)) && (
         <div className="mb-6 rounded-lg border border-red-500/30 bg-red-500/10 text-red-700 p-3">
           {errorMsg || (cfgError as any)}
         </div>
       )}
 
-      <Stepper />
+      {/* Step indicator */}
+      <div className="mb-6 flex items-center justify-center gap-4">
+        <div
+          className={
+            "flex items-center gap-1 px-3 py-1 rounded-full text-sm " +
+            (step === 1
+              ? "bg-[var(--color-accent-sage)] text-white"
+              : "bg-neutral-200 text-neutral-600")
+          }
+        >
+          <span className="font-bold">1</span>
+          <span className="hidden sm:inline">Customer</span>
+        </div>
+        <div
+          className={
+            "flex items-center gap-1 px-3 py-1 rounded-full text-sm " +
+            (step === 2
+              ? "bg-[var(--color-accent-sage)] text-white"
+              : "bg-neutral-200 text-neutral-600")
+          }
+        >
+          <span className="font-bold">2</span>
+          <span className="hidden sm:inline">Review</span>
+        </div>
+        <div
+          className={
+            "flex items-center gap-1 px-3 py-1 rounded-full text-sm " +
+            (step === 3
+              ? "bg-[var(--color-accent-sage)] text-white"
+              : "bg-neutral-200 text-neutral-600")
+          }
+        >
+          <span className="font-bold">3</span>
+          <span className="hidden sm:inline">Pay</span>
+        </div>
+      </div>
 
-      {/* STEP 1 — CUSTOMER */}
+      {/* Step 1: Customer Info */}
       {step === 1 && (
-        <section className="mb-8 p-4 rounded-xl border bg-white">
-          <h2 className="text-xl mb-4">Customer Info</h2>
+        <section className="mb-8 p-4 rounded-xl border bg-neutral-100">
+          <h2 className="text-xl mb-4 font-acumin">Customer Info</h2>
           <CustomerInfoForm value={customer} onChange={setCustomer} />
-          <div className="mt-6 flex justify-between">
+          {/* Total at bottom of step 1 */}
+          <div className="mt-6 flex items-center justify-between">
+            <div className="text-lg font-semibold">Total</div>
+            <div className="text-2xl font-bold">${amount.toFixed(2)}</div>
+          </div>
+          <div className="mt-4 flex justify-end">
             <button
-              onClick={() => navigate(-1)}
-              className="px-4 py-2 rounded-lg border"
-            >
-              Back
-            </button>
-            <button
+              disabled={!customerInfoComplete}
               onClick={() => setStep(2)}
-              disabled={!canNextFromStep1}
-              className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50"
+              className="px-4 py-2 rounded-lg bg-[var(--color-accent-sage)] text-white disabled:opacity-50"
             >
-              Next: Review Order
+              Next: Review
             </button>
           </div>
         </section>
       )}
 
-      {/* STEP 2 — REVIEW */}
+      {/* Step 2: Review */}
       {step === 2 && (
-        <section className="mb-8 px-4 py-8 rounded-xl border bg-white">
-          <h2 className="text-2xl mb-3 font-acumin">Order Summary</h2>
-          <OrderLines />
-          <div className="mt-4 flex items-center justify-between">
-            <div className="text-lg">Total</div>
+        <section className="mb-8 p-4 rounded-xl border bg-neutral-100">
+          <h2 className="text-xl mb-4 font-acumin">Review Order</h2>
+          {/* Summary of hunt details */}
+          {booking && (
+            <div className="mb-4 grid sm:grid-cols-3 gap-3">
+              <div>
+                <div className="text-[11px] uppercase tracking-wide opacity-60">
+                  Hunters
+                </div>
+                <div className="font-semibold">{booking.numberOfHunters}</div>
+              </div>
+              <div>
+                <div className="text-[11px] uppercase tracking-wide opacity-60">
+                  Days
+                </div>
+                <div className="font-semibold">{booking.dates.length}</div>
+              </div>
+              <div>
+                <div className="text-[11px] uppercase tracking-wide opacity-60">
+                  Dates
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {dateRangeLabels.length > 0 ? (
+                    dateRangeLabels.map((label, i) => (
+                      <span
+                        key={i}
+                        className="inline-block px-2 py-1 rounded-full bg-neutral-200 border text-xs"
+                      >
+                        {label}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-xs opacity-70">—</span>
+                  )}
+                </div>
+              </div>
+              {booking.partyDeckDates && booking.partyDeckDates.length > 0 && (
+                <div className="col-span-full">
+                  <div className="text-[11px] uppercase tracking-wide opacity-60">
+                    Party Deck
+                  </div>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {partyDeckRangeLabels.map((label, i) => (
+                      <span
+                        key={i}
+                        className="inline-block px-2 py-1 rounded-full bg-neutral-200 border text-xs"
+                      >
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          {/* Itemized products */}
+          <div className="mb-4">
+            <h3 className="text-lg font-semibold mb-2">Items</h3>
+            <div className="divide-y divide-neutral-200">
+              {reviewProducts.map((p, i) => (
+                <div key={i} className="py-2 flex justify-between items-start">
+                  <div className="pr-2">
+                    <div className="font-medium">{p.name}</div>
+                    {p.description && (
+                      <div className="text-xs opacity-70">{p.description}</div>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm">
+                      {p.quantity} × ${p.price?.toFixed(2)}
+                    </div>
+                    <div className="font-semibold">
+                      $
+                      {(p.price || 0) * (p.quantity || 0) === 0
+                        ? (p.price || 0) * (p.quantity || 0)
+                        : ((p.price || 0) * (p.quantity || 0)).toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Review totals */}
+          <div className="mb-4 flex justify-end">
+            <div className="text-lg font-semibold mr-2">Total:</div>
             <div className="text-2xl font-bold">${amount.toFixed(2)}</div>
           </div>
-          <div className="mt-6 flex flex-wrap gap-3 justify-between">
+          {/* Navigation buttons */}
+          <div className="mt-4 flex justify-between flex-wrap gap-3">
             <button
               onClick={() => setStep(1)}
               className="px-4 py-2 rounded-lg border"
@@ -920,8 +1234,8 @@ export default function CheckoutPage() {
             </button>
             <button
               disabled={!canStart || isSubmitting}
-              onClick={startEmbeddedPayment}
-              className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50 transition-colors"
+              onClick={handleStartSecurePayment}
+              className="px-4 py-2 rounded-lg bg-[var(--color-accent-sage)] text-white disabled:opacity-50"
             >
               {isSubmitting ? "Starting…" : "Start secure payment"}
             </button>
@@ -929,77 +1243,87 @@ export default function CheckoutPage() {
         </section>
       )}
 
-      {/* STEP 3 — PAY (Embedded) */}
+      {/* Step 3: Pay */}
       {step === 3 && (
-        <section className="mb-6 p-4 rounded-xl border bg-neutral-100">
-          <h2 className="text-xl mb-2 font-acumin">Pay Securely (Embedded)</h2>
-          <div className="mb-3 text-sm opacity-70">
-            Total: ${amount.toFixed(2)}
-          </div>
+        <section className="mb-8 p-4 rounded-xl border bg-neutral-100">
+          <h2 className="text-xl mb-4 font-acumin">Pay Securely (Embedded)</h2>
+          {/* Quick summary */}
           {booking && (
-            <div className="mb-4 p-3 rounded-lg border bg-white/70">
-              <div className="grid sm:grid-cols-3 gap-3">
-                <div>
-                  <div className="text-[11px] uppercase tracking-wide opacity-60">
-                    Hunters
-                  </div>
-                  <div className="font-semibold">{booking.numberOfHunters}</div>
+            <div className="mb-4 grid sm:grid-cols-3 gap-3">
+              <div>
+                <div className="text-[11px] uppercase tracking-wide opacity-60">
+                  Hunters
                 </div>
-                <div>
-                  <div className="text-[11px] uppercase tracking-wide opacity-60">
-                    Days
-                  </div>
-                  <div className="font-semibold">{booking.dates.length}</div>
+                <div className="font-semibold">{booking.numberOfHunters}</div>
+              </div>
+              <div>
+                <div className="text-[11px] uppercase tracking-wide opacity-60">
+                  Days
                 </div>
-                <div>
-                  <div className="text-[11px] uppercase tracking-wide opacity-60">
-                    Dates
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {dateRangeLabels.map((label, i) => (
+                <div className="font-semibold">{booking.dates.length}</div>
+              </div>
+              <div>
+                <div className="text-[11px] uppercase tracking-wide opacity-60">
+                  Dates
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {dateRangeLabels.length > 0 ? (
+                    dateRangeLabels.map((label, i) => (
                       <span
                         key={i}
-                        className="inline-block px-2 py-1 rounded-full bg-neutral-100 border text-xs"
+                        className="inline-block px-2 py-1 rounded-full bg-neutral-200 border text-xs"
+                      >
+                        {label}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-xs opacity-70">—</span>
+                  )}
+                </div>
+              </div>
+              {booking.partyDeckDates && booking.partyDeckDates.length > 0 && (
+                <div className="col-span-full">
+                  <div className="text-[11px] uppercase tracking-wide opacity-60">
+                    Party Deck
+                  </div>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {partyDeckRangeLabels.map((label, i) => (
+                      <span
+                        key={i}
+                        className="inline-block px-2 py-1 rounded-full bg-neutral-200 border text-xs"
                       >
                         {label}
                       </span>
                     ))}
-                    {dateRangeLabels.length === 0 && (
-                      <span className="text-xs opacity-70">—</span>
-                    )}
                   </div>
                 </div>
-              </div>
-
-              {booking.partyDeckDates?.length ? (
-                <div className="mt-3 text-xs">
-                  <span className="opacity-60 mr-1">Party Deck:</span>
-                  <span className="font-medium">
-                    {partyDeckRangeLabels.join(", ")}
-                  </span>
-                </div>
-              ) : null}
+              )}
             </div>
           )}
-
+          <div className="mb-4 flex justify-between items-center">
+            <div className="text-lg font-semibold">Total</div>
+            <div className="text-2xl font-bold">${amount.toFixed(2)}</div>
+          </div>
           <div
             id={EMBEDDED_CONTAINER_ID}
             className={[
-              "min-h-[260px] rounded-xl border font-acumin! bg-white",
+              "min-h-[240px] rounded-xl shadow-lg bg-white mb-6",
               sdkReady ? "opacity-100" : "opacity-60",
               "transition-opacity",
             ].join(" ")}
           />
           {!sdkReady && (
-            <p className="mt-2 text-sm opacity-70">Loading payment panel…</p>
+            <p className="mt-2 text-sm opacity-70">
+              The payment panel will appear here after you click “Start secure
+              payment.”
+            </p>
           )}
           {sdkReady && !instanceReady && (
-            <p className="mt-2 text-sm opacity-70">Initializing…</p>
+            <p className="mt-2 text-sm opacity-70">Loading payment panel…</p>
           )}
-
-          <div className="mt-6 flex justify-between">
+          <div className="mt-4 flex justify-start">
             <button
-              onClick={() => setStep(2)}
+              onClick={handleBackToReview}
               className="px-4 py-2 rounded-lg border"
             >
               Back to review
@@ -1008,6 +1332,7 @@ export default function CheckoutPage() {
         </section>
       )}
 
+      {/* Footer note */}
       <p className="text-xs opacity-60">
         By paying, you agree to the ranch’s property rules and cancellation
         policy.

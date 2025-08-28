@@ -49,7 +49,9 @@
   fill: white !important;  /* For some SVG icons */
   stroke: white !important; /* For others that use stroke */
 }
-
+.purchase-summary {
+  font-family: "Acumin Pro"!important;
+}
 
 body {
   background-color: var(--color-dark);
