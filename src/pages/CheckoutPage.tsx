@@ -352,11 +352,13 @@ function buildProductsForJwt(args: {
   merchItems: MerchItem[];
 }) {
   const { booking, merchItems } = args;
+  // Define the product shape including both `price` (for display) and `amount` (for Deluxe SDK).
   const products: Array<{
     name?: string;
     skuCode?: string;
     quantity?: number;
-    price?: number; // unit price per item
+    price?: number; // unit price per item used in our UI
+    amount?: number; // unit price passed to Deluxe Embedded
     description?: string;
     unitOfMeasure?: string;
   }> = [];
@@ -393,6 +395,12 @@ function buildProductsForJwt(args: {
       // Convert the computed unit into a proper money value.  Using toMoney
       // ensures the price is a valid, finite number with two decimals.
       price: toMoney(perHunterUnit),
+      // Provide an `amount` field for Deluxe Embedded.  The Embedded
+      // Payments SDK reads products[i].amount as the per‑unit price (in
+      // currency units) rather than products[i].price.  Including
+      // both fields allows the UI to use `price` directly while the
+      // backend passes `amount` to Deluxe.
+      amount: toMoney(perHunterUnit),
       description: `${booking.dates.length} day(s) • ${hunters} hunter(s)`,
       unitOfMeasure: "Each",
     });
@@ -403,6 +411,7 @@ function buildProductsForJwt(args: {
         skuCode: "PARTY",
         quantity: partyDays,
         price: toMoney(partyRate),
+        amount: toMoney(partyRate),
         unitOfMeasure: "Day",
       });
     }
@@ -416,6 +425,7 @@ function buildProductsForJwt(args: {
       quantity: m.qty,
       // Ensure merch item unit price is a valid money value
       price: toMoney(m.price),
+      amount: toMoney(m.price),
       unitOfMeasure: "Each",
     });
   }
@@ -632,7 +642,13 @@ export default function CheckoutPage() {
     });
     return products.map((p) => {
       const quantity = p.quantity || 0;
-      const unit = p.price || 0;
+      // Prefer the price field for display; fall back to amount if price is undefined.
+      const unit =
+        typeof p.price === "number" && !isNaN(p.price)
+          ? p.price
+          : typeof p.amount === "number" && !isNaN(p.amount)
+          ? p.amount
+          : 0;
       return {
         ...p,
         quantity,
