@@ -1,5 +1,5 @@
 // /pages/ClientDashboard.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { db } from "../firebase/firebaseConfig";
 import {
@@ -15,8 +15,9 @@ import {
   increment,
 } from "firebase/firestore";
 import { useCart } from "../context/CartContext";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import type { Order } from "../types/Types";
+import { useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
 
 type Tab = "orders" | "cart";
@@ -30,28 +31,48 @@ const ClientDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const params = new URLSearchParams(location.search);
-  const status = params.get("status");
+  const status = params.get("status"); // will be 'pending'
   const orderIdParam = params.get("orderId");
 
+  /**
+   * State to drive the payment success experience. When a user is redirected
+   * back from the checkout flow with `?status=paid&orderId=…` in the URL, we
+   * fetch the corresponding order from Firestore and present a friendly
+   * confirmation card. While the order is being fetched the page shows a
+   * loading indicator. Once the user acknowledges the success screen we
+   * remove the query params and return them to their dashboard.
+   */
   const [showSuccess, setShowSuccess] = useState(false);
   const [successOrder, setSuccessOrder] = useState<Order | null>(null);
   const [loadingSuccess, setLoadingSuccess] = useState(false);
 
   useEffect(() => {
-    if (status === "pending") toast("You have an order waiting for payment.");
+    if (status === "pending") {
+      // Show a toast or message like:
+      toast("You have an order waiting for payment.");
+    }
   }, [status]);
 
+  // When redirected back from the checkout page with a successful payment,
+  // fetch the order details and display a confirmation card. We only run
+  // this effect when `status` is "paid" and an orderId is present. The
+  // dependencies ensure the order is fetched again if the query params
+  // change. Once the order is fetched we set `showSuccess` to true which
+  // triggers the success component in the render.
   useEffect(() => {
     if (status === "paid" && orderIdParam) {
+      // Immediately show the success container and load the order
       setLoadingSuccess(true);
       setShowSuccess(true);
-      (async () => {
+      const fetchOrder = async () => {
         try {
           const orderRef = doc(db, "orders", orderIdParam);
           const snap = await getDoc(orderRef);
           if (snap.exists()) {
             const data = snap.data() as Order;
-            setSuccessOrder({ id: snap.id, ...(data as any) });
+            // Attach the id to the data object for convenience
+            const order: Order = { id: snap.id, ...data };
+            setSuccessOrder(order);
           } else {
             toast.error("Order not found.");
           }
@@ -61,27 +82,30 @@ const ClientDashboard = () => {
         } finally {
           setLoadingSuccess(false);
         }
-      })();
+      };
+      fetchOrder();
     }
   }, [status, orderIdParam]);
-
   useEffect(() => {
     const fetchOrders = async () => {
       if (!user) return;
       setLoading(true);
+
       const ordersQuery = query(
         collection(db, "orders"),
         where("userId", "==", user.uid),
         orderBy("createdAt", "desc")
       );
+
       const ordersSnap = await getDocs(ordersQuery);
-      const parsed = ordersSnap.docs.map((d) => ({
-        id: d.id,
-        ...(d.data() as any),
-      })) as any;
+      const parsed = ordersSnap.docs.map((doc) => ({
+        id: doc.id,
+        ...(doc.data() as Order),
+      }));
       setOrders(parsed);
       setLoading(false);
     };
+
     fetchOrders();
   }, [user]);
 
@@ -109,169 +133,117 @@ const ClientDashboard = () => {
   if (!user)
     return <div className="text-white text-center mt-10">Please sign in.</div>;
 
+  // Handler invoked when the user dismisses the success message. It removes
+  // the query parameters and returns the user to their dashboard. We set
+  // `replace: true` so the "?status=paid" page doesn't linger in history.
   const handleSuccessDismiss = () => {
     setShowSuccess(false);
     setActiveTab("orders");
     navigate("/dashboard", { replace: true });
   };
 
-  // -------- Cancellation + Refunds --------
-  const dateDiffInDays = (iso: string) => {
+  // --- Cancel & Refund logic (Deluxe) ---
+  const daysUntil = (iso: string) => {
     const [y, m, d] = iso.split("-").map((n) => Number(n));
     const target = new Date(y, m - 1, d);
     const now = new Date();
+    // strip time for accurate day diff
+    const msPerDay = 24 * 60 * 60 * 1000;
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const end = new Date(
       target.getFullYear(),
       target.getMonth(),
       target.getDate()
     );
-    return Math.round((end.getTime() - start.getTime()) / 86400000);
+    return Math.round((end.getTime() - start.getTime()) / msPerDay);
   };
 
-  const extractRefundIdentifiers = (order: any) => {
-    // Prefer explicit paymentId first (stored at root or under deluxe)
-    const paymentId =
-      order?.deluxe?.paymentId ||
-      order?.paymentId ||
-      order?.deluxe?.lastEvent?.paymentId ||
-      order?.deluxe?.lastWebhook?.paymentId ||
-      null;
-
-    // Fallback to original transaction id variants from events/webhooks
-    const tx =
-      order?.deluxe?.lastEvent?.TransactionId ||
-      order?.deluxe?.lastEvent?.transactionId ||
-      order?.deluxe?.lastEvent?.InputData?.TransactionId ||
-      order?.TransactionId ||
-      order?.transactionId ||
-      null;
-
-    const txRecord =
-      order?.deluxe?.lastEvent?.TransactionRecordID ||
-      order?.TransactionRecordID ||
-      null;
-
-    return {
-      paymentId: paymentId || undefined,
-      transactionId: (tx || txRecord || undefined) as string | undefined,
-    };
-  };
-
-  const handleCancelOrder = async (order: any) => {
+  const handleCancelOrder = async (order: Order) => {
     try {
       if (!order?.id) return;
       if (order.status === "cancelled") {
         toast.info("Order already cancelled.");
         return;
       }
-
-      const firstDate: string | undefined = order?.booking?.dates
-        ?.slice()
-        ?.sort()?.[0];
-      const hunters: number = Number(order?.booking?.numberOfHunters || 0);
-      const wasPaid = order.status === "paid";
-      const daysUntil = firstDate ? dateDiffInDays(firstDate) : 0;
-      const eligible = !!firstDate && daysUntil >= 14 && wasPaid;
-      const refundAmount = eligible
+      const firstDate = order?.booking?.dates?.slice()?.sort()?.[0];
+      const nHunters = order?.booking?.numberOfHunters || 0;
+      const isPaid = order.status === "paid";
+      const dUntil = firstDate ? daysUntil(firstDate) : 0;
+      const eligibleForRefund = !!firstDate && dUntil >= 14 && isPaid;
+      const refundAmount = eligibleForRefund
         ? Math.round(order.total * 0.5 * 100) / 100
         : 0;
 
-      // Build refund body if eligible
-      let refundRequestBody: any | null = null;
-      let refundResponseBody: any | null = null;
-      let refundOk = false;
-
+      // 1) Try Deluxe refund if eligible and we have a payment reference
+      let refundPayload: any = null;
       if (refundAmount > 0) {
-        const ids = extractRefundIdentifiers(order);
-        refundRequestBody = {
+        const paymentId =
+          (order as any)?.deluxe?.paymentId ||
+          (order as any)?.deluxe?.lastEvent?.paymentId ||
+          (order as any)?.deluxe?.lastEvent?.PaymentId ||
+          null;
+        const transactionId =
+          (order as any)?.deluxe?.lastEvent?.TransactionId ||
+          (order as any)?.deluxe?.lastEvent?.TransactionRecordID ||
+          null;
+
+        const body: any = {
           amount: refundAmount,
           currency: order.currency || "USD",
-          reason: "Customer cancellation per policy",
-          ...(ids.paymentId ? { paymentId: ids.paymentId } : {}),
-          ...(!ids.paymentId && ids.transactionId
-            ? { transactionId: ids.transactionId }
-            : {}),
         };
-        if (refundRequestBody.paymentId || refundRequestBody.transactionId) {
-          const resp = await fetch("/api/refundDeluxePayment", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(refundRequestBody),
-          });
-          try {
-            refundResponseBody = await resp.json();
-          } catch {
-            refundResponseBody = {
-              raw: await resp.text().catch(() => ""),
-            } as any;
-          }
-          if (resp.ok) {
-            refundOk = true;
-            toast.success(`Refund initiated for $${refundAmount.toFixed(2)}`);
-          } else {
-            console.warn("Refund API failed", refundResponseBody);
-            toast.error(
-              "Refund request failed; cancelling order without refund."
-            );
-          }
+        if (paymentId) body.paymentId = paymentId;
+        else if (transactionId) body.transactionId = transactionId;
+
+        const resp = await fetch("/api/refundDeluxePayment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        refundPayload = await resp.json().catch(() => null);
+        if (!resp.ok) {
+          console.error("Refund API failed", refundPayload);
+          toast.error(
+            "Refund request failed; cancelling order without refund."
+          );
         } else {
-          toast.error("Payment reference missing; cancelling without refund.");
+          toast.success(`Refund initiated for $${refundAmount.toFixed(2)}`);
         }
       }
 
-      // Firestore updates (atomic)
+      // 2) Update Firestore: cancel order and free capacity
       const batch = writeBatch(db);
       const orderRef = doc(db, "orders", order.id);
       batch.set(
         orderRef,
         {
           status: "cancelled",
-          refundAmount: refundAmount || 0,
+          refundAmount,
           cancelledAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
-          deluxe: {
-            ...(order?.deluxe || {}),
-            ...(refundRequestBody
-              ? { lastRefundRequest: refundRequestBody }
-              : {}),
-            ...(refundResponseBody
-              ? { lastRefundResponse: refundResponseBody }
-              : {}),
-            refundSucceeded: refundOk,
-            updatedAt: serverTimestamp(),
-          },
+          ...(refundPayload
+            ? { deluxe: { ...(order as any).deluxe, refund: refundPayload } }
+            : {}),
         },
         { merge: true }
       );
 
-      // Capacity release only if the order had been paid (capacity was incremented on approval)
-      if (wasPaid && order?.booking?.dates?.length && hunters > 0) {
-        for (const date of order.booking.dates as string[]) {
+      if (order?.booking?.dates?.length && nHunters > 0) {
+        for (const date of order.booking.dates) {
           const availRef = doc(db, "availability", date);
           batch.set(
             availRef,
-            {
-              huntersBooked: increment(-hunters),
-              updatedAt: serverTimestamp(),
-            },
+            { huntersBooked: increment(-nHunters) },
             { merge: true }
           );
-          if (
-            Array.isArray(order?.booking?.partyDeckDates) &&
-            order.booking.partyDeckDates.includes(date)
-          ) {
-            batch.set(
-              availRef,
-              { partyDeckBooked: false, updatedAt: serverTimestamp() },
-              { merge: true }
-            );
+          // If we had the party deck on this date, release it.
+          if ((order as any)?.booking?.partyDeckDates?.includes(date)) {
+            batch.set(availRef, { partyDeckBooked: false }, { merge: true });
           }
         }
       }
 
       await batch.commit();
-
+      // Refresh local UI
       setOrders((prev) =>
         prev.map((o) =>
           o.id === order.id
@@ -284,28 +256,6 @@ const ClientDashboard = () => {
       toast.error("Could not cancel this order.");
     }
   };
-
-  const successSummary = useMemo(() => {
-    if (!successOrder) return null;
-    const lines: string[] = [];
-    if (successOrder.booking?.dates?.length) {
-      lines.push(
-        `Dates: ${successOrder.booking.dates
-          .map((d: string) => formatFriendlyDate(d))
-          .join(", ")}`
-      );
-      lines.push(`Hunters: ${successOrder.booking.numberOfHunters}`);
-      if (successOrder.booking.partyDeckDates?.length) {
-        lines.push(
-          `Party Deck Days: ${successOrder.booking.partyDeckDates
-            .map((d: string) => formatFriendlyDate(d))
-            .join(", ")}`
-        );
-      }
-    }
-    return lines;
-  }, [successOrder]);
-
   return (
     <div className="max-w-8xl mx-auto text-[var(--color-text)] py-16 px-6 flex flex-col md:flex-row gap-8 mt-20">
       {/* Sidebar */}
@@ -347,8 +297,10 @@ const ClientDashboard = () => {
 
       {/* Main Content */}
       <section className="flex-1 bg-[var(--color-card)] p-6 rounded-md shadow">
+        {/* If we are showing the success message, render it first */}
         {showSuccess && status === "paid" ? (
           <div className="flex flex-col items-center justify-center text-center min-h-[300px]">
+            {/* Success indicator */}
             <div className="flex items-center justify-center w-20 h-20 rounded-full bg-green-100 text-green-600 shadow-lg">
               <span className="text-4xl">✓</span>
             </div>
@@ -357,30 +309,67 @@ const ClientDashboard = () => {
             </h2>
             <p className="mt-2 text-sm text-neutral-400 max-w-md">
               Thank you for your purchase! Your order has been confirmed and is
-              now available in your dashboard.
+              now available in your dashboard. Below is a summary of your order
+              for your records.
             </p>
+            {/* Order summary */}
             {loadingSuccess ? (
               <p className="mt-6 text-sm text-neutral-400">
                 Loading order details…
               </p>
             ) : successOrder ? (
               <div className="mt-6 w-full max-w-lg text-left bg-[var(--color-footer)]/10 p-4 rounded-md space-y-4 border border-green-200">
+                {/* Order ID */}
                 <div>
                   <p className="text-sm text-neutral-400">Order ID</p>
                   <p className="font-mono text-sm break-all">
                     {successOrder.id}
                   </p>
                 </div>
-                {successSummary && (
+                {successOrder.booking && (
                   <div className="space-y-1">
                     <p className="font-semibold">Booking</p>
                     <div className="ml-4 space-y-0.5">
-                      {successSummary.map((l, i) => (
-                        <p key={i}>{l}</p>
-                      ))}
+                      <p>
+                        Dates:{" "}
+                        {successOrder.booking.dates
+                          .map(formatFriendlyDate)
+                          .join(", ")}
+                      </p>
+                      <p>Hunters: {successOrder.booking.numberOfHunters}</p>
+                      {successOrder.booking.partyDeckDates?.length > 0 && (
+                        <p>
+                          Party Deck Days:{" "}
+                          {successOrder.booking.partyDeckDates
+                            .map(formatFriendlyDate)
+                            .join(", ")}
+                        </p>
+                      )}
+                      {typeof successOrder.booking.price !== "undefined" && (
+                        <p>
+                          Booking Total: $
+                          {successOrder.booking.price?.toFixed(2).toString()}
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}
+                {successOrder.merchItems &&
+                  Object.keys(successOrder.merchItems).length > 0 && (
+                    <div className="space-y-1">
+                      <p className="font-semibold">Merch Items</p>
+                      <ul className="ml-4 list-disc space-y-0.5">
+                        {Object.entries(successOrder.merchItems).map(
+                          ([id, item]) => (
+                            <li key={id}>
+                              {item.product.name} × {item.quantity} = $
+                              {(item.product.price * item.quantity).toFixed(2)}
+                            </li>
+                          )
+                        )}
+                      </ul>
+                    </div>
+                  )}
                 <div>
                   <p className="font-semibold">Total</p>
                   <p className="ml-4">${successOrder.total.toFixed(2)}</p>
@@ -409,7 +398,7 @@ const ClientDashboard = () => {
                   <p>No orders found.</p>
                 ) : (
                   <ul className="space-y-4 text-sm">
-                    {orders.map((order: any) => (
+                    {orders.map((order) => (
                       <li
                         key={order.id}
                         className="border-b pb-4 border-[var(--color-footer)]"
@@ -431,52 +420,59 @@ const ClientDashboard = () => {
                         </p>
 
                         {order.booking && (
-                          <div className="mb-2">
-                            <strong>Booking:</strong>
-                            <div className="ml-4 space-y-1">
-                              <p>
-                                Dates:{" "}
-                                {order.booking.dates
-                                  .map((d: string) => formatFriendlyDate(d))
-                                  .join(", ")}
-                              </p>
-                              <p>Hunters: {order.booking.numberOfHunters}</p>
-                              {order.booking.partyDeckDates?.length > 0 && (
+                          <>
+                            <div className="mb-2">
+                              <strong>Booking:</strong>
+                              <div className="ml-4 space-y-1">
                                 <p>
-                                  Party Deck Days:{" "}
-                                  {order.booking.partyDeckDates
-                                    .map((d: string) => formatFriendlyDate(d))
+                                  Dates:{" "}
+                                  {order.booking.dates
+                                    .map(formatFriendlyDate)
                                     .join(", ")}
                                 </p>
-                              )}
+                                <p>Hunters: {order.booking.numberOfHunters}</p>
+                                {order.booking.partyDeckDates?.length > 0 && (
+                                  <p>
+                                    Party Deck Days:{" "}
+                                    {order.booking.partyDeckDates
+                                      .map(formatFriendlyDate)
+                                      .join(", ")}
+                                  </p>
+                                )}
+                                {typeof order.booking.price !== "undefined" && (
+                                  <p>
+                                    Booking Total: $
+                                    {order.booking.price.toFixed(2)}
+                                  </p>
+                                )}
+                              </div>
                             </div>
-                          </div>
+                          </>
                         )}
 
                         {order.merchItems && (
-                          <div className="mb-2">
-                            <strong>Merch Items:</strong>
-                            <ul className="ml-4 list-disc">
-                              {Object.entries(order.merchItems).map(
-                                ([id, item]: any) => (
-                                  <li key={id}>
-                                    {(item as any).product.name} ×{" "}
-                                    {(item as any).quantity} = $
-                                    {(
-                                      ((item as any).product.price || 0) *
-                                      ((item as any).quantity || 0)
-                                    ).toFixed(2)}
-                                  </li>
-                                )
-                              )}
-                            </ul>
-                          </div>
+                          <>
+                            <div className="mb-2">
+                              <strong>Merch Items:</strong>
+                              <ul className="ml-4 list-disc">
+                                {Object.entries(order.merchItems).map(
+                                  ([id, item]) => (
+                                    <li key={id}>
+                                      {item.product.name} × {item.quantity} = $
+                                      {(
+                                        item.product.price * item.quantity
+                                      ).toFixed(2)}
+                                    </li>
+                                  )
+                                )}
+                              </ul>
+                            </div>
+                          </>
                         )}
 
                         <p className="mt-2 font-semibold">
-                          Total: ${Number(order.total || 0).toFixed(2)}
+                          Total: ${order.total.toFixed(2)}
                         </p>
-
                         {order.status === "paid" && (
                           <div className="mt-3">
                             <button
