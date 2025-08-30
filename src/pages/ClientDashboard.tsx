@@ -417,28 +417,28 @@ const ClientDashboard: React.FC = () => {
   // ----- Render (single return — no conditional early returns) -----
   return (
     <Boundary>
-      <div className="max-w-8xl mx-auto text-[var(--color-text)] py-16 px-6 flex flex-col md:flex-row gap-8 mt-20">
+      <div className="max-w-[1400px] mx-auto text-[var(--color-text)] py-6 min-h-[600px] px-6 flex flex-col md:flex-row gap-8 mt-20 md:mt-40 bg-neutral-100">
         {/* Sidebar */}
         <aside className="w-full md:w-1/4">
-          <h1 className="text-2xl font-broadsheet text-[var(--color-accent-gold)] mb-6">
+          <h1 className="text-2xl font-acumin text-[var(--color-background)] font-bold mb-6">
             Dashboard
           </h1>
           <nav className="flex flex-col space-y-2">
             <button
-              className={`text-left px-4 py-2 rounded-md ${
+              className={`text-left px-4 py-2 rounded-md text-[var(--color-background)]  ${
                 activeTab === "orders"
-                  ? "bg-[var(--color-accent-gold)] text-[var(--color-footer)] font-bold"
-                  : "bg-[var(--color-card)] hover:bg-[var(--color-button-hover)]"
+                  ? "bg-white shadow-lg"
+                  : "bg-neutral-100 hover:bg-white"
               }`}
               onClick={() => setActiveTab("orders")}
             >
               My Orders
             </button>
             <button
-              className={`text-left px-4 py-2 rounded-md ${
+              className={`text-left px-4 py-2 rounded-md fonbt-bold text-[var(--color-background)] hover:scale-105 hover:bg-white transition-all duration-300 ease-in-out ${
                 activeTab === "cart"
-                  ? "bg-[var(--color-accent-gold)] text-[var(--color-footer)] font-bold"
-                  : "bg-[var(--color-card)] hover:bg-[var(--color-button-hover)]"
+                  ? "bg-white shadow-lg scale-105"
+                  : "bg-neutral-100"
               }`}
               onClick={() => setActiveTab("cart")}
             >
@@ -456,7 +456,7 @@ const ClientDashboard: React.FC = () => {
         </aside>
 
         {/* Main Content */}
-        <section className="flex-1 bg-[var(--color-card)] p-6 rounded-md shadow">
+        <section className="flex-1 bg-white p-6 rounded-md shadow">
           {/* If no user, show a stable, safe panel — we NEVER early-return above. */}
           {!user ? (
             <div className="text-center py-10">
@@ -558,9 +558,13 @@ const ClientDashboard: React.FC = () => {
             <p className="text-sm text-neutral-400">Loading your data...</p>
           ) : activeTab === "orders" ? (
             <>
-              <h2 className="text-xl font-bold mb-4">My Orders</h2>
+              <h2 className="text-xl font-bold mb-2 text-[var(--color-background)] font-acumin">
+                My Orders
+              </h2>
               {orders.length === 0 ? (
-                <p>No orders found.</p>
+                <p className="text-[var(--color-background)]/60">
+                  No orders found.
+                </p>
               ) : (
                 <ul className="space-y-4 text-sm">
                   {orders.map((order) => {
@@ -665,10 +669,14 @@ const ClientDashboard: React.FC = () => {
             </>
           ) : (
             <>
-              <h2 className="text-xl font-bold mb-4">Cart Status</h2>
+              <h2 className="text-xl font-bold mb-3 text-[var(--color-background)] font-acumin">
+                Cart Status
+              </h2>
               {hasCartItems ? (
                 <div>
-                  <p className="mb-2">You have items in your cart.</p>
+                  <p className="mb-2 text-[var(--color-background)]/60">
+                    You have items in your cart.
+                  </p>
                   <button
                     onClick={() => navigate("/checkout")}
                     className="bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white px-6 py-2 rounded"
