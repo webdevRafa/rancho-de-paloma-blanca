@@ -1,4 +1,4 @@
-// /pages/ClientDashboard.tsx (hardened)
+// /pages/ClientDashboard.tsx (patched to prevent hook-order mismatch after cancel+refresh)
 import React, { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { db } from "../firebase/firebaseConfig";
@@ -19,30 +19,32 @@ import { useNavigate, useLocation } from "react-router-dom";
 import type { Order } from "../types/Types";
 import { toast } from "react-toastify";
 
-// ------------------------------
-// Utilities (defensive helpers)
-// ------------------------------
+/**
+ * WHY THIS PATCH?
+ * - Your dashboard crashed after cancel -> refresh with “Minified React error #310”.
+ *   That error typically means “rendered fewer hooks than expected / invalid hook call”.
+ *   The most common trigger is an early return that skips some hooks on a later render.
+ * - This version keeps the hook call order 100% stable across every render and adds
+ *   extra guards for merch‑only orders (no booking dates).
+ * - Also: we hardened cancel logic and rendering for orders missing fields.
+ */
 
-/** Safely coerce any numeric-like value to a 2-decimal string. */
+/** Format money safely. */
 function fmtMoney(n: unknown): string {
   const num = typeof n === "number" ? n : Number(n);
-  if (!isFinite(num)) return "0.00";
-  return num.toFixed(2);
+  return Number.isFinite(num) ? num.toFixed(2) : "0.00";
 }
 
-/** Format YYYY-MM-DD safely; returns a friendly label or a fallback. */
+/** "Friday, October 4th, 2025" (safe) */
 function formatFriendlyDateSafe(iso?: unknown): string {
-  if (typeof iso !== "string" || !/\d{4}-\d{2}-\d{2}/.test(iso)) {
+  if (typeof iso !== "string" || !/\d{4}-\d{2}-\d{2}/.test(iso))
     return "Unknown date";
-  }
   try {
-    const [yyyy, mm, dd] = iso.split("-");
-    const year = Number(yyyy);
-    const monthIndex = Number(mm) - 1;
-    const day = Number(dd);
-    const dateObj = new Date(year, monthIndex, day);
-    const month = dateObj.toLocaleString("en-US", { month: "long" });
-    const weekday = dateObj.toLocaleString("en-US", { weekday: "long" });
+    const [yyyy, mm, dd] = iso.split("-").map((s) => Number(s));
+    const d = new Date(yyyy, mm - 1, dd);
+    const weekday = d.toLocaleString("en-US", { weekday: "long" });
+    const month = d.toLocaleString("en-US", { month: "long" });
+    const day = d.getDate();
     const j = day % 10,
       k = day % 100;
     const suffix =
@@ -53,62 +55,79 @@ function formatFriendlyDateSafe(iso?: unknown): string {
         : j === 3 && k !== 13
         ? "rd"
         : "th";
-    return `${weekday}, ${month} ${day}${suffix}, ${year}`;
+    return `${weekday}, ${month} ${day}${suffix}, ${d.getFullYear()}`;
   } catch {
-    return iso;
+    return String(iso);
   }
 }
 
-/** Narrow/normalize merch lines to a simple array for rendering. */
+/** Normalize merch lines (supports object map or legacy array shapes). */
 function normalizeMerchItems(merch: Order["merchItems"]) {
-  if (!merch || typeof merch !== "object") return [];
-  try {
-    return Object.entries(merch).map(([id, item]) => ({
-      id,
-      name: item?.product?.name ?? "Item",
+  if (!merch)
+    return [] as Array<{
+      id: string;
+      name: string;
+      price: number;
+      quantity: number;
+    }>;
+  // If it is an array (legacy), convert to a map-ish array
+  if (Array.isArray(merch)) {
+    return (merch as any[]).map((item, idx) => ({
+      id: String(idx),
+      name: item?.product?.name ?? item?.name ?? "Item",
       price:
         typeof item?.product?.price === "number"
           ? item.product.price
-          : Number(item?.product?.price) || 0,
+          : typeof item?.price === "number"
+          ? item.price
+          : Number(item?.price) || 0,
       quantity:
         typeof item?.quantity === "number"
           ? item.quantity
           : Number(item?.quantity) || 0,
     }));
-  } catch {
-    return [];
   }
+  // Object map
+  return Object.entries(merch as Record<string, any>).map(([id, item]) => ({
+    id,
+    name: item?.product?.name ?? item?.name ?? "Item",
+    price:
+      typeof item?.product?.price === "number"
+        ? item.product.price
+        : typeof item?.price === "number"
+        ? item.price
+        : Number(item?.price) || 0,
+    quantity:
+      typeof item?.quantity === "number"
+        ? item.quantity
+        : Number(item?.quantity) || 0,
+  }));
 }
 
-/** Days until a date (YYYY-MM-DD), rounded; negative if in the past. */
+/** Days until a YYYY-MM-DD date (rounded). Negative = in the past. */
 function daysUntil(iso: string) {
   try {
-    const [y, m, d] = iso.split("-").map((n) => Number(n));
+    const [y, m, d] = iso.split("-").map(Number);
     const target = new Date(y, m - 1, d);
-    const now = new Date();
-    // strip time for accurate day diff
-    const msPerDay = 24 * 60 * 60 * 1000;
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const end = new Date(
+    const today = new Date();
+    const a = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const b = new Date(
       target.getFullYear(),
       target.getMonth(),
       target.getDate()
     );
-    return Math.round((end.getTime() - start.getTime()) / msPerDay);
+    return Math.round((b.getTime() - a.getTime()) / (24 * 60 * 60 * 1000));
   } catch {
     return 0;
   }
 }
 
-// ------------------------------
-// Lightweight Error Boundary
-// ------------------------------
-
+/** Lightweight error boundary (keeps app usable if any render throws). */
 class Boundary extends React.Component<
   { children: React.ReactNode },
   { error: Error | null }
 > {
-  constructor(props: { children: React.ReactNode }) {
+  constructor(props: any) {
     super(props);
     this.state = { error: null };
   }
@@ -116,7 +135,7 @@ class Boundary extends React.Component<
     return { error };
   }
   componentDidCatch(error: Error) {
-    console.error("ClientDashboard error boundary:", error);
+    console.error("ClientDashboard error:", error);
     toast.error("Something went wrong rendering your dashboard.");
   }
   render() {
@@ -125,8 +144,7 @@ class Boundary extends React.Component<
         <div className="max-w-3xl mx-auto text-center text-red-300 bg-red-900/10 border border-red-700 rounded-md p-6 mt-24">
           <h2 className="text-xl font-semibold">We hit a snag</h2>
           <p className="text-sm mt-2">
-            Try reloading the page. If this keeps happening, please contact
-            support.
+            Try reloading the page. If it continues, please contact support.
           </p>
         </div>
       );
@@ -137,46 +155,43 @@ class Boundary extends React.Component<
 
 type Tab = "orders" | "cart";
 
-const ClientDashboard = () => {
+const ClientDashboard: React.FC = () => {
+  // ----- Hooks (must be called in the exact same order on every render) -----
   const { user, checkAndCreateUser } = useAuth();
   const { isHydrated, booking, merchItems } = useCart();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("orders");
-  const navigate = useNavigate();
-  const location = useLocation();
-  const params = new URLSearchParams(location.search);
-  const status = params.get("status"); // 'pending' or 'paid'
-  const orderIdParam = params.get("orderId");
-
-  // Payment success UI control
   const [showSuccess, setShowSuccess] = useState(false);
   const [successOrder, setSuccessOrder] = useState<Order | null>(null);
   const [loadingSuccess, setLoadingSuccess] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const status = params.get("status"); // 'pending' | 'paid' | null
+  const orderIdParam = params.get("orderId");
 
+  // NOTE: We do *not* early-return before these hooks. We'll render a "please sign in"
+  // panel later, but the component *always* calls the same hooks each render.
+
+  // Show a gentle nudge when we come back from checkout with a pending order
   useEffect(() => {
-    if (status === "pending") {
-      toast("You have an order waiting for payment.");
-    }
+    if (status === "pending") toast("You have an order waiting for payment.");
   }, [status]);
 
-  // Fetch the just-paid order if redirected with ?status=paid&orderId=...
+  // If redirected with ?status=paid&orderId=..., load that order for the success panel
   useEffect(() => {
     let abort = false;
-    async function run() {
+    (async () => {
       if (status === "paid" && orderIdParam) {
         try {
           setLoadingSuccess(true);
           setShowSuccess(true);
-          const orderRef = doc(db, "orders", orderIdParam);
-          const snap = await getDoc(orderRef);
+          const snap = await getDoc(doc(db, "orders", orderIdParam));
           if (!abort) {
-            if (snap.exists()) {
-              const data = snap.data() as Order;
-              setSuccessOrder({ id: snap.id, ...data });
-            } else {
-              toast.error("Order not found.");
-            }
+            if (snap.exists())
+              setSuccessOrder({ id: snap.id, ...(snap.data() as Order) });
+            else toast.error("Order not found.");
           }
         } catch (err) {
           console.error("Failed to load order", err);
@@ -185,21 +200,23 @@ const ClientDashboard = () => {
           if (!abort) setLoadingSuccess(false);
         }
       }
-    }
-    run();
+    })();
     return () => {
       abort = true;
     };
   }, [status, orderIdParam]);
 
-  // Fetch this user's orders (defensively)
+  // Load this user's orders
   useEffect(() => {
     let abort = false;
-    async function fetchOrders() {
-      if (!user) return;
+    (async () => {
+      if (!user) {
+        setOrders([]);
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
-        // Primary: orderBy createdAt desc (requires index)
         const q = query(
           collection(db, "orders"),
           where("userId", "==", user.uid),
@@ -207,14 +224,16 @@ const ClientDashboard = () => {
         );
         const snap = await getDocs(q);
         if (abort) return;
-        const parsed = snap.docs.map((d) => ({
+        const list = snap.docs.map((d) => ({
           id: d.id,
           ...(d.data() as Order),
         }));
-        setOrders(parsed);
-      } catch (err: any) {
-        console.error("fetchOrders failed, attempting fallback", err);
-        // Fallback: without orderBy (works even if composite index is missing)
+        setOrders(list);
+      } catch (err) {
+        console.warn(
+          "Primary orders query failed; falling back without orderBy.",
+          err
+        );
         try {
           const q2 = query(
             collection(db, "orders"),
@@ -222,40 +241,40 @@ const ClientDashboard = () => {
           );
           const snap2 = await getDocs(q2);
           if (abort) return;
-          const parsed2 = snap2.docs
+          const list2 = snap2.docs
             .map((d) => ({ id: d.id, ...(d.data() as Order) }))
-            .sort((a, b) => {
-              const ta = (a as any).createdAt?.seconds ?? 0;
-              const tb = (b as any).createdAt?.seconds ?? 0;
-              return tb - ta;
-            });
-          setOrders(parsed2);
-          toast.info("Using fallback order sort (index not ready).");
+            .sort(
+              (a: any, b: any) =>
+                (b?.createdAt?.seconds ?? 0) - (a?.createdAt?.seconds ?? 0)
+            );
+          setOrders(list2);
         } catch (err2) {
-          console.error("Fallback fetchOrders also failed", err2);
+          console.error("Fallback orders query also failed.", err2);
+          setOrders([]);
           toast.error("Could not load your orders.");
         }
       } finally {
         if (!abort) setLoading(false);
       }
-    }
-    fetchOrders();
+    })();
     return () => {
       abort = true;
     };
   }, [user]);
 
-  if (!user) {
-    return <div className="text-white text-center mt-10">Please sign in.</div>;
-  }
+  // Derived: whether cart has anything
+  const hasCartItems = useMemo(() => {
+    if (!isHydrated) return false;
+    const hasBooking = Boolean(booking);
+    const merchCount = Array.isArray(merchItems)
+      ? (merchItems as any[]).length
+      : merchItems && typeof merchItems === "object"
+      ? Object.keys(merchItems).length
+      : 0;
+    return hasBooking || merchCount > 0;
+  }, [isHydrated, booking, merchItems]);
 
-  const handleSuccessDismiss = () => {
-    setShowSuccess(false);
-    setActiveTab("orders");
-    navigate("/dashboard", { replace: true });
-  };
-
-  // Cancel & Refund logic
+  // Cancel & refund (with merch-only awareness)
   const handleCancelOrder = async (order: Order) => {
     try {
       if (!order?.id) return;
@@ -263,11 +282,12 @@ const ClientDashboard = () => {
         toast.info("Order already cancelled.");
         return;
       }
-      const firstDate = order?.booking?.dates?.slice()?.sort()?.[0];
-      const nHunters = order?.booking?.numberOfHunters || 0;
+
       const isPaid = order.status === "paid";
+      const hasBooking = Boolean(order?.booking?.dates?.length);
+      const firstDate = hasBooking ? order!.booking!.dates![0] : undefined;
       const dUntil = firstDate ? daysUntil(firstDate) : 0;
-      const eligibleForRefund = !!firstDate && dUntil >= 14 && isPaid;
+      const eligibleForRefund = hasBooking && isPaid && dUntil >= 14; // merch‑only => false
       const totalNum =
         typeof order.total === "number"
           ? order.total
@@ -276,7 +296,7 @@ const ClientDashboard = () => {
         ? Math.round(totalNum * 0.5 * 100) / 100
         : 0;
 
-      // 1) Try Deluxe refund if eligible and we have a payment reference
+      // 1) If eligible, attempt Deluxe refund via our function (non‑blocking UI flow)
       let refundPayload: any = null;
       if (refundAmount > 0) {
         const paymentId =
@@ -288,7 +308,6 @@ const ClientDashboard = () => {
           (order as any)?.deluxe?.lastEvent?.TransactionId ||
           (order as any)?.deluxe?.lastEvent?.TransactionRecordID ||
           null;
-
         const body: any = {
           amount: refundAmount,
           currency: (order as any)?.currency || "USD",
@@ -297,20 +316,15 @@ const ClientDashboard = () => {
         else if (transactionId) body.transactionId = transactionId;
 
         try {
-          const resp = await fetch("/api/refundDeluxePayment", {
+          const r = await fetch("/api/refundDeluxePayment", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(body),
           });
-          refundPayload = await resp.json().catch(() => null);
-          if (!resp.ok) {
-            console.error("Refund API failed", refundPayload);
-            toast.error(
-              "Refund request failed; cancelling order without refund."
-            );
-          } else {
+          refundPayload = await r.json().catch(() => null);
+          if (r.ok)
             toast.success(`Refund initiated for $${fmtMoney(refundAmount)}`);
-          }
+          else toast.error("Refund request failed; cancelling without refund.");
         } catch (e) {
           console.error("Refund network error", e);
           toast.error(
@@ -319,9 +333,9 @@ const ClientDashboard = () => {
         }
       }
 
-      // 2) Update Firestore: cancel order and free capacity
+      // 2) Firestore updates (cancel order, free capacity, and (server should) restock merch)
       const batch = writeBatch(db);
-      const orderRef = doc(db, "orders", order.id);
+      const orderRef = doc(db, "orders", order.id!);
       batch.set(
         orderRef,
         {
@@ -336,8 +350,10 @@ const ClientDashboard = () => {
         { merge: true }
       );
 
-      if (order?.booking?.dates?.length && nHunters > 0) {
-        for (const date of order.booking.dates) {
+      // Free booked hunt capacity (if there was a booking)
+      const nHunters = Number(order?.booking?.numberOfHunters || 0);
+      if (hasBooking && nHunters > 0) {
+        for (const date of order!.booking!.dates!) {
           const availRef = doc(db, "availability", date);
           batch.set(
             availRef,
@@ -351,7 +367,8 @@ const ClientDashboard = () => {
       }
 
       await batch.commit();
-      // Refresh local UI
+
+      // UI optimistic update
       setOrders((prev) =>
         prev.map((o) =>
           o.id === order.id
@@ -359,20 +376,24 @@ const ClientDashboard = () => {
             : o
         )
       );
+
+      // NOTE: Merch restock should be handled *server-side* (webhook or dedicated function)
+      // because inventory integrity must not rely on the client.
+      // If you need a quick stopgap, create a callable/HTTPS function that takes
+      // the orderId and performs atomic restock for each merch line.
     } catch (err) {
       console.error(err);
       toast.error("Could not cancel this order.");
     }
   };
 
-  // Pre-format some derived data for render safety
-  const hasCartItems = useMemo(
-    () =>
-      isHydrated &&
-      (Boolean(booking) || Object.keys(merchItems || {}).length > 0),
-    [isHydrated, booking, merchItems]
-  );
+  const handleSuccessDismiss = () => {
+    setShowSuccess(false);
+    setActiveTab("orders");
+    navigate("/dashboard", { replace: true });
+  };
 
+  // ----- Render (single return — no conditional early returns) -----
   return (
     <Boundary>
       <div className="max-w-8xl mx-auto text-[var(--color-text)] py-16 px-6 flex flex-col md:flex-row gap-8 mt-20">
@@ -415,8 +436,12 @@ const ClientDashboard = () => {
 
         {/* Main Content */}
         <section className="flex-1 bg-[var(--color-card)] p-6 rounded-md shadow">
-          {/* Payment success drawer */}
-          {showSuccess && status === "paid" ? (
+          {/* If no user, show a stable, safe panel — we NEVER early-return above. */}
+          {!user ? (
+            <div className="text-center py-10">
+              <p className="text-white">Please sign in to view your orders.</p>
+            </div>
+          ) : showSuccess && status === "paid" ? (
             <div className="flex flex-col items-center justify-center text-center min-h-[300px]">
               <div className="flex items-center justify-center w-20 h-20 rounded-full bg-green-100 text-green-600 shadow-lg">
                 <span className="text-4xl">✓</span>
@@ -426,8 +451,7 @@ const ClientDashboard = () => {
               </h2>
               <p className="mt-2 text-sm text-neutral-400 max-w-md">
                 Thank you for your purchase! Your order has been confirmed and
-                is now available in your dashboard. Below is a summary for your
-                records.
+                is now available in your dashboard.
               </p>
 
               {loadingSuccess ? (
@@ -462,10 +486,11 @@ const ClientDashboard = () => {
                               .join(", ")}
                           </p>
                         ) : null}
-                        {"price" in successOrder.booking && (
+                        {typeof (successOrder as any)?.booking?.price ===
+                          "number" && (
                           <p>
                             Booking Total: $
-                            {fmtMoney((successOrder.booking as any).price)}
+                            {fmtMoney((successOrder as any).booking.price)}
                           </p>
                         )}
                       </div>
@@ -473,7 +498,8 @@ const ClientDashboard = () => {
                   )}
 
                   {!!successOrder.merchItems &&
-                    Object.keys(successOrder.merchItems).length > 0 && (
+                    (Array.isArray(successOrder.merchItems) ||
+                      Object.keys(successOrder.merchItems).length > 0) && (
                       <div className="space-y-1">
                         <p className="font-semibold">Merch Items</p>
                         <ul className="ml-4 list-disc space-y-0.5">
@@ -509,132 +535,128 @@ const ClientDashboard = () => {
             </div>
           ) : loading ? (
             <p className="text-sm text-neutral-400">Loading your data...</p>
+          ) : activeTab === "orders" ? (
+            <>
+              <h2 className="text-xl font-bold mb-4">My Orders</h2>
+              {orders.length === 0 ? (
+                <p>No orders found.</p>
+              ) : (
+                <ul className="space-y-4 text-sm">
+                  {orders.map((order) => {
+                    const merchLines = normalizeMerchItems(order.merchItems);
+                    const hasBooking = Boolean(order?.booking?.dates?.length);
+
+                    const statusPill =
+                      order.status === "pending" ? (
+                        <span className="text-yellow-400 font-semibold">
+                          ⏳ Pending Payment
+                        </span>
+                      ) : order.status === "paid" ? (
+                        <span className="text-green-400 font-semibold">
+                          ✅ Paid
+                        </span>
+                      ) : (
+                        <span className="text-red-400 font-semibold">
+                          ❌ Cancelled
+                        </span>
+                      );
+
+                    return (
+                      <li
+                        key={order.id || Math.random()}
+                        className="border-b pb-4 border-[var(--color-footer)]"
+                      >
+                        <p className="text-xs uppercase text-neutral-400 mb-1">
+                          {statusPill}
+                        </p>
+
+                        {hasBooking && (
+                          <div className="mb-2">
+                            <strong>Booking:</strong>
+                            <div className="ml-4 space-y-1">
+                              <p>
+                                Dates:{" "}
+                                {order
+                                  .booking!.dates!.map(formatFriendlyDateSafe)
+                                  .join(", ")}
+                              </p>
+                              <p>Hunters: {order.booking!.numberOfHunters}</p>
+                              {order.booking!.partyDeckDates?.length ? (
+                                <p>
+                                  Party Deck Days:{" "}
+                                  {order
+                                    .booking!.partyDeckDates.map(
+                                      formatFriendlyDateSafe
+                                    )
+                                    .join(", ")}
+                                </p>
+                              ) : null}
+                              {typeof (order as any)?.booking?.price ===
+                                "number" && (
+                                <p>
+                                  Booking Total: $
+                                  {fmtMoney((order as any).booking.price)}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {merchLines.length > 0 && (
+                          <div className="mb-2">
+                            <strong>Merch Items:</strong>
+                            <ul className="ml-4 list-disc">
+                              {merchLines.map((li) => (
+                                <li key={li.id}>
+                                  {li.name} × {li.quantity} = $
+                                  {fmtMoney(li.price * li.quantity)}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        <p className="mt-2 font-semibold">
+                          Total: ${fmtMoney(order.total)}
+                        </p>
+
+                        {order.status === "paid" && (
+                          <div className="mt-3">
+                            <button
+                              className="px-3 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white"
+                              onClick={() => handleCancelOrder(order)}
+                            >
+                              Cancel Order
+                              {hasBooking ? " & Request Refund" : ""}
+                            </button>
+                            <p className="text-xs text-neutral-400 mt-1">
+                              {hasBooking
+                                ? "Refund policy: 50% if cancelled ≥ 14 days before first hunt date; otherwise no refund."
+                                : "Merch‑only orders are not refundable via the dashboard."}
+                            </p>
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </>
           ) : (
             <>
-              {activeTab === "orders" && (
-                <>
-                  <h2 className="text-xl font-bold mb-4">My Orders</h2>
-                  {orders.length === 0 ? (
-                    <p>No orders found.</p>
-                  ) : (
-                    <ul className="space-y-4 text-sm">
-                      {orders.map((order) => {
-                        const merchLines = normalizeMerchItems(
-                          order.merchItems
-                        );
-
-                        const statusPill =
-                          order.status === "pending" ? (
-                            <span className="text-yellow-400 font-semibold">
-                              ⏳ Pending Payment
-                            </span>
-                          ) : order.status === "paid" ? (
-                            <span className="text-green-400 font-semibold">
-                              ✅ Paid
-                            </span>
-                          ) : (
-                            <span className="text-red-400 font-semibold">
-                              ❌ Cancelled
-                            </span>
-                          );
-
-                        return (
-                          <li
-                            key={order.id}
-                            className="border-b pb-4 border-[var(--color-footer)]"
-                          >
-                            <p className="text-xs uppercase text-neutral-400 mb-1">
-                              {statusPill}
-                            </p>
-
-                            {order.booking && (
-                              <div className="mb-2">
-                                <strong>Booking:</strong>
-                                <div className="ml-4 space-y-1">
-                                  <p>
-                                    Dates:{" "}
-                                    {order.booking.dates
-                                      .map(formatFriendlyDateSafe)
-                                      .join(", ")}
-                                  </p>
-                                  <p>
-                                    Hunters: {order.booking.numberOfHunters}
-                                  </p>
-                                  {order.booking.partyDeckDates?.length ? (
-                                    <p>
-                                      Party Deck Days:{" "}
-                                      {order.booking.partyDeckDates
-                                        .map(formatFriendlyDateSafe)
-                                        .join(", ")}
-                                    </p>
-                                  ) : null}
-                                  {"price" in order.booking && (
-                                    <p>
-                                      Booking Total: $
-                                      {fmtMoney((order.booking as any).price)}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
-                            {merchLines.length > 0 && (
-                              <div className="mb-2">
-                                <strong>Merch Items:</strong>
-                                <ul className="ml-4 list-disc">
-                                  {merchLines.map((li) => (
-                                    <li key={li.id}>
-                                      {li.name} × {li.quantity} = $
-                                      {fmtMoney(li.price * li.quantity)}
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-
-                            <p className="mt-2 font-semibold">
-                              Total: ${fmtMoney(order.total)}
-                            </p>
-
-                            {order.status === "paid" && (
-                              <div className="mt-3">
-                                <button
-                                  className="px-3 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white"
-                                  onClick={() => handleCancelOrder(order)}
-                                >
-                                  Cancel Order & Request Refund
-                                </button>
-                                <p className="text-xs text-neutral-400 mt-1">
-                                  Refund policy: 50% if cancelled ≥ 14 days
-                                  before first hunt date; otherwise no refund.
-                                </p>
-                              </div>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </>
-              )}
-
-              {activeTab === "cart" && (
-                <>
-                  <h2 className="text-xl font-bold mb-4">Cart Status</h2>
-                  {hasCartItems ? (
-                    <div>
-                      <p className="mb-2">You have items in your cart.</p>
-                      <button
-                        onClick={() => navigate("/checkout")}
-                        className="bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white px-6 py-2 rounded"
-                      >
-                        Continue Checkout
-                      </button>
-                    </div>
-                  ) : (
-                    <p>Your cart is currently empty.</p>
-                  )}
-                </>
+              <h2 className="text-xl font-bold mb-4">Cart Status</h2>
+              {hasCartItems ? (
+                <div>
+                  <p className="mb-2">You have items in your cart.</p>
+                  <button
+                    onClick={() => navigate("/checkout")}
+                    className="bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white px-6 py-2 rounded"
+                  >
+                    Continue Checkout
+                  </button>
+                </div>
+              ) : (
+                <p>Your cart is currently empty.</p>
               )}
             </>
           )}
