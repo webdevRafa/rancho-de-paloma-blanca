@@ -425,7 +425,7 @@ const ClientDashboard: React.FC = () => {
           </h1>
           <nav className="flex flex-col space-y-2">
             <button
-              className={`text-left px-4 py-2 rounded-md text-[var(--color-background)]  ${
+              className={`text-left px-4 py-2 rounded-md text-[var(--color-background)] hover:scale-105 hover:bg-white transition-all duration-300 ease-in-out  ${
                 activeTab === "orders"
                   ? "bg-white shadow-lg"
                   : "bg-neutral-100 hover:bg-white"
