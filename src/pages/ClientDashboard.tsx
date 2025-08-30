@@ -328,7 +328,7 @@ const ClientDashboard: React.FC = () => {
           currency: (order as any)?.currency || "USD",
         };
         if (paymentId) body.paymentId = paymentId;
-        else if (transactionId) body.paymentId = transactionId;
+        else if (transactionId) body.transactionId = transactionId;
 
         try {
           const r = await fetch("/api/refundDeluxePayment", {
