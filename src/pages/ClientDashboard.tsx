@@ -35,6 +35,25 @@ function fmtMoney(n: unknown): string {
   return Number.isFinite(num) ? num.toFixed(2) : "0.00";
 }
 
+// Deep-search helper to find first matching ID key in a nested object
+function findDeepId(obj: any, re: RegExp): string | null {
+  const seen = new Set<any>();
+  const stack: any[] = [obj];
+  while (stack.length) {
+    const cur = stack.pop();
+    if (!cur || typeof cur !== "object") continue;
+    if (seen.has(cur)) continue;
+    seen.add(cur);
+    for (const [k, v] of Object.entries(cur)) {
+      if (re.test(String(k)) && typeof v === "string" && v.trim()) {
+        return v.trim();
+      }
+      if (v && typeof v === "object") stack.push(v);
+    }
+  }
+  return null;
+}
+
 /** "Friday, October 4th, 2025" (safe) */
 function formatFriendlyDateSafe(iso?: unknown): string {
   if (typeof iso !== "string" || !/\d{4}-\d{2}-\d{2}/.test(iso))
@@ -300,13 +319,9 @@ const ClientDashboard: React.FC = () => {
       let refundPayload: any = null;
       if (refundAmount > 0) {
         const paymentId =
-          (order as any)?.deluxe?.paymentId ||
-          (order as any)?.deluxe?.lastEvent?.paymentId ||
-          (order as any)?.deluxe?.lastEvent?.PaymentId ||
-          null;
+          findDeepId((order as any)?.deluxe, /payment.*id/i) || null;
         const transactionId =
-          (order as any)?.deluxe?.lastEvent?.TransactionId ||
-          (order as any)?.deluxe?.lastEvent?.TransactionRecordID ||
+          findDeepId((order as any)?.deluxe, /(original)?transaction.*id/i) ||
           null;
         const body: any = {
           amount: refundAmount,

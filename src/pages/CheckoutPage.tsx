@@ -374,6 +374,8 @@ function buildProductsForJwt(args: {
     return Number.isFinite(n) && n >= 0 ? Number(n.toFixed(2)) : 0;
   };
 
+  const toCents = (v: unknown): number => Math.round(toMoney(v) * 100);
+
   // If there is a booking, include a line for the hunt and optionally the party deck.
   if (booking) {
     const hunters = Math.max(1, Number(booking.numberOfHunters || 1));
@@ -400,7 +402,7 @@ function buildProductsForJwt(args: {
       // currency units) rather than products[i].price.  Including
       // both fields allows the UI to use `price` directly while the
       // backend passes `amount` to Deluxe.
-      amount: toMoney(perHunterUnit),
+      amount: toCents(perHunterUnit),
       description: `${booking.dates.length} day(s) • ${hunters} hunter(s)`,
       unitOfMeasure: "Each",
     });
@@ -411,7 +413,7 @@ function buildProductsForJwt(args: {
         skuCode: "PARTY",
         quantity: partyDays,
         price: toMoney(partyRate),
-        amount: toMoney(partyRate),
+        amount: toCents(partyRate),
         unitOfMeasure: "Day",
       });
     }
@@ -425,7 +427,7 @@ function buildProductsForJwt(args: {
       quantity: m.qty,
       // Ensure merch item unit price is a valid money value
       price: toMoney(m.price),
-      amount: toMoney(m.price),
+      amount: toCents(m.price),
       unitOfMeasure: "Each",
     });
   }
