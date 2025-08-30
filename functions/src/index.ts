@@ -85,7 +85,7 @@ function asMoney(n: unknown): number | null {
   const v = typeof n === "string" ? Number(n) : (n as number);
   return Number.isFinite(v) && v >= 0 ? Number((v as number).toFixed(2)) : null;
 }
-// Redact IDs in logs (leave last 4 chars)
+// Redact long IDs in logs (leave last 4 chars)
 function redact(v?: string): string | undefined {
   if (!v) return v;
   return String(v).replace(/[A-Za-z0-9](?=[A-Za-z0-9]{4})/g, "•");
@@ -518,29 +518,31 @@ if (
   try {
     const body = (req.body || {}) as any;
 
-    // Validate inputs
+    // 1) Validate inputs
     const refundAmount = asMoney(body.amount ?? body.refundAmount);
-    const currency = (body.currency ?? "USD").toString().toUpperCase() as "USD" | "CAD";
+    const currency = String(body.currency ?? "USD").toUpperCase();
     if (refundAmount === null || refundAmount <= 0) {
       res.status(400).json({ error: "invalid-amount" });
       return;
     }
 
-    // Prefer paymentId, but allow resolving from transactionId/orderId
-    let paymentId =
-      typeof body.paymentId === "string" && body.paymentId.trim() ? body.paymentId.trim() : undefined;
+    // 2) Gather identifiers
+    let paymentId: string | undefined =
+      typeof body.paymentId === "string" && body.paymentId.trim()
+        ? body.paymentId.trim()
+        : undefined;
 
-    const transactionId =
+    const transactionId: string | undefined =
       typeof body.originalTransactionId === "string" && body.originalTransactionId.trim()
         ? body.originalTransactionId.trim()
         : typeof body.transactionId === "string" && body.transactionId.trim()
         ? body.transactionId.trim()
         : undefined;
 
-    const orderId =
+    const orderId: string | undefined =
       typeof body.orderId === "string" && body.orderId.trim() ? body.orderId.trim() : undefined;
 
-    const reason =
+    const reason: string | undefined =
       typeof body.reason === "string" && body.reason.trim() ? body.reason.trim() : undefined;
 
     if (!paymentId && !transactionId && !orderId) {
@@ -548,30 +550,34 @@ if (
       return;
     }
 
-    // Auth
+    // 3) Auth + base/prefix
     const bearer = await getGatewayBearer();
-
-    // Build safe gateway URLs (avoid duplicating /dpp/v1/gateway)
     const base = gatewayBase().replace(/\/$/, "");
-    const refundsUrl = /\/dpp\/v1\/gateway$/.test(base)
-      ? `${base}/refunds`
-      : `${base}/dpp/v1/gateway/refunds`;
-    const searchUrl = /\/dpp\/v1\/gateway$/.test(base)
-      ? `${base}/payments/search`
-      : `${base}/dpp/v1/gateway/payments/search`;
+    const prefix = /\/dpp\/v1\/gateway$/.test(base) ? base : `${base}/dpp/v1/gateway`;
+    const refundsUrl = `${prefix}/refunds`;
+    const searchUrl = `${prefix}/payments/search`;
+    const getPaymentUrl = (id: string) => `${prefix}/payments/${encodeURIComponent(id)}`;
 
-    // Input diagnostics (very helpful to spot sandbox/prod drift in logs)
+    // 4) Headers (sandbox merchant UUID as PartnerToken)
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      Authorization: `Bearer ${bearer}`,
+      PartnerToken: DELUXE_ACCESS_TOKEN.value(),
+    };
+
+    // Input diagnostics
     logger.info("refund.input", {
-      env: (process.env.DELUXE_USE_SANDBOX ?? "true").toLowerCase() !== "false" ? "sandbox" : "prod",
+      env: process.env.DELUXE_ENV || "sandbox",
       base,
       amount: refundAmount,
       currency,
-      paymentId: redact(paymentId),
-      transactionId: redact(transactionId),
-      orderId: redact(orderId),
+      paymentId: redact?.(paymentId),
+      transactionId: redact?.(transactionId),
+      orderId: redact?.(orderId),
     });
 
-    // If only transaction/order data was provided, resolve paymentId first
+    // 5) Resolve paymentId via /payments/search if needed
     if (!paymentId && (transactionId || orderId)) {
       const searchPayload: any = {};
       if (transactionId) searchPayload.transactionId = transactionId;
@@ -579,86 +585,133 @@ if (
 
       const r = await fetch(searchUrl, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${bearer}`,
-          PartnerToken: DELUXE_ACCESS_TOKEN.value(),
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
+        headers,
         body: JSON.stringify(searchPayload),
       });
 
-      const searchText = await r.text();
-      let searchJson: any;
-      try {
-        searchJson = searchText ? JSON.parse(searchText) : {};
-      } catch {
-        searchJson = { raw: searchText };
-      }
+      const sjson: any = (await r.json().catch(() => ({}))) as any;
 
-      if (!r.ok) {
-        logger.error("payments/search failed", { status: r.status, body: searchJson });
+      // Cope with different shapes: { payments: [...] } or { results: [...] } or { data: [...] }
+      const list: any[] =
+        (Array.isArray(sjson?.payments) && sjson.payments) ||
+        (Array.isArray(sjson?.results) && sjson.results) ||
+        (Array.isArray(sjson?.data) && sjson.data) ||
+        [];
+
+      logger.info("refund.search", { status: r.status, found: list.length });
+
+      if (!r.ok || !list.length) {
+        logger.error("payments/search failed", { status: r.status, body: sjson });
         res.status(404).json({
           error: "payment-not-found",
           searchBy: Object.keys(searchPayload),
-          details: searchJson,
+          details: sjson,
         });
         return;
       }
 
-      const first =
-        searchJson?.payments?.[0] || searchJson?.results?.[0] || searchJson?.data?.[0];
-      paymentId = first?.paymentId || first?.id || undefined;
-
+      paymentId = list[0]?.paymentId || list[0]?.id;
       if (!paymentId) {
-        res.status(404).json({
-          error: "payment-not-found",
-          searchBy: Object.keys(searchPayload),
-          details: searchJson,
-        });
+        res.status(404).json({ error: "payment-not-found", details: sjson });
         return;
       }
     }
 
-    // Deluxe /refunds requires paymentId
-    const requestBody: any = {
+    // 6) Call /refunds (standard refund requires paymentId + amount)
+    const refundBody: any = {
       paymentId,
+      isACH: false,
       amount: { amount: refundAmount, currency },
       ...(reason ? { reason } : {}),
     };
 
     logger.info("refund.request", {
       refundsUrl,
-      paymentId: redact(paymentId),
+      paymentId: redact?.(paymentId),
+      partnerToken: redact?.(DELUXE_ACCESS_TOKEN.value()),
       amount: refundAmount,
       currency,
     });
 
-    // Call Deluxe /refunds
     const resp = await fetch(refundsUrl, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${bearer}`,
-        PartnerToken: DELUXE_ACCESS_TOKEN.value(),
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify(requestBody),
+      headers,
+      body: JSON.stringify(refundBody),
     });
 
-    const text = await resp.text();
+    // Try to parse JSON; if not JSON, return the raw text for diagnostics
+    const raw = await resp.text();
     let json: any;
     try {
-      json = text ? JSON.parse(text) : {};
+      json = raw ? JSON.parse(raw) : {};
     } catch {
-      json = { raw: text };
+      json = { raw };
+    }
+
+    // 7) 404 rescue: verify payment; if not found and we have orderId, re-search and retry once
+    if (!resp.ok && resp.status === 404) {
+      const verify = await fetch(getPaymentUrl(paymentId!), { method: "GET", headers });
+      const verifyText = await verify.text();
+      logger.error("refund.verify.payment", {
+        status: verify.status,
+        body: verifyText?.slice(0, 800),
+      });
+
+      if (verify.status === 404 && orderId) {
+        const s = await fetch(searchUrl, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ orderId }),
+        });
+        const sjson2: any = (await s.json().catch(() => ({}))) as any;
+        const list2: any[] =
+          (Array.isArray(sjson2?.payments) && sjson2.payments) ||
+          (Array.isArray(sjson2?.results) && sjson2.results) ||
+          (Array.isArray(sjson2?.data) && sjson2.data) ||
+          [];
+
+        logger.info("refund.search.on404", { status: s.status, found: list2.length });
+
+        if (s.ok && list2.length) {
+          const newPid: string | undefined = list2[0]?.paymentId || list2[0]?.id;
+          if (newPid && newPid !== paymentId) {
+            const retry = await fetch(refundsUrl, {
+              method: "POST",
+              headers,
+              body: JSON.stringify({
+                paymentId: newPid,
+                isACH: false,
+                amount: { amount: refundAmount, currency },
+              }),
+            });
+            const retryBody: any = await retry.json().catch(() => null);
+            if (!retry.ok) {
+              logger.error("refunds.failed.retry", { status: retry.status, retryBody });
+              res.status(retry.status).json(retryBody || { error: "refunds-failed" });
+              return;
+            }
+            logger.info("refunds.success.retry", { paymentId: redact?.(newPid), retryBody });
+            res.json(retryBody);
+            return;
+          }
+        }
+      }
+
+      // Couldn’t rescue → return original 404
+      logger.error("refunds.failed", {
+        status: resp.status,
+        body: json,
+        sent: { ...refundBody, paymentId: redact?.(paymentId) },
+      });
+      res.status(resp.status).json(json || { error: "refunds-failed" });
+      return;
     }
 
     if (!resp.ok) {
-      logger.error("refunds failed", {
+      logger.error("refunds.failed", {
         status: resp.status,
         body: json,
-        sent: { ...requestBody, paymentId: redact(paymentId) },
+        sent: { ...refundBody, paymentId: redact?.(paymentId) },
       });
       res.status(resp.status).json(json || { error: "refunds-failed" });
       return;
@@ -668,11 +721,12 @@ if (
     res.status(200).json(json);
     return;
   } catch (err: any) {
-    logger.error("refundDeluxePayment error", err);
+    logger.error("refundDeluxePayment error", { message: err?.message });
     res.status(500).json({ error: "refund-failed", message: err?.message ?? String(err) });
     return;
   }
 }
+
 
 
 

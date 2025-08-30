@@ -330,6 +330,7 @@ const ClientDashboard: React.FC = () => {
         const body: any = {
           amount: refundAmount,
           currency: ((order as any)?.currency || "USD").toUpperCase(),
+          orderId: order.id, // <— add this so the server can /payments/search on 404
         };
 
         if (paymentId) body.paymentId = paymentId;
