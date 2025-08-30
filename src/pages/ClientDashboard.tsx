@@ -318,21 +318,20 @@ const ClientDashboard: React.FC = () => {
       // 1) If eligible, attempt Deluxe refund via our function (non‑blocking UI flow)
       let refundPayload: any = null;
       if (refundAmount > 0) {
-        // 1) Only match the real paymentId (avoid paymentLinkId)
+        // Prefer the real paymentId; avoid matching paymentLinkId
         const paymentId = findDeepId(order.deluxe, /\bpaymentId\b/i) || null;
 
-        // 2) Look specifically for originalTransactionId or transactionId keys
+        // If we don't have a paymentId, fall back to originalTransactionId, then transactionId
         const originalTransactionId =
           findDeepId(order.deluxe, /\boriginalTransactionId\b/i) ||
           findDeepId(order.deluxe, /\btransactionId\b/i) ||
           null;
 
         const body: any = {
-          amount: refundAmount, // your backend wraps this into { amount, currency }
+          amount: refundAmount,
           currency: ((order as any)?.currency || "USD").toUpperCase(),
         };
 
-        // Prefer paymentId; otherwise give backend the ORIGINAL transaction id
         if (paymentId) body.paymentId = paymentId;
         else if (originalTransactionId)
           body.originalTransactionId = originalTransactionId;

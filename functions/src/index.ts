@@ -85,6 +85,11 @@ function asMoney(n: unknown): number | null {
   const v = typeof n === "string" ? Number(n) : (n as number);
   return Number.isFinite(v) && v >= 0 ? Number((v as number).toFixed(2)) : null;
 }
+// Redact IDs in logs (leave last 4 chars)
+function redact(v?: string): string | undefined {
+  if (!v) return v;
+  return String(v).replace(/[A-Za-z0-9](?=[A-Za-z0-9]{4})/g, "•");
+}
 const base64url = (obj: object) => Buffer.from(JSON.stringify(obj)).toString("base64url");
 
 // Sign a payload with HS256 for Embedded endpoints (and for the embedded SDK token)
@@ -505,10 +510,10 @@ export const api = onRequest(
         }
       }
 
-      // Refund Deluxe Payment (fixed)
+// Refund Deluxe Payment (fixed)
 if (
   req.method === "POST" &&
-  (url === "/api/refundDeluxePayment" || url === "/refundDeluxePayment") // tolerate either mount
+  (url === "/api/refundDeluxePayment" || url === "/refundDeluxePayment")
 ) {
   try {
     const body = (req.body || {}) as any;
@@ -521,7 +526,7 @@ if (
       return;
     }
 
-    // Prefer paymentId, but allow resolving from transactionId
+    // Prefer paymentId, but allow resolving from transactionId/orderId
     let paymentId =
       typeof body.paymentId === "string" && body.paymentId.trim() ? body.paymentId.trim() : undefined;
 
@@ -532,12 +537,16 @@ if (
         ? body.transactionId.trim()
         : undefined;
 
-    if (!paymentId && !transactionId) {
-      res.status(400).json({ error: "paymentId-or-transactionId-required" });
+    const orderId =
+      typeof body.orderId === "string" && body.orderId.trim() ? body.orderId.trim() : undefined;
+
+    const reason =
+      typeof body.reason === "string" && body.reason.trim() ? body.reason.trim() : undefined;
+
+    if (!paymentId && !transactionId && !orderId) {
+      res.status(400).json({ error: "paymentId-or-transactionId-or-orderId-required" });
       return;
     }
-
-    const reason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim() : undefined;
 
     // Auth
     const bearer = await getGatewayBearer();
@@ -551,8 +560,23 @@ if (
       ? `${base}/payments/search`
       : `${base}/dpp/v1/gateway/payments/search`;
 
-    // If only a transactionId was provided, resolve paymentId first
-    if (!paymentId && transactionId) {
+    // Input diagnostics (very helpful to spot sandbox/prod drift in logs)
+    logger.info("refund.input", {
+      env: (process.env.DELUXE_USE_SANDBOX ?? "true").toLowerCase() !== "false" ? "sandbox" : "prod",
+      base,
+      amount: refundAmount,
+      currency,
+      paymentId: redact(paymentId),
+      transactionId: redact(transactionId),
+      orderId: redact(orderId),
+    });
+
+    // If only transaction/order data was provided, resolve paymentId first
+    if (!paymentId && (transactionId || orderId)) {
+      const searchPayload: any = {};
+      if (transactionId) searchPayload.transactionId = transactionId;
+      if (orderId) searchPayload.orderId = orderId;
+
       const r = await fetch(searchUrl, {
         method: "POST",
         headers: {
@@ -561,7 +585,7 @@ if (
           "Content-Type": "application/json",
           Accept: "application/json",
         },
-        body: JSON.stringify({ transactionId }),
+        body: JSON.stringify(searchPayload),
       });
 
       const searchText = await r.text();
@@ -574,25 +598,41 @@ if (
 
       if (!r.ok) {
         logger.error("payments/search failed", { status: r.status, body: searchJson });
-        res.status(404).json({ error: "payment-not-found", transactionId, details: searchJson });
+        res.status(404).json({
+          error: "payment-not-found",
+          searchBy: Object.keys(searchPayload),
+          details: searchJson,
+        });
         return;
       }
 
-      const first = searchJson?.payments?.[0] || searchJson?.results?.[0] || searchJson?.data?.[0];
+      const first =
+        searchJson?.payments?.[0] || searchJson?.results?.[0] || searchJson?.data?.[0];
       paymentId = first?.paymentId || first?.id || undefined;
 
       if (!paymentId) {
-        res.status(404).json({ error: "payment-not-found", transactionId, details: searchJson });
+        res.status(404).json({
+          error: "payment-not-found",
+          searchBy: Object.keys(searchPayload),
+          details: searchJson,
+        });
         return;
       }
     }
 
-    // Deluxe refunds requires paymentId
+    // Deluxe /refunds requires paymentId
     const requestBody: any = {
       paymentId,
       amount: { amount: refundAmount, currency },
       ...(reason ? { reason } : {}),
     };
+
+    logger.info("refund.request", {
+      refundsUrl,
+      paymentId: redact(paymentId),
+      amount: refundAmount,
+      currency,
+    });
 
     // Call Deluxe /refunds
     const resp = await fetch(refundsUrl, {
@@ -615,8 +655,12 @@ if (
     }
 
     if (!resp.ok) {
-      logger.error("refunds failed", { status: resp.status, body: json });
-      res.status(resp.status).json({ error: "refunds-failed", status: resp.status, body: json });
+      logger.error("refunds failed", {
+        status: resp.status,
+        body: json,
+        sent: { ...requestBody, paymentId: redact(paymentId) },
+      });
+      res.status(resp.status).json(json || { error: "refunds-failed" });
       return;
     }
 
@@ -629,6 +673,7 @@ if (
     return;
   }
 }
+
 
 
       // Deluxe Webhook
