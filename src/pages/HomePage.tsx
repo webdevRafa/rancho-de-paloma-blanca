@@ -27,7 +27,7 @@ const HomePage = () => {
           </p>
           <a
             href="/book"
-            className="inline-block hero-btn px-4 text-white font-acumin font-light! border-2 border-[var(--color-button-hover)] py-1 bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-lg md:text-xl rounded-md transition duration-300 ease-in-out"
+            className="inline-block p-2 text-white font-acumin font-light! bg-[var(--color-card)]/40 border-[var(--color-accent-gold)]/50 border-2 hover:bg-[var(--color-card)]/80 hover:scale-105 text-sm  transition duration-300 ease-in-out"
           >
             Book Your Hunt
           </a>

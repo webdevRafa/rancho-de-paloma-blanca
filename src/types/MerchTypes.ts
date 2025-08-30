@@ -1,18 +1,20 @@
+export type Size = "S" | "M" | "L" | "XL" | "XXL";
 
 export interface Product {
   id: string;
   name: string;
   price: number;
-  image?: string;
+  imageUrl?: string;
+  active?: boolean;
   description?: string;
-
-  // NEW (optional) fields to support Deluxe level3
-  skuCode?: string;         // maps 1:1 to DppLevel3Item.skuCode
-  unitOfMeasure?: string;   // e.g., "Each", "Dozen"
-  taxCode?: string;         // if you decide to send tax coding later
-  // If you run discounts, you may add:
-  defaultDiscountAmount?: number; // absolute
-  defaultDiscountRate?: number;   // fraction (e.g., 0.1 for 10%)
+  skuCode?: string; 
+  unitOfMeasure?: string; 
+  taxCode?: string;  
+defaultDiscountAmount?: number; 
+  defaultDiscountRate?: number;  
+  baseProductId?: string;
+  size?: Size;
+  stock?: number;
 }
 
 export interface CartItem {
