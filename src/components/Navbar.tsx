@@ -126,7 +126,7 @@ const Navbar = () => {
 
       {/* Mobile Drawer */}
       <div
-        className={`fixed top-0 right-0 h-screen w-80 bg-gradient-to-r from-[var(--color-background)] to-[var(--color-footer)] shadow-xl z-50 flex flex-col transform transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 right-0 h-screen w-80 bg-gradient-to-r  from-[var(--color-background)] to-[var(--color-footer)] shadow-xl z-50 flex flex-col transform transition-transform duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
@@ -179,7 +179,7 @@ const Navbar = () => {
               key={link.to}
               to={link.to}
               onClick={() => setIsOpen(false)}
-              className="hover:text-[var(--color-button-hover)] transition font-broadsheet text-lg"
+              className="hover:text-[var(--color-button-hover)] transition font-acumin text-lg"
             >
               {link.label}
             </Link>

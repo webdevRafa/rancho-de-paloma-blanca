@@ -15,7 +15,7 @@ type AvailabilityDoc = { huntersBooked?: number; partyDeckBooked?: boolean };
 const PARTY_DECK_COST = 500;
 
 const CartDrawer = () => {
-  const { booking, merchItems, setBooking } = useCart();
+  const { booking, merchItems, setBooking, addOrUpdateMerchItem } = useCart();
   const [isOpen, setIsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const navigate = useNavigate();
@@ -160,6 +160,53 @@ const CartDrawer = () => {
     booking?.partyDeckDates,
   ]);
 
+  // --- MERCH STOCK: fetch up-to-date stock per product so we can prevent ordering more than available ---
+  const [merchStock, setMerchStock] = useState<Record<string, number | null>>(
+    {}
+  );
+  const [merchErrors, setMerchErrors] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const loadStock = async () => {
+      const entries = Object.values(merchItems || {}) as any[];
+      const next: Record<string, number | null> = {};
+      await Promise.all(
+        entries.map(async (item: any) => {
+          const id = item?.product?.id;
+          if (!id) return;
+          try {
+            const snap = await getDoc(doc(db, "products", id));
+            if (snap.exists()) {
+              const stock = (snap.data() as any)?.stock;
+              next[id] = typeof stock === "number" ? stock : null;
+            } else {
+              next[id] = null;
+            }
+          } catch {
+            next[id] = null;
+          }
+        })
+      );
+      setMerchStock(next);
+    };
+    loadStock();
+  }, [JSON.stringify(merchItems)]);
+
+  // recompute friendly error messages when items or stock change
+  useEffect(() => {
+    const errs: Record<string, string> = {};
+    Object.values(merchItems || {}).forEach((item: any) => {
+      const id = item?.product?.id;
+      if (!id) return;
+      const qty = Number(item?.quantity || 0);
+      const stock = merchStock[id];
+      if (typeof stock === "number") {
+        if (stock <= 0) errs[id] = "Out of stock";
+        else if (qty > stock) errs[id] = `Only ${stock} left`;
+      }
+    });
+    setMerchErrors(errs);
+  }, [JSON.stringify(merchItems), merchStock]);
+
   const merchTotal = useMemo(
     () =>
       Object.values(merchItems).reduce(
@@ -178,8 +225,10 @@ const CartDrawer = () => {
       ? "Selected Hunts"
       : "Selected Hunt";
 
+  const hasMerchViolations = Object.keys(merchErrors).length > 0;
+
   const handleGoToCheckout = () => {
-    if (hasViolations) return;
+    if (hasViolations || hasMerchViolations) return;
     setIsOpen(false);
     navigate("/checkout");
   };
@@ -342,18 +391,120 @@ const CartDrawer = () => {
 
                   {hasMerch && (
                     <div className="mb-4">
-                      <p className="font-semibold text-sm mb-1">Merchandise</p>
-                      <ul className="text-sm list-disc ml-5 space-y-1">
-                        {Object.entries(merchItems).map(([id, item]) => (
-                          <li key={id}>
-                            {item.product.name} × {item.quantity} = $
-                            {item.product.price * item.quantity}
-                          </li>
-                        ))}
+                      <p className="font-semibold text-sm mb-2">Merchandise</p>
+                      <ul className="space-y-3">
+                        {Object.entries(merchItems).map(([id, item]: any) => {
+                          const product = item.product || {};
+                          const qty = Number(item.quantity || 0);
+                          const unit = Number(product.price || 0);
+                          const img = product.imageUrl || product.image;
+                          const stock = merchStock[product.id as string];
+                          const err = merchErrors[product.id as string];
+                          const canInc =
+                            typeof stock === "number" ? qty < stock : true;
+
+                          const dec = () => {
+                            const next = Math.max(0, qty - 1);
+                            addOrUpdateMerchItem(product, next);
+                          };
+                          const inc = () => {
+                            if (!canInc) return;
+                            addOrUpdateMerchItem(product, qty + 1);
+                          };
+                          const remove = () => addOrUpdateMerchItem(product, 0);
+
+                          return (
+                            <li
+                              key={id}
+                              className="flex items-center gap-3 bg-white rounded-lg p-2 text-[var(--color-footer)]"
+                            >
+                              {img ? (
+                                <img
+                                  src={img}
+                                  alt={product.name}
+                                  className="w-12 h-12 rounded object-cover"
+                                />
+                              ) : (
+                                <div className="w-12 h-12 rounded bg-gray-200" />
+                              )}
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between">
+                                  <div className="font-semibold">
+                                    {product.name}
+                                  </div>
+                                  <div className="text-sm">${unit * qty}</div>
+                                </div>
+                                <div className="mt-1 flex items-center gap-2">
+                                  <button
+                                    className="px-2 py-1 border rounded"
+                                    onClick={dec}
+                                    aria-label="Decrease quantity"
+                                  >
+                                    –
+                                  </button>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={qty}
+                                    onChange={(e) => {
+                                      const val = Math.max(
+                                        0,
+                                        parseInt(e.target.value || "0", 10) || 0
+                                      );
+                                      const capped =
+                                        typeof stock === "number"
+                                          ? Math.min(val, stock)
+                                          : val;
+                                      addOrUpdateMerchItem(product, capped);
+                                    }}
+                                    className="w-14 px-1 py-0.5 border rounded text-center"
+                                  />
+                                  <button
+                                    className={
+                                      "px-2 py-1 border rounded " +
+                                      (!canInc
+                                        ? "opacity-40 cursor-not-allowed"
+                                        : "")
+                                    }
+                                    onClick={inc}
+                                    disabled={!canInc}
+                                    aria-label="Increase quantity"
+                                    title={
+                                      !canInc && typeof stock === "number"
+                                        ? `Only ${stock} in stock`
+                                        : ""
+                                    }
+                                  >
+                                    +
+                                  </button>
+                                  <button
+                                    className="ml-2 text-xs underline"
+                                    onClick={remove}
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                                {err && (
+                                  <div className="text-xs text-red-700 mt-1">
+                                    {err}. Please reduce quantity to proceed.
+                                  </div>
+                                )}
+                              </div>
+                            </li>
+                          );
+                        })}
                       </ul>
-                      <p className="mt-1 bg-white max-w-[200px] text-[var(--color-footer)] p-1 shadow-sm text-sm font-bold">
+                      <p className="mt-3 bg-white max-w-[220px] text-[var(--color-footer)] p-1 shadow-sm text-sm font-bold">
                         Merch Subtotal: ${merchTotal}
                       </p>
+
+                      {/* If there are stock issues, show a friendly banner */}
+                      {Object.keys(merchErrors).length > 0 && (
+                        <div className="mt-3 rounded-md border border-red-300 bg-red-50 text-red-700 text-sm p-2">
+                          Please adjust the highlighted items to match available
+                          stock before checkout.
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -365,13 +516,15 @@ const CartDrawer = () => {
                       onClick={handleGoToCheckout}
                       disabled={hasViolations}
                       className={`ml-3 text-center py-3 px-4 rounded-md transition font-semibold ${
-                        hasViolations
+                        hasViolations || hasMerchViolations
                           ? "bg-gray-400 text-white cursor-not-allowed"
                           : "bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white"
                       }`}
                       title={
                         hasViolations
-                          ? "Fix the days marked 'Exceeds limit' to continue."
+                          ? "Fix the days marked 'Exceeds limit' and any merch stock issues to continue."
+                          : Object.keys(merchErrors).length > 0
+                          ? "Resolve merch stock issues to continue."
                           : undefined
                       }
                     >

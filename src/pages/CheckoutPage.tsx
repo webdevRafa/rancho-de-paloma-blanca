@@ -64,17 +64,15 @@ type BookingLine = {
   numberOfHunters: number;
   partyDeckDates?: string[];
   seasonConfig?: SeasonConfig;
-  /** Subtotal for this booking used to compute per‑hunter unit for EP products. */
+  /** Subtotal for this booking.  When provided, this value will be used to
+   * calculate per‑hunter pricing for the embedded payments products array.  If
+   * omitted, the hunt package line will default to zero, which causes the
+   * embedded panel to display $NaN for that line.  Make sure to include
+   * `bookingTotal` when calling `buildProductsForJwt`. */
   bookingTotal?: number;
 };
 
-/** New merch line; tolerant to different cart shapes */
-type MerchItem = {
-  skuCode: string; // doc id of variant in /products (e.g., TEE-PALOMA-XL)
-  name: string; // display name
-  qty: number; // quantity
-  price: number; // unit price in whole currency units
-};
+type MerchItem = { skuCode: string; name: string; qty: number; price: number };
 
 type OrderDoc = {
   userId: string;
@@ -153,6 +151,7 @@ function loadDeluxeSdk(src?: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const url =
       src || "https://payments2.deluxe.com/embedded/javascripts/deluxe.js";
+
     // Remove any mismatched copies (switching envs)
     try {
       document
@@ -164,6 +163,7 @@ function loadDeluxeSdk(src?: string): Promise<void> {
             el.parentElement?.removeChild(el);
         });
     } catch {}
+
     const existing = document.querySelector(
       `script[src="${url}"]`
     ) as HTMLScriptElement | null;
@@ -176,6 +176,7 @@ function loadDeluxeSdk(src?: string): Promise<void> {
       );
       return;
     }
+
     const script = document.createElement("script");
     script.src = url;
     script.async = true;
@@ -193,6 +194,7 @@ function resolveEP(): EPApi | undefined {
   if (w.Deluxe?.EmbeddedPayments) return w.Deluxe.EmbeddedPayments;
   if (w.deluxe?.EmbeddedPayments) return w.deluxe.EmbeddedPayments;
   try {
+    // indirect eval to access global lexical bindings
     // eslint-disable-next-line no-eval
     const EP = (0, eval)(
       "typeof EmbeddedPayments !== 'undefined' ? EmbeddedPayments : undefined"
@@ -218,12 +220,21 @@ async function waitForEmbeddedPayments(timeoutMs = 8000): Promise<EPApi> {
 function isConsecutive(d0: string, d1: string): boolean {
   const a = new Date(`${d0}T00:00:00`);
   const b = new Date(`${d1}T00:00:00`);
-  return (b.getTime() - a.getTime()) / 86400000 === 1;
+  return (b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24) === 1;
 }
 function sortIsoDates(dates: string[]) {
   return [...dates].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
+/**
+ * Inject custom styles for the Deluxe embedded panel.  The default layout
+ * positions the panel flush left and includes a blank square next to each
+ * product name.  This helper inserts a style tag into the document head
+ * that centers the panel, hides the blank thumbnail, and applies our
+ * preferred font family to the order summary heading.  It also tweaks
+ * typography for small screens.  Calling this function multiple times
+ * safely reuses the same style element.
+ */
 function ensureEmbeddedStyles() {
   const styleId = "rdpb-embedded-styles";
   let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
@@ -233,13 +244,33 @@ function ensureEmbeddedStyles() {
     document.head.appendChild(styleEl);
   }
   styleEl.textContent = `
-    #${EMBEDDED_CONTAINER_ID} .embedded-form-container { max-width: 720px; margin: 0 auto; }
-    #${EMBEDDED_CONTAINER_ID} .product-thumbnail { display: none !important; }
-    #${EMBEDDED_CONTAINER_ID} .product-info { margin-left: 0 !important; padding-left: 0 !important; }
-    #${EMBEDDED_CONTAINER_ID} .summary-title { font-family: var(--font-acumin, sans-serif) !important; }
+    /* Center the embedded form within its container */
+    #${EMBEDDED_CONTAINER_ID} .embedded-form-container {
+      max-width: 720px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    /* Hide the blank product thumbnail to prevent layout shifts */
+    #${EMBEDDED_CONTAINER_ID} .product-thumbnail {
+      display: none !important;
+    }
+    /* Remove extra left spacing when the thumbnail is hidden */
+    #${EMBEDDED_CONTAINER_ID} .product-info {
+      margin-left: 0 !important;
+      padding-left: 0 !important;
+    }
+    /* Use our Acumin font for the order summary heading */
+    #${EMBEDDED_CONTAINER_ID} .summary-title {
+      font-family: var(--font-acumin, sans-serif) !important;
+    }
+    /* Adjust font sizes on very small screens for better readability */
     @media (max-width: 480px) {
-      #${EMBEDDED_CONTAINER_ID} .summary-title { font-size: 1rem !important; }
-      #${EMBEDDED_CONTAINER_ID} .summary-attribute { font-size: 0.875rem !important; }
+      #${EMBEDDED_CONTAINER_ID} .summary-title {
+        font-size: 1rem !important;
+      }
+      #${EMBEDDED_CONTAINER_ID} .summary-attribute {
+        font-size: 0.875rem !important;
+      }
     }
   `;
 }
@@ -250,7 +281,13 @@ function inRange(iso: string, startIso: string, endIso: string) {
   return t >= s && t <= e;
 }
 
-/** Group ISO dates into consecutive ranges for display labels */
+/**
+ * Group an array of ISO dates into consecutive ranges.  Returns an array of
+ * objects with `start` and `end` ISO dates.  If a single day has no
+ * consecutive neighbour, its `start` and `end` will be the same.  This
+ * helper is used to produce compact labels like "Wed, Sep 17th, 2025" or
+ * "Wed, Sep 17th, 2025 – Fri, Sep 19th, 2025" for the Review and Pay steps.
+ */
 function groupIsoDatesIntoRanges(
   dates: string[]
 ): Array<{ start: string; end: string }> {
@@ -265,16 +302,25 @@ function groupIsoDatesIntoRanges(
       const b = new Date(`${sorted[i + 1]}T00:00:00`);
       const diffDays = (b.getTime() - a.getTime()) / 86400000;
       if (diffDays === 1) {
+        // consecutive day
         end = sorted[i + 1];
         i++;
-      } else break;
+      } else {
+        break;
+      }
     }
     ranges.push({ start, end });
   }
   return ranges;
 }
 
-/** Suppress wallet onCancel warnings */
+/**
+ * Define a global no‑op onCancel function.  Some builds of the Deluxe
+ * Embedded Payments SDK expect a global onCancel handler (for example,
+ * when digital wallets are cancelled).  Without this, the SDK logs a
+ * warning: "onCancel is not defined".  Assigning a noop suppresses
+ * that message without affecting functionality.
+ */
 function ensureGlobalOnCancelNoop(): void {
   const w: any = window;
   if (typeof w.onCancel !== "function") {
@@ -282,7 +328,12 @@ function ensureGlobalOnCancelNoop(): void {
   }
 }
 
-/** Load Apple Pay JS if needed */
+/**
+ * Dynamically load the Apple Pay JS if it hasn't been loaded yet.  This
+ * prevents the "Applepay SDK is not loaded" warning in the console when
+ * Apple Pay is enabled for the merchant.  If Apple Pay isn't enabled or
+ * supported by the browser, loading this script will have no effect.
+ */
 async function loadApplePaySdk(): Promise<void> {
   const w: any = window;
   if (w.ApplePaySession) return;
@@ -296,47 +347,64 @@ async function loadApplePaySdk(): Promise<void> {
   });
 }
 
-/** Build products array for Embedded Payments JWT */
 function buildProductsForJwt(args: {
   booking: BookingLine | null;
   merchItems: MerchItem[];
 }) {
   const { booking, merchItems } = args;
+  // Define the product shape including both `price` (for display) and `amount` (for Deluxe SDK).
   const products: Array<{
     name?: string;
     skuCode?: string;
     quantity?: number;
-    price?: number; // unit price used in UI
-    amount?: number; // unit price sent to Deluxe
+    price?: number; // unit price per item used in our UI
+    amount?: number; // unit price passed to Deluxe Embedded
     description?: string;
     unitOfMeasure?: string;
   }> = [];
 
+  /**
+   * Coerce a value into a numeric amount with 2 decimal places.  Accepts
+   * strings or numbers.  Returns 0 for invalid or negative inputs.  This
+   * helper ensures that any price passed to Deluxe is a finite number to
+   * prevent NaN from appearing in the embedded panel.
+   */
   const toMoney = (v: unknown): number => {
     const n = typeof v === "string" ? Number(v) : (v as number);
     return Number.isFinite(n) && n >= 0 ? Number(n.toFixed(2)) : 0;
   };
 
+  // If there is a booking, include a line for the hunt and optionally the party deck.
   if (booking) {
     const hunters = Math.max(1, Number(booking.numberOfHunters || 1));
+    // Party deck subtotal: number of party deck days times the configured rate.  Default to 500 if seasonConfig undefined.
     const partyDays = booking.partyDeckDates?.length || 0;
     const partyRate = booking.seasonConfig?.partyDeckRatePerDay ?? 500;
     const partySubtotal = partyDays * partyRate;
+    // Total for the booking portion (may be undefined).  Use 0 if missing.
     const bookingSubtotal = Number(booking.bookingTotal || 0);
+    // Compute per‑hunter unit price by subtracting the party deck subtotal and dividing by hunters.
     const perHunterUnit = Math.max(
       0,
       Math.round((bookingSubtotal - partySubtotal) / hunters)
     );
-
     products.push({
       name: "Dove Hunt Package",
       skuCode: "HUNT",
       quantity: hunters,
+      // Convert the computed unit into a proper money value.  Using toMoney
+      // ensures the price is a valid, finite number with two decimals.
       price: toMoney(perHunterUnit),
+      // Provide an `amount` field for Deluxe Embedded.  The Embedded
+      // Payments SDK reads products[i].amount as the per‑unit price (in
+      // currency units) rather than products[i].price.  Including
+      // both fields allows the UI to use `price` directly while the
+      // backend passes `amount` to Deluxe.
       amount: toMoney(perHunterUnit),
       description: `${booking.dates.length} day(s) • ${hunters} hunter(s)`,
       unitOfMeasure: "Each",
     });
+    // If the party deck is reserved for any days, add a separate line.
     if (partyDays > 0) {
       products.push({
         name: "Party Deck",
@@ -349,21 +417,21 @@ function buildProductsForJwt(args: {
     }
   }
 
+  // Add each merch item.  Note: price must be a unit price (not extended).
   for (const m of merchItems) {
     products.push({
       name: m.name,
       skuCode: m.skuCode,
       quantity: m.qty,
+      // Ensure merch item unit price is a valid money value
       price: toMoney(m.price),
       amount: toMoney(m.price),
       unitOfMeasure: "Each",
     });
   }
-
   return products;
 }
 
-/** Compute totals for booking + merch (whole currency units) */
 function calculateTotals(args: {
   booking: BookingLine | null;
   merchItems: MerchItem[];
@@ -380,7 +448,6 @@ function calculateTotals(args: {
       twoConsecutiveDays: 350,
       threeDayCombo: 450,
     };
-
     const isInSeason = (iso: string) =>
       cfg
         ? inRange(iso, cfg.seasonStart, cfg.seasonEnd)
@@ -395,11 +462,9 @@ function calculateTotals(args: {
       const dow = d.getDay();
       return dow === 5 || dow === 6 || dow === 0;
     };
-
     const offSeasonDays = all.filter((d) => !isInSeason(d));
     bookingTotal +=
       offSeasonDays.length * weekdayRate * (booking.numberOfHunters || 1);
-
     const inSeasonDays = all.filter((d) => isInSeason(d));
     const seasonDaysSorted = sortIsoDates(inSeasonDays);
     let seasonCostPerPerson = 0;
@@ -437,7 +502,6 @@ function calculateTotals(args: {
       i++;
     }
     bookingTotal += seasonCostPerPerson * (booking.numberOfHunters || 1);
-
     const partyDays = booking.partyDeckDates?.length || 0;
     const partyRate = cfg?.partyDeckRatePerDay ?? 500;
     bookingTotal += partyDays * partyRate;
@@ -451,6 +515,9 @@ export default function CheckoutPage() {
   const { user } = useAuth();
   const { booking, merchItems, isHydrated, clearCart } = useCart();
 
+  // Track which step of the checkout the user is on.  Step 1 collects
+  // customer info, step 2 reviews the order, and step 3 displays the
+  // embedded payment panel.  Starting at 1 renders the Customer Info form.
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
   const [orderId] = useState(() => {
@@ -481,22 +548,69 @@ export default function CheckoutPage() {
     };
   }, []);
 
-  /** Normalize merch from CartContext into an array of {skuCode, name, qty, price} */
   const merchArray: MerchItem[] = useMemo(() => {
     const arr: MerchItem[] = [];
     const items = merchItems as any;
     const values: any[] = items ? Object.values(items) : [];
     for (const v of values) {
-      const sku =
-        v?.product?.skuCode ?? v?.product?.id ?? v?.sku ?? v?.id ?? "SKU";
-      const name = v?.product?.name ?? v?.name ?? "Item";
-      const qty = Number(v?.quantity ?? v?.qty ?? 0);
-      const price = Number(v?.product?.price ?? v?.price ?? 0);
-      if (!sku || qty <= 0) continue;
-      arr.push({ skuCode: String(sku), name: String(name), qty, price });
+      const sku = v?.product?.skuCode ?? v?.product?.id ?? "SKU";
+      arr.push({
+        skuCode: sku,
+        name: v?.product?.name ?? "Item",
+        qty: v?.quantity ?? 0,
+        price: v?.product?.price ?? 0,
+      });
     }
     return arr;
   }, [merchItems]);
+
+  // Check stock for each merch item and surface friendly errors.
+  const [merchStock, setMerchStock] = useState<Record<string, number | null>>(
+    {}
+  );
+  const [stockErrors, setStockErrors] = useState<Record<string, string>>({});
+  useEffect(() => {
+    (async () => {
+      const next: Record<string, number | null> = {};
+      await Promise.all(
+        merchArray.map(async (m) => {
+          try {
+            const ref = doc(
+              db,
+              "products",
+              m.skuCode || (m as any).productId || m.name
+            );
+            const snap = await getDoc(ref);
+            if (snap.exists()) {
+              const stock = (snap.data() as any)?.stock;
+              next[m.skuCode || (m as any).productId || m.name] =
+                typeof stock === "number" ? stock : null;
+            } else {
+              next[m.skuCode || (m as any).productId || m.name] = null;
+            }
+          } catch {
+            next[m.skuCode || (m as any).productId || m.name] = null;
+          }
+        })
+      );
+      setMerchStock(next);
+    })();
+  }, [JSON.stringify(merchArray)]);
+
+  useEffect(() => {
+    const errs: Record<string, string> = {};
+    for (const m of merchArray) {
+      const key = m.skuCode || (m as any).productId || m.name;
+      const stock = merchStock[key];
+      if (typeof stock === "number") {
+        if (stock <= 0) errs[key] = `${m.name} is out of stock.`;
+        else if (m.qty > stock) errs[key] = `${m.name}: only ${stock} left.`;
+      }
+    }
+    setStockErrors(errs);
+  }, [JSON.stringify(merchArray), merchStock]);
+
+  const hasStockErrors = Object.keys(stockErrors).length > 0;
 
   const [customer, setCustomer] = useState(() => {
     const displayName = user?.displayName || "";
@@ -513,6 +627,11 @@ export default function CheckoutPage() {
     return initial;
   }) as unknown as [CustomerInfo, any];
 
+  /**
+   * Determine if the customer info form is sufficiently filled out to allow
+   * continuing to the review step.  Require at minimum a first name,
+   * last name, and email.  The phone and billing address are optional.
+   */
   const customerInfoComplete = useMemo(() => {
     return (
       !!customer.firstName?.trim() &&
@@ -521,6 +640,9 @@ export default function CheckoutPage() {
     );
   }, [customer.firstName, customer.lastName, customer.email]);
 
+  // Compute booking and merch totals.  We keep the full totals object so we can
+  // reference bookingTotal later when building the products array for the embedded
+  // panel.  Amount is extracted from totals.amount for convenience.
   const totals = useMemo(
     () =>
       calculateTotals({
@@ -545,7 +667,14 @@ export default function CheckoutPage() {
   const [errorMsg, setErrorMsg] = useState("") as unknown as [string, any];
   const instanceRef = useRef(null) as unknown as { current: any };
 
-  /** Build products for the Review step (mirrors the Embedded panel) */
+  /**
+   * Build a list of products for the review step using the same
+   * buildProductsForJwt() helper that constructs the payload for the JWT.  We
+   * pass bookingTotal so the per‑hunter unit price is computed.  Each item
+   * returned has a name, quantity, unit price, and we compute an extended
+   * price (unit price × quantity) here for display purposes.  This list
+   * mirrors the order summary that Deluxe displays internally.
+   */
   const reviewProducts = useMemo(() => {
     const products = buildProductsForJwt({
       booking: booking
@@ -561,20 +690,35 @@ export default function CheckoutPage() {
     });
     return products.map((p) => {
       const quantity = p.quantity || 0;
+      // Prefer the price field for display; fall back to amount if price is undefined.
       const unit =
         typeof p.price === "number" && !isNaN(p.price)
           ? p.price
           : typeof p.amount === "number" && !isNaN(p.amount)
           ? p.amount
           : 0;
-      return { ...p, quantity, unit, extended: unit * quantity };
+      return {
+        ...p,
+        quantity,
+        unit,
+        extended: unit * quantity,
+      };
     });
   }, [booking, merchArray, seasonConfig, totals.bookingTotal]);
 
+  /**
+   * Generate friendly labels for the hunt dates.  Consecutive dates are
+   * collapsed into a single range.  Each label uses formatLongDate() with
+   * weekday names for readability, e.g. "Wednesday, September 17th, 2025 –
+   * Thursday, September 18th, 2025".  Single days will produce a single
+   * date without a range.  These labels are used in the review and pay steps.
+   */
   const dateRangeLabels = useMemo(() => {
     if (!booking?.dates || booking.dates.length === 0) return [];
     return groupIsoDatesIntoRanges(booking.dates).map(({ start, end }) => {
-      if (start === end) return formatLongDate(start, { weekday: true });
+      if (start === end) {
+        return formatLongDate(start, { weekday: true });
+      }
       return `${formatLongDate(start, { weekday: true })} – ${formatLongDate(
         end,
         { weekday: true }
@@ -582,12 +726,18 @@ export default function CheckoutPage() {
     });
   }, [booking?.dates]);
 
+  /**
+   * Generate friendly labels for the party deck dates (if any).  Same logic
+   * as dateRangeLabels but applied to booking.partyDeckDates.
+   */
   const partyDeckRangeLabels = useMemo(() => {
     if (!booking?.partyDeckDates || booking.partyDeckDates.length === 0)
       return [];
     return groupIsoDatesIntoRanges(booking.partyDeckDates).map(
       ({ start, end }) => {
-        if (start === end) return formatLongDate(start, { weekday: true });
+        if (start === end) {
+          return formatLongDate(start, { weekday: true });
+        }
         return `${formatLongDate(start, { weekday: true })} – ${formatLongDate(
           end,
           { weekday: true }
@@ -660,6 +810,12 @@ export default function CheckoutPage() {
 
   const startEmbeddedPayment = useCallback(async () => {
     setErrorMsg("");
+    if (Object.keys(stockErrors).length > 0) {
+      setErrorMsg(
+        "Some merchandise exceeds available stock. Please adjust your cart."
+      );
+      return;
+    }
 
     if (!customer.firstName || !customer.lastName || !customer.email) {
       setErrorMsg(
@@ -674,7 +830,9 @@ export default function CheckoutPage() {
 
     setIsSubmitting(true);
     try {
+      // Define a global no‑op onCancel handler to silence wallet warnings
       ensureGlobalOnCancelNoop();
+      // destroy any earlier instance
       try {
         const inst = instanceRef.current;
         if (inst?.destroy) inst.destroy();
@@ -682,9 +840,10 @@ export default function CheckoutPage() {
         instanceRef.current = null;
       } catch {}
 
+      // ensure order
       await ensureOrder();
 
-      // Determine methods (cc/ach) + wallets state
+      // figure out which methods to show
       let paymentMethods: ("cc" | "ach")[] = ["cc"];
       let applePayEnabled = false;
       let googlePayEnabled = false;
@@ -710,6 +869,8 @@ export default function CheckoutPage() {
         }
       } catch {}
 
+      // Load Apple Pay SDK ahead of initialization if Apple Pay is enabled.
+      // This prevents a "Applepay SDK is not loaded" warning in Safari.
       if (applePayEnabled) {
         try {
           await loadApplePaySdk();
@@ -718,6 +879,7 @@ export default function CheckoutPage() {
         }
       }
 
+      // get short-lived JWT
       const jwtResp = await fetch("/api/createEmbeddedJwt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -743,6 +905,7 @@ export default function CheckoutPage() {
                   numberOfHunters: booking.numberOfHunters,
                   partyDeckDates: booking.partyDeckDates,
                   seasonConfig: seasonConfig || undefined,
+                  // Include bookingTotal so per‑hunter pricing can be computed.
                   bookingTotal: totals.bookingTotal,
                 }
               : null,
@@ -762,13 +925,18 @@ export default function CheckoutPage() {
       };
       if (!jwt) throw new Error("JWT missing from response");
 
+      // load the SDK from the correct base
       const scriptSrc = embeddedBase
         ? `${embeddedBase}/embedded/javascripts/deluxe.js`
         : undefined;
       await loadDeluxeSdk(scriptSrc);
 
+      // resolve EP object and init
       const EP = await waitForEmbeddedPayments();
       setSdkReady(true);
+
+      // Inject styling tweaks for the embedded panel: center it,
+      // remove thumbnails, and apply the Acumin font to headings.
       ensureEmbeddedStyles();
 
       const isSandbox = (embeddedBase || "").includes("payments2.");
@@ -784,6 +952,7 @@ export default function CheckoutPage() {
         hideGooglePayButton: !googlePayEnabled,
       } as any;
 
+      // IMPORTANT: init may return void OR an instance; setEventHandlers may exist on EP or return value.
       const initResult = EP.init(jwt, config);
       const handlerHost: any =
         (initResult &&
@@ -798,6 +967,10 @@ export default function CheckoutPage() {
             onTxnSuccess: async (_g: any, data: any) => {
               try {
                 const ref = doc(db, "orders", orderId);
+                // Extract a reasonable payment identifier from various possible fields on the
+                // event.  Some gateways return PaymentId or TransactionId rather than
+                // paymentId (case sensitivity differs), so check a few options.  If
+                // nothing matches, this will remain null.
                 const paymentId =
                   data?.paymentId ??
                   data?.PaymentId ??
@@ -820,7 +993,10 @@ export default function CheckoutPage() {
                   { merge: true }
                 );
 
-                // Update availability (huntersBooked)
+                // Increment huntersBooked for each booked date.  This mirrors the
+                // behaviour performed in the server-side webhook for hosted
+                // payments.  It ensures availability is updated immediately for
+                // embedded checkout, even if a webhook is not received.
                 if (
                   booking &&
                   booking.dates?.length &&
@@ -840,26 +1016,9 @@ export default function CheckoutPage() {
                   }
                   await batch.commit();
                 }
-
-                // Decrement merch inventory (variant-as-SKU)
-                if (Array.isArray(merchArray) && merchArray.length) {
-                  const invBatch = writeBatch(db);
-                  for (const m of merchArray) {
-                    if (!m?.skuCode || !m?.qty) continue;
-                    invBatch.set(
-                      doc(db, "products", m.skuCode),
-                      {
-                        stock: increment(-Math.abs(m.qty)),
-                        updatedAt: serverTimestamp(),
-                      },
-                      { merge: true }
-                    );
-                  }
-                  await invBatch.commit();
-                }
               } catch (err) {
                 console.warn(
-                  "Failed to persist success event or inventory updates",
+                  "Failed to record Deluxe lastEvent or update availability",
                   err
                 );
               } finally {
@@ -890,6 +1049,9 @@ export default function CheckoutPage() {
             onTokenFailed: (_g: any, data: any) => {
               console.warn("[Deluxe] Token failed", data);
             },
+            // Some builds of the Deluxe SDK emit an onCancel event (especially for
+            // digital wallets).  Define a no‑op handler to suppress console
+            // warnings like "onCancel is not defined".
             onCancel: (_g: any, data: any) => {
               console.log("[Deluxe] Payment cancelled", data);
               setErrorMsg("Payment cancelled.");
@@ -909,12 +1071,17 @@ export default function CheckoutPage() {
 
       const renderHost: any =
         handlerHost && handlerHost.render ? handlerHost : EP;
+      // Customize the embedded form styling.  See Deluxe documentation for
+      // additional options such as walletsbgcolor, walletsborderadius, etc.
       renderHost.render({
         containerId: EMBEDDED_CONTAINER_ID,
+        // Use the light theme for the overall panel
         paymentpanelstyle: "light",
+        // Products panel (left side) styling
         productsbgcolor: "#f7f7f7",
         productsfontcolor: "#333333",
         productsfontsize: "14px",
+        // Digital wallets section styling
         walletsbgcolor: "#fafafa",
         walletsborderadius: "8px",
         walletspadding: "12px",
@@ -923,6 +1090,7 @@ export default function CheckoutPage() {
         walletsheight: "auto",
         walletsfontfamily: "var(--font-acumin, sans-serif)",
         walletsfontcolor: "#333333",
+        // Button colors
         paybuttoncolor: "#4CAF50",
         cancelbuttoncolor: "#f44336",
       });
@@ -969,14 +1137,34 @@ export default function CheckoutPage() {
     }
   }, [ensureOrder, orderId]);
 
+  /**
+   * Move from the review step to the payment step.  We first set the
+   * `step` state to 3 so the embedded payment container exists in the DOM.
+   * Then we wait for a microtask and call startEmbeddedPayment().  This
+   * ensures the panel is mounted and ready when the Deluxe SDK renders.
+   */
   const handleStartSecurePayment = useCallback(async () => {
+    // Switch to the Pay step so the container is present
     setStep(3);
+    // Wait for the next tick to allow the DOM to update
     await new Promise((r) => setTimeout(r, 0));
     await startEmbeddedPayment();
   }, [startEmbeddedPayment]);
 
+  /**
+   * Navigate back from the Pay step to the Review step.  If there is an
+   * embedded payment instance mounted, destroy it.  This prevents duplicate
+   * SDK instances from lingering when the user returns to the previous
+   * step.  We also clear any error messages.
+   */
   const handleBackToReview = useCallback(() => {
     setErrorMsg("");
+    if (Object.keys(stockErrors).length > 0) {
+      setErrorMsg(
+        "Some merchandise exceeds available stock. Please adjust your cart."
+      );
+      return;
+    }
     setStep(2);
     try {
       const inst = instanceRef.current;
@@ -1000,13 +1188,17 @@ export default function CheckoutPage() {
     };
   }, []);
 
-  const canStart = useMemo(() => amount > 0 && !!orderId, [amount, orderId]);
+  const canStart = useMemo(
+    () => amount > 0 && !!orderId && !hasStockErrors,
+    [amount, orderId, hasStockErrors]
+  );
 
   if (!isHydrated)
     return <div className="text-center py-20">Loading cart…</div>;
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-10">
+      {/* Header */}
       <div className="mb-6">
         <h1 className="text-3xl font-semibold">Checkout</h1>
         <p className="text-sm opacity-70">
@@ -1014,12 +1206,14 @@ export default function CheckoutPage() {
         </p>
       </div>
 
+      {/* Display any error messages */}
       {(errorMsg || (cfgError as any)) && (
         <div className="mb-6 rounded-lg border border-red-500/30 bg-red-500/10 text-red-700 p-3">
           {errorMsg || (cfgError as any)}
         </div>
       )}
 
+      {/* Step indicator */}
       <div className="flex items-center justify-center gap-4 mb-8">
         <div className="flex items-center gap-1">
           <div
@@ -1064,7 +1258,7 @@ export default function CheckoutPage() {
         </div>
       </div>
 
-      {/* Step 1 */}
+      {/* Step 1: Customer Info */}
       {step === 1 && (
         <section className="mb-8 p-4 rounded-xl border bg-neutral-100">
           <h2 className="text-xl mb-4 font-acumin">Customer Info</h2>
@@ -1081,11 +1275,11 @@ export default function CheckoutPage() {
         </section>
       )}
 
-      {/* Step 2 */}
+      {/* Step 2: Review Order */}
       {step === 2 && (
         <section className="mb-8 p-4 rounded-xl border bg-neutral-100">
           <h2 className="text-xl mb-4 font-acumin">Review Your Order</h2>
-
+          {/* Summary details */}
           <div className="mb-4 p-3 rounded-lg border bg-white/70">
             <div className="grid sm:grid-cols-3 gap-3">
               <div>
@@ -1133,7 +1327,7 @@ export default function CheckoutPage() {
               </div>
             ) : null}
           </div>
-
+          {/* Line items */}
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
@@ -1158,12 +1352,12 @@ export default function CheckoutPage() {
               </tbody>
             </table>
           </div>
-
+          {/* Total */}
           <div className="mt-4 flex justify-end">
             <div className="text-lg mr-2">Total</div>
             <div className="text-2xl font-bold">${amount.toFixed(2)}</div>
           </div>
-
+          {/* Buttons */}
           <div className="mt-6 flex flex-wrap gap-3 justify-between">
             <button
               onClick={() => setStep(1)}
@@ -1190,11 +1384,11 @@ export default function CheckoutPage() {
         </section>
       )}
 
-      {/* Step 3 */}
+      {/* Step 3: Pay Securely */}
       {step === 3 && (
         <section className="mb-8 p-4 rounded-xl border bg-neutral-100">
           <h2 className="text-xl mb-4 font-acumin">Pay Securely (Embedded)</h2>
-
+          {/* Quick summary */}
           <div className="mb-4 p-3 rounded-lg border bg-white/70">
             <div className="grid sm:grid-cols-3 gap-3">
               <div>
@@ -1242,16 +1436,16 @@ export default function CheckoutPage() {
               </div>
             ) : null}
           </div>
-
+          {/* Total */}
           <div className="mb-4 flex justify-between items-baseline">
             <div className="text-lg">Total</div>
             <div className="text-2xl font-bold">${amount.toFixed(2)}</div>
           </div>
-
+          {/* Embedded payments panel */}
           <div
             id={EMBEDDED_CONTAINER_ID}
             className={[
-              "min-h-[260px] rounded-xl shadow-lg bg-white",
+              "min-h-[260px] rounded-xl shadow-lg bg-white", // bigger min height to reveal card form
               sdkReady ? "opacity-100" : "opacity-60",
               "transition-opacity",
             ].join(" ")}
@@ -1265,8 +1459,8 @@ export default function CheckoutPage() {
           {sdkReady && !instanceReady && (
             <p className="mt-2 text-sm opacity-70">Loading payment panel…</p>
           )}
-
-          <div className="mt-6 flex justify-start">
+          {/* Back button */}
+          <div class-time="mt-6 flex justify-start">
             <button
               onClick={handleBackToReview}
               className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50"
@@ -1277,6 +1471,7 @@ export default function CheckoutPage() {
         </section>
       )}
 
+      {/* Footer note */}
       <p className="text-xs text-white opacity-80">
         By paying, you agree to the ranch’s property rules and cancellation
         policy.
