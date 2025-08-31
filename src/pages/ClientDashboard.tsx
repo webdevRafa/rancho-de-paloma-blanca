@@ -465,7 +465,7 @@ const ClientDashboard: React.FC = () => {
             </div>
           ) : showSuccess && status === "paid" ? (
             <div className="flex flex-col items-center justify-center text-center min-h-[300px]">
-              <div className="flex items-center justify-center w-20 h-20 rounded-full bg-green-100 text-green-600 shadow-lg">
+              <div className="flex items-center justify-center w-20 font-acumin h-20 rounded-full bg-green-100 text-green-600 shadow-lg">
                 <span className="text-4xl">✓</span>
               </div>
               <h2 className="mt-6 text-2xl font-bold text-green-500">
@@ -481,16 +481,18 @@ const ClientDashboard: React.FC = () => {
                   Loading order details…
                 </p>
               ) : successOrder ? (
-                <div className="mt-6 w-full max-w-lg text-left bg-[var(--color-footer)]/10 p-4 rounded-md space-y-4 border border-green-200">
+                <div className="mt-6 w-full max-w-lg text-left bg-neutral-100 p-4 rounded-md space-y-4 border border-green-200">
                   <div>
-                    <p className="text-sm text-neutral-400">Order ID</p>
-                    <p className="font-mono text-sm break-all">
+                    <p className="text-sm text-[var(--color-background)]">
+                      Order ID
+                    </p>
+                    <p className="font-mono text-sm break-all text-[var(--color-background)]">
                       {successOrder.id}
                     </p>
                   </div>
 
                   {successOrder.booking && (
-                    <div className="space-y-1">
+                    <div className="space-y-1 text-[var(--color-background)]">
                       <p className="font-semibold">Booking</p>
                       <div className="ml-4 space-y-0.5">
                         <p>
