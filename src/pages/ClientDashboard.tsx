@@ -315,22 +315,24 @@ const ClientDashboard: React.FC = () => {
         ? Math.round(totalNum * 0.5 * 100) / 100
         : 0;
 
-      // 1) If eligible, attempt Deluxe refund via our function (non‑blocking UI flow)
+      // 1) If eligible, attempt Deluxe refund via our function (non-blocking UI flow)
       let refundPayload: any = null;
       if (refundAmount > 0) {
-        // Prefer the real paymentId; avoid matching paymentLinkId
+        // Prefer the *real* paymentId; never send paymentLinkId (not refundable)
         const paymentId = findDeepId(order.deluxe, /\bpaymentId\b/i) || null;
 
-        // If we don't have a paymentId, fall back to originalTransactionId, then transactionId
+        // Fallbacks Deluxe can use to search/resolve a payment
         const originalTransactionId =
           findDeepId(order.deluxe, /\boriginalTransactionId\b/i) ||
           findDeepId(order.deluxe, /\btransactionId\b/i) ||
           null;
 
-        const body: any = {
-          amount: refundAmount,
+        // Always include orderId so the server can /payments/search on 404
+        const body: Record<string, any> = {
+          orderId: order.id,
+          // send major units; server converts to minor (cents)
+          amount: Number(refundAmount.toFixed(2)),
           currency: ((order as any)?.currency || "USD").toUpperCase(),
-          orderId: order.id, // <— add this so the server can /payments/search on 404
         };
 
         if (paymentId) body.paymentId = paymentId;
@@ -344,9 +346,20 @@ const ClientDashboard: React.FC = () => {
             body: JSON.stringify(body),
           });
           refundPayload = await r.json().catch(() => null);
-          if (r.ok)
+
+          if (r.ok) {
             toast.success(`Refund initiated for $${fmtMoney(refundAmount)}`);
-          else toast.error("Refund request failed; cancelling without refund.");
+            // Optional: surface the resolved paymentId for debugging
+            if (refundPayload?.resolvedPaymentId) {
+              console.log(
+                "Refund resolvedPaymentId:",
+                refundPayload.resolvedPaymentId
+              );
+            }
+          } else {
+            console.warn("Refund failed:", refundPayload);
+            toast.error("Refund request failed; cancelling without refund.");
+          }
         } catch (e) {
           console.error("Refund network error", e);
           toast.error(
