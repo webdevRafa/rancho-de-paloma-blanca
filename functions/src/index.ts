@@ -534,19 +534,8 @@ const getBearer = async () => {
   // Support either secret naming convention:
   //   DELUXE_SANDBOX_CLIENT_ID / DELUXE_SANDBOX_CLIENT_SECRET
   //   or DELUXE_CLIENT_ID / DELUXE_CLIENT_SECRET
-  const clientId =
-    // if you're using defineSecret(...) these .value() calls will be available:
-    (typeof DELUXE_CLIENT_ID?.value === "function" && DELUXE_CLIENT_ID.value()) ||
-    (typeof DELUXE_CLIENT_ID?.value === "function" && DELUXE_CLIENT_ID.value()) ||
-    // as a fallback for local emulation, allow env vars:
-    process.env.DELUXE_SANDBOX_CLIENT_ID ||
-    process.env.DELUXE_CLIENT_ID;
-
-  const clientSecret =
-    (typeof DELUXE_CLIENT_SECRET?.value === "function" && DELUXE_CLIENT_SECRET.value()) ||
-    (typeof DELUXE_CLIENT_SECRET?.value === "function" && DELUXE_CLIENT_SECRET.value()) ||
-    process.env.DELUXE_SANDBOX_CLIENT_SECRET ||
-    process.env.DELUXE_CLIENT_SECRET;
+  const clientId = DELUXE_CLIENT_ID.value() || process.env.DELUXE_CLIENT_ID;
+  const clientSecret = DELUXE_CLIENT_SECRET.value() || process.env.DELUXE_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
     throw new Error(
@@ -671,7 +660,6 @@ const getBearer = async () => {
     // ---- attempt refund ----
     const refundBody = {
       paymentId: resolvedPaymentId,
-      isACH: false,
       amount: { amount: amountMinor, currency },
     };
 
