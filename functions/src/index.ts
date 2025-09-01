@@ -85,11 +85,7 @@ function asMoney(n: unknown): number | null {
   const v = typeof n === "string" ? Number(n) : (n as number);
   return Number.isFinite(v) && v >= 0 ? Number((v as number).toFixed(2)) : null;
 }
-// Redact long IDs in logs (leave last 4 chars)
-function redact(v?: string): string | undefined {
-  if (!v) return v;
-  return String(v).replace(/[A-Za-z0-9](?=[A-Za-z0-9]{4})/g, "•");
-}
+
 const base64url = (obj: object) => Buffer.from(JSON.stringify(obj)).toString("base64url");
 
 // Sign a payload with HS256 for Embedded endpoints (and for the embedded SDK token)
@@ -511,270 +507,207 @@ export const api = onRequest(
       }
 
 // Refund Deluxe Payment (upgraded, drop-in)
-if (
-  req.method === "POST" &&
-  (url === "/api/refundDeluxePayment" || url === "/refundDeluxePayment")
-) {
+// ===== REPLACE your existing refundDeluxePayment handler with this one =====
+if (req.method === "POST" && (url === "/api/refundDeluxePayment" || url === "/refundDeluxePayment")) {
   try {
+    // ---- helpers (scoped to this route to avoid clashes) ----
+    const BASE = "https://sandbox.api.deluxe.com"; // hard-pin sandbox while debugging
+    const GW   = `${BASE}/dpp/v1/gateway`;
+
+    const asMoney = (v: unknown) => {
+      const n = typeof v === "number" ? v : Number(v);
+      if (!Number.isFinite(n) || n <= 0) return 0;
+      // Convert major units -> minor (e.g., 10.50 -> 1050)
+      return Math.round(n * 100);
+    };
+
+    // ---- OAuth bearer (typed) ----
+type OAuthTokenResp = {
+  access_token: string;
+  token_type?: string;
+  expires_in?: number;
+  scope?: string;
+  [k: string]: any;
+};
+
+const getBearer = async () => {
+  // Support either secret naming convention:
+  //   DELUXE_SANDBOX_CLIENT_ID / DELUXE_SANDBOX_CLIENT_SECRET
+  //   or DELUXE_CLIENT_ID / DELUXE_CLIENT_SECRET
+  const clientId =
+    // if you're using defineSecret(...) these .value() calls will be available:
+    (typeof DELUXE_CLIENT_ID?.value === "function" && DELUXE_CLIENT_ID.value()) ||
+    (typeof DELUXE_CLIENT_ID?.value === "function" && DELUXE_CLIENT_ID.value()) ||
+    // as a fallback for local emulation, allow env vars:
+    process.env.DELUXE_SANDBOX_CLIENT_ID ||
+    process.env.DELUXE_CLIENT_ID;
+
+  const clientSecret =
+    (typeof DELUXE_CLIENT_SECRET?.value === "function" && DELUXE_CLIENT_SECRET.value()) ||
+    (typeof DELUXE_CLIENT_SECRET?.value === "function" && DELUXE_CLIENT_SECRET.value()) ||
+    process.env.DELUXE_SANDBOX_CLIENT_SECRET ||
+    process.env.DELUXE_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new Error(
+      "Missing Deluxe OAuth creds. Set DELUXE_SANDBOX_CLIENT_ID/SECRET or DELUXE_CLIENT_ID/SECRET."
+    );
+  }
+
+  const resp = await fetch(`${BASE}/secservices/oauth2/v2/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "client_credentials",
+      client_id: clientId,
+      client_secret: clientSecret,
+    }),
+  });
+
+  // Parse text first so we can log raw body if JSON parsing fails
+  const text = await resp.text();
+  let data: Partial<OAuthTokenResp> = {};
+  try {
+    data = JSON.parse(text) as OAuthTokenResp;
+  } catch {
+    // keep data as {}
+  }
+
+  if (!resp.ok || !data?.access_token) {
+    console.error("OAuth failed", { status: resp.status, body: text });
+    throw new Error(`OAuth failure (${resp.status})`);
+  }
+
+  return data.access_token;
+};
+
+
+    const dppFetch = async (path: string, bearer: string, body: any) => {
+      const resp = await fetch(`${GW}${path}`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${bearer}`,
+          "PartnerToken": DELUXE_ACCESS_TOKEN.value(),
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+      const text = await resp.text();
+      let json: any = null;
+      try { json = JSON.parse(text); } catch { /* keep raw text */ }
+      return { resp, json, text };
+    };
+
+    // Resolve a paymentId when only orderId/transactionId exist
+    const resolvePaymentId = async (bearer: string, args: { orderId?: string; originalTransactionId?: string }) => {
+      const searchBody: Record<string, any> = {};
+      if (args.orderId) searchBody.orderData = { orderId: args.orderId };
+      if (args.originalTransactionId) searchBody.transactionId = args.originalTransactionId;
+
+      if (!Object.keys(searchBody).length) return null;
+
+      const { resp, json, text } = await dppFetch("/payments/search", bearer, searchBody);
+      if (!resp.ok) {
+        console.warn("payments/search failed", resp.status, json || text);
+        return null;
+      }
+
+      // Try a few likely shapes returned by Deluxe search
+      const candidates: any[] =
+        (Array.isArray(json?.payments) && json.payments) ||
+        (Array.isArray(json?.results) && json.results) ||
+        [];
+
+      const first = candidates[0] || json;
+      const pid =
+        first?.paymentId ||
+        first?.id ||
+        json?.paymentId ||
+        null;
+
+      return (typeof pid === "string" && pid.trim()) ? pid.trim() : null;
+    };
+
+    // ---- parse + validate inputs ----
     const body = (req.body || {}) as any;
 
-    // 1) Validate inputs
-    const refundAmount = asMoney(body.amount ?? body.refundAmount);
-    const currency = String(body.currency ?? "USD").toUpperCase();
-    if (refundAmount === null || refundAmount <= 0) {
-      res.status(400).json({ error: "invalid-amount" });
-      return;
-    }
+    const amountMajor = Number(body.amount);
+    const amountMinor = asMoney(amountMajor);
+    const currency = (body.currency ?? "USD").toString().toUpperCase();
 
-    // 2) Gather identifiers
-    let paymentId: string | undefined =
-      typeof body.paymentId === "string" && body.paymentId.trim()
-        ? body.paymentId.trim()
-        : undefined;
-
-    const transactionId: string | undefined =
+    // prefer explicit paymentId; else allow search by orderId/transactionId
+    const paymentIdInput = typeof body.paymentId === "string" && body.paymentId.trim() ? body.paymentId.trim() : undefined;
+    const originalTransactionId =
       typeof body.originalTransactionId === "string" && body.originalTransactionId.trim()
         ? body.originalTransactionId.trim()
-        : typeof body.transactionId === "string" && body.transactionId.trim()
-        ? body.transactionId.trim()
-        : undefined;
+        : (typeof body.transactionId === "string" && body.transactionId.trim()
+            ? body.transactionId.trim()
+            : undefined);
+    const orderId = typeof body.orderId === "string" && body.orderId.trim() ? body.orderId.trim() : undefined;
 
-    const orderId: string | undefined =
-      typeof body.orderId === "string" && body.orderId.trim() ? body.orderId.trim() : undefined;
-
-    const reason: string | undefined =
-      typeof body.reason === "string" && body.reason.trim() ? body.reason.trim() : undefined;
-
-    if (!paymentId && !transactionId && !orderId) {
-      res.status(400).json({ error: "paymentId-or-transactionId-or-orderId-required" });
+    if (!amountMinor || !currency) {
+      res.status(400).json({ error: "Missing/invalid amount or currency" });
+      return;
+    }
+    if (!paymentIdInput && !originalTransactionId && !orderId) {
+      res.status(400).json({ error: "Provide paymentId or originalTransactionId or orderId" });
       return;
     }
 
-    // 3) Auth + base/prefix
-    const bearer = await getGatewayBearer();
-    const base = gatewayBase().replace(/\/$/, "");
-    const prefix = /\/dpp\/v1\/gateway$/.test(base) ? base : `${base}/dpp/v1/gateway`;
-    const refundsUrl = `${prefix}/refunds`;
-    const searchUrl = `${prefix}/payments/search`;
-    const getPaymentUrl = (id: string) => `${prefix}/payments/${encodeURIComponent(id)}`;
+    // ---- auth (always sandbox in this pinned version) ----
+    const bearer = await getBearer();
 
-    // 4) Headers
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      Authorization: `Bearer ${bearer}`,
-      PartnerToken: DELUXE_ACCESS_TOKEN.value(),
-    };
-
-    // Input diagnostics
-    logger.info("refund.input", {
-      env: process.env.DELUXE_ENV || (process.env.DELUXE_USE_SANDBOX === "false" ? "production" : "sandbox"),
-      base,
-      amount: refundAmount,
-      currency,
-      paymentId: redact?.(paymentId),
-      transactionId: redact?.(transactionId),
-      orderId: redact?.(orderId),
-    });
-
-    // Helpers to normalize Deluxe results
-    const firstArrayItem = (obj: any): any | null => {
-      if (!obj || typeof obj !== "object") return null;
-      const candidates = [
-        obj.items,
-        obj.payments,
-        obj.results,
-        obj.data,
-        obj.content,
-        obj.records,
-      ].find((a: any) => Array.isArray(a) && a.length);
-      return candidates ? candidates[0] : null;
-    };
-
-    const extractPaymentId = (o: any): string | undefined => {
-      if (!o) return undefined;
-      return (
-        o.paymentId ||
-        o.PaymentId ||
-        o.id ||
-        o.Id ||
-        (typeof o === "string" && o) ||
-        undefined
-      );
-    };
-
-    // 5) Resolve paymentId via /payments/search if needed
-    if (!paymentId && (transactionId || orderId)) {
-      const searchPayload: any = {};
-      if (transactionId) searchPayload.transactionId = transactionId;
-      if (orderId) searchPayload.orderId = orderId;
-
-      const r = await fetch(searchUrl, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(searchPayload),
-      });
-
-      const sraw = await r.text();
-      let sjson: any;
-      try {
-        sjson = sraw ? JSON.parse(sraw) : {};
-      } catch {
-        sjson = { raw: sraw };
-      }
-
-      // Accept either array container or single object response
-      const first =
-        firstArrayItem(sjson) ||
-        (sjson && typeof sjson === "object" ? sjson : null);
-
-      paymentId = extractPaymentId(first);
-
-      logger.info("refund.search", {
-        status: r.status,
-        resolvedPaymentId: redact?.(paymentId),
-      });
-
-      if (!r.ok || !paymentId) {
-        logger.error("payments/search failed", { status: r.status, body: sjson });
-        res.status(404).json({
-          error: "payment-not-found",
-          searchBy: Object.keys(searchPayload),
-          details: sjson,
-        });
-        return;
-      }
+    // ---- resolve paymentId if missing ----
+    let resolvedPaymentId = paymentIdInput || null;
+    if (!resolvedPaymentId) {
+      resolvedPaymentId = await resolvePaymentId(bearer, { orderId, originalTransactionId });
+    }
+    if (!resolvedPaymentId) {
+      res.status(404).json({ error: "Payment not found in sandbox", lookedUpWith: { orderId, originalTransactionId } });
+      return;
     }
 
-    // 6) Call /refunds (standard refund requires paymentId + amount)
-    const refundBody: any = {
-      paymentId,
+    // ---- attempt refund ----
+    const refundBody = {
+      paymentId: resolvedPaymentId,
       isACH: false,
-      amount: { amount: refundAmount, currency },
-      ...(reason ? { reason } : {}),
+      amount: { amount: amountMinor, currency },
     };
 
-    logger.info("refund.request", {
-      refundsUrl,
-      paymentId: redact?.(paymentId),
-      partnerToken: redact?.(DELUXE_ACCESS_TOKEN.value()),
-      amount: refundAmount,
-      currency,
-    });
+    let attempt = await dppFetch("/refunds", bearer, refundBody);
 
-    const resp = await fetch(refundsUrl, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(refundBody),
-    });
-
-    // Parse JSON if possible; otherwise carry raw text for diagnostics
-    const raw = await resp.text();
-    let json: any;
-    try {
-      json = raw ? JSON.parse(raw) : {};
-    } catch {
-      json = { raw };
-    }
-
-    // 7) 404 rescue: verify payment; if not found, try re-search by whatever we have and retry once
-    if (!resp.ok && resp.status === 404) {
-      const verify = await fetch(getPaymentUrl(paymentId!), { method: "GET", headers });
-      const verifyText = await verify.text();
-      logger.error("refund.verify.payment", {
-        status: verify.status,
-        body: verifyText?.slice(0, 800),
-      });
-
-      // Only attempt a single rescue if verify also says 404
-      if (verify.status === 404) {
-        const rescuePayload: any = {};
-        if (orderId) rescuePayload.orderId = orderId;
-        if (transactionId) rescuePayload.transactionId = transactionId;
-
-        if (Object.keys(rescuePayload).length > 0) {
-          const s = await fetch(searchUrl, {
-            method: "POST",
-            headers,
-            body: JSON.stringify(rescuePayload),
-          });
-          const sraw2 = await s.text();
-          let sjson2: any;
-          try {
-            sjson2 = sraw2 ? JSON.parse(sraw2) : {};
-          } catch {
-            sjson2 = { raw: sraw2 };
-          }
-
-          const first2 =
-            firstArrayItem(sjson2) ||
-            (sjson2 && typeof sjson2 === "object" ? sjson2 : null);
-          const newPid: string | undefined = extractPaymentId(first2);
-
-          logger.info("refund.search.on404", {
-            status: s.status,
-            resolvedPaymentId: redact?.(newPid),
-          });
-
-          if (s.ok && newPid && newPid !== paymentId) {
-            const retry = await fetch(refundsUrl, {
-              method: "POST",
-              headers,
-              body: JSON.stringify({
-                paymentId: newPid,
-                isACH: false,
-                amount: { amount: refundAmount, currency },
-              }),
-            });
-            const retryText = await retry.text();
-            let retryBody: any;
-            try {
-              retryBody = retryText ? JSON.parse(retryText) : {};
-            } catch {
-              retryBody = { raw: retryText };
-            }
-
-            if (!retry.ok) {
-              logger.error("refunds.failed.retry", { status: retry.status, retryBody });
-              res.status(retry.status).json(retryBody || { error: "refunds-failed" });
-              return;
-            }
-            logger.info("refunds.success.retry", { paymentId: redact?.(newPid), retryBody });
-            res.json(retryBody);
-            return;
-          }
-        }
+    // If the first attempt 404s, try to re-resolve & retry once
+    if (attempt.resp.status === 404) {
+      const retryPid = await resolvePaymentId(bearer, { orderId, originalTransactionId });
+      if (retryPid && retryPid !== resolvedPaymentId) {
+        resolvedPaymentId = retryPid;
+        attempt = await dppFetch("/refunds", bearer, { ...refundBody, paymentId: resolvedPaymentId });
       }
+    }
 
-      // Couldn’t rescue → return original 404
-      logger.error("refunds.failed", {
-        status: resp.status,
-        body: json,
-        sent: { ...refundBody, paymentId: redact?.(paymentId) },
+    // ---- respond to client ----
+    if (!attempt.resp.ok) {
+      res.status(attempt.resp.status).json({
+        error: "RefundFailed",
+        status: attempt.resp.status,
+        resolvedPaymentId,
+        deluxe: attempt.json ?? { raw: attempt.text },
       });
-      res.status(resp.status).json(json || { error: "refunds-failed" });
       return;
     }
 
-    if (!resp.ok) {
-      logger.error("refunds.failed", {
-        status: resp.status,
-        body: json,
-        sent: { ...refundBody, paymentId: redact?.(paymentId) },
-      });
-      res.status(resp.status).json(json || { error: "refunds-failed" });
-      return;
-    }
-
-    // Success
-    res.status(200).json(json);
-    return;
+    res.status(200).json({
+      ok: true,
+      resolvedPaymentId,
+      deluxe: attempt.json ?? { raw: attempt.text },
+    });
   } catch (err: any) {
-    logger.error("refundDeluxePayment error", { message: err?.message });
-    res.status(500).json({ error: "refund-failed", message: err?.message ?? String(err) });
-    return;
+    console.error("refundDeluxePayment fatal error:", err);
+    res.status(500).json({ error: "InternalError", message: err?.message || String(err) });
   }
 }
+// ===== END REPLACEMENT =====
 
 
 
