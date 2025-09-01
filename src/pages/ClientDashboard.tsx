@@ -612,7 +612,7 @@ const ClientDashboard: React.FC = () => {
                         </p>
 
                         {hasBooking && (
-                          <div className="mb-2">
+                          <div className="mb-2 text-[var(--color-background)]">
                             <strong>Booking:</strong>
                             <div className="ml-4 space-y-1">
                               <p>
@@ -644,7 +644,7 @@ const ClientDashboard: React.FC = () => {
                         )}
 
                         {merchLines.length > 0 && (
-                          <div className="mb-2">
+                          <div className="mb-2 text-[var(--color-background)]">
                             <strong>Merch Items:</strong>
                             <ul className="ml-4 list-disc">
                               {merchLines.map((li) => (
@@ -657,14 +657,14 @@ const ClientDashboard: React.FC = () => {
                           </div>
                         )}
 
-                        <p className="mt-2 font-semibold">
+                        <p className="mt-2 font-semibold text-[var(--color-background)]">
                           Total: ${fmtMoney(order.total)}
                         </p>
 
                         {order.status === "paid" && (
                           <div className="mt-3">
                             <button
-                              className="px-3 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white"
+                              className="px-3 py-2 rounded-md bg-red-900 hover:bg-red-700 text-white"
                               onClick={() => handleCancelOrder(order)}
                             >
                               Cancel Order
