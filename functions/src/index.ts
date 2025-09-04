@@ -505,23 +505,25 @@ export const api = onRequest(
         }
       }
 
-      // Refund Deluxe Payment (fixed)
+// ---- Refund Deluxe Payment (clean + deterministic) ----
 if (
   req.method === "POST" &&
-  (url === "/api/refundDeluxePayment" || url === "/refundDeluxePayment") // tolerate either mount
+  (url === "/api/refundDeluxePayment" || url === "/refundDeluxePayment")
 ) {
   try {
     const body = (req.body || {}) as any;
 
-    // Validate inputs
+    // ----- Inputs -----
     const refundAmount = asMoney(body.amount ?? body.refundAmount);
     const currency = (body.currency ?? "USD").toString().toUpperCase() as "USD" | "CAD";
+    const reason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim() : undefined;
+
     if (refundAmount === null || refundAmount <= 0) {
       res.status(400).json({ error: "invalid-amount" });
       return;
     }
 
-    // Prefer paymentId, but allow resolving from transactionId
+    // Accept paymentId directly, or allow fallback resolution by transactionId / orderId
     let paymentId =
       typeof body.paymentId === "string" && body.paymentId.trim() ? body.paymentId.trim() : undefined;
 
@@ -532,27 +534,31 @@ if (
         ? body.transactionId.trim()
         : undefined;
 
-    if (!paymentId && !transactionId) {
-      res.status(400).json({ error: "paymentId-or-transactionId-required" });
+    const orderId =
+      typeof body.orderId === "string" && body.orderId.trim() ? body.orderId.trim() : undefined;
+
+    if (!paymentId && !transactionId && !orderId) {
+      res.status(400).json({ error: "paymentId-or-transactionId-or-orderId-required" });
       return;
     }
 
-    const reason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim() : undefined;
-
-    // Auth
+    // ----- Auth (OAuth Bearer) -----
+    // Uses your existing helper to fetch {host}/secservices/oauth2/v2/token
     const bearer = await getGatewayBearer();
 
-    // Build safe gateway URLs (avoid duplicating /dpp/v1/gateway)
-    const base = gatewayBase().replace(/\/$/, "");
-    const refundsUrl = /\/dpp\/v1\/gateway$/.test(base)
-      ? `${base}/refunds`
-      : `${base}/dpp/v1/gateway/refunds`;
-    const searchUrl = /\/dpp\/v1\/gateway$/.test(base)
-      ? `${base}/payments/search`
-      : `${base}/dpp/v1/gateway/payments/search`;
+    // ----- Gateway URLs (no guessing, no regex) -----
+    // flip this flag or wire to your existing env switch; sandbox by default during testing
+    const USE_SANDBOX = true; // set to false in prod, or replace with your own env-driven toggle
+    const host = USE_SANDBOX ? "https://sandbox.api.deluxe.com" : "https://api.deluxe.com";
+    const refundsUrl = `${host}/dpp/v1/gateway/refunds`;
+    const searchUrl  = `${host}/dpp/v1/gateway/payments/search`;
 
-    // If only a transactionId was provided, resolve paymentId first
-    if (!paymentId && transactionId) {
+    // ----- Resolve paymentId if needed -----
+    if (!paymentId && (transactionId || orderId)) {
+      const searchBody: Record<string, any> = {};
+      if (transactionId) searchBody.transactionId = transactionId;
+      if (orderId)       searchBody.orderId       = orderId;
+
       const r = await fetch(searchUrl, {
         method: "POST",
         headers: {
@@ -561,20 +567,16 @@ if (
           "Content-Type": "application/json",
           Accept: "application/json",
         },
-        body: JSON.stringify({ transactionId }),
+        body: JSON.stringify(searchBody),
       });
 
       const searchText = await r.text();
       let searchJson: any;
-      try {
-        searchJson = searchText ? JSON.parse(searchText) : {};
-      } catch {
-        searchJson = { raw: searchText };
-      }
+      try { searchJson = searchText ? JSON.parse(searchText) : {}; } catch { searchJson = { raw: searchText }; }
 
       if (!r.ok) {
-        logger.error("payments/search failed", { status: r.status, body: searchJson });
-        res.status(404).json({ error: "payment-not-found", transactionId, details: searchJson });
+        logger.error("payments/search failed", { status: r.status, body: searchJson, searchBody });
+        res.status(404).json({ error: "payment-not-found", details: searchJson });
         return;
       }
 
@@ -582,19 +584,19 @@ if (
       paymentId = first?.paymentId || first?.id || undefined;
 
       if (!paymentId) {
-        res.status(404).json({ error: "payment-not-found", transactionId, details: searchJson });
+        res.status(404).json({ error: "payment-not-found", details: searchJson });
         return;
       }
     }
 
-    // Deluxe refunds requires paymentId
-    const requestBody: any = {
-      paymentId,
+    // ----- Refund body: amount in MAJOR units (e.g., 20.00), currency "USD"/"CAD" -----
+    const requestBody = {
+      paymentId: paymentId!, // now guaranteed
       amount: { amount: refundAmount, currency },
       ...(reason ? { reason } : {}),
     };
 
-    // Call Deluxe /refunds
+    // ----- Call Deluxe /refunds -----
     const resp = await fetch(refundsUrl, {
       method: "POST",
       headers: {
@@ -608,27 +610,31 @@ if (
 
     const text = await resp.text();
     let json: any;
-    try {
-      json = text ? JSON.parse(text) : {};
-    } catch {
-      json = { raw: text };
-    }
+    try { json = text ? JSON.parse(text) : {}; } catch { json = { raw: text }; }
 
     if (!resp.ok) {
-      logger.error("refunds failed", { status: resp.status, body: json });
+      // When the path is wrong, Deluxe returns HTML 404; we expose raw to spot it quickly
+      logger.error("refunds failed", {
+        status: resp.status,
+        refundsUrl,
+        body: json,
+        requestBody,
+      });
       res.status(resp.status).json({ error: "refunds-failed", status: resp.status, body: json });
       return;
     }
 
-    // Success
-    res.status(200).json(json);
+    // Success — include the resolvedPaymentId for easy reconciliation in your UI
+    res.status(200).json({ ...json, resolvedPaymentId: paymentId });
     return;
   } catch (err: any) {
-    logger.error("refundDeluxePayment error", err);
+    logger.error("refundDeluxePayment error", { message: err?.message, stack: err?.stack });
     res.status(500).json({ error: "refund-failed", message: err?.message ?? String(err) });
     return;
   }
 }
+
+
 
 
       // Deluxe Webhook
