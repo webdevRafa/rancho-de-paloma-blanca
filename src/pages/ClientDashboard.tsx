@@ -449,7 +449,7 @@ const ClientDashboard: React.FC = () => {
               My Orders
             </button>
             <button
-              className={`text-left px-4 py-2 rounded-md fonbt-bold text-[var(--color-background)] hover:scale-105 hover:bg-white transition-all duration-300 ease-in-out ${
+              className={`text-left px-4 py-2 rounded-md text-[var(--color-background)] hover:scale-105 hover:bg-white transition-all duration-300 ease-in-out ${
                 activeTab === "cart"
                   ? "bg-white shadow-lg scale-105"
                   : "bg-neutral-100"
@@ -574,7 +574,7 @@ const ClientDashboard: React.FC = () => {
             <p className="text-sm text-neutral-400">Loading your data...</p>
           ) : activeTab === "orders" ? (
             <>
-              <h2 className="text-xl font-bold mb-2 text-[var(--color-background)] font-acumin">
+              <h2 className="text-lg  mb-2 text-[var(--color-background)] font-acumin">
                 My Orders
               </h2>
               {orders.length === 0 ? (
@@ -597,7 +597,7 @@ const ClientDashboard: React.FC = () => {
                           ✅ Paid
                         </span>
                       ) : (
-                        <span className="text-red-400 font-semibold">
+                        <span className="text-red-400 bg-red-100 rounded-lg p-1  font-semibold">
                           ❌ Cancelled
                         </span>
                       );
@@ -607,13 +607,15 @@ const ClientDashboard: React.FC = () => {
                         key={order.id || Math.random()}
                         className="border-b pb-4 border-[var(--color-footer)]"
                       >
-                        <p className="text-xs uppercase text-neutral-400 mb-1">
+                        <p className="text-xs uppercase text-neutral-400 mb-4">
                           {statusPill}
                         </p>
 
                         {hasBooking && (
-                          <div className="mb-2 text-[var(--color-background)]">
-                            <strong>Booking:</strong>
+                          <div className="mb-2  text-[var(--color-background)] ">
+                            <h2 className="text-lg  mb-1 text-[var(--color-background)] font-acumin">
+                              Booking:{" "}
+                            </h2>
                             <div className="ml-4 space-y-1">
                               <p>
                                 Dates:{" "}
