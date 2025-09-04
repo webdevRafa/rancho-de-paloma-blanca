@@ -546,7 +546,7 @@ if (
     // ----- URLs -----
     const USE_SANDBOX = true; // wire this to your env toggle in prod
     const host = USE_SANDBOX ? "https://sandbox.api.deluxe.com" : "https://api.deluxe.com";
-    const refundsUrl = `${host}/dpp/v1/refunds`; // <— correct path (no /gateway)
+    const refundsUrl = `${host}/dpp/v1/gateway/refunds`; 
     const searchUrl  = `${host}/dpp/v1/gateway/payments/search`;
 
     // ----- Resolve paymentId if needed (builds ONLY the search body) -----
