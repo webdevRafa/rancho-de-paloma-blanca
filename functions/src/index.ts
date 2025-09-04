@@ -506,10 +506,30 @@ export const api = onRequest(
       }
 
 // ---- Refund Deluxe Payment (clean + deterministic) ----
+// ---- Refund Deluxe Payment (clean + deterministic, TS-safe) ----
 if (
   req.method === "POST" &&
   (url === "/api/refundDeluxePayment" || url === "/refundDeluxePayment")
 ) {
+  // ---- minimal types to keep TS happy but flexible ----
+  type PaymentHit = { paymentId?: string; id?: string; [k: string]: any };
+  type PaymentsSearchResponse = {
+    payments?: PaymentHit[];
+    results?: PaymentHit[];
+    data?: PaymentHit[];
+    [k: string]: any;
+  };
+
+  // small helper to parse JSON safely but keep the type we want
+  const parseJsonLoose = async (resp: Response): Promise<PaymentsSearchResponse> => {
+    try {
+      return (await resp.json()) as PaymentsSearchResponse;
+    } catch {
+      const raw = await resp.text();
+      return { raw };
+    }
+  };
+
   try {
     const body = (req.body || {}) as any;
 
@@ -544,9 +564,9 @@ if (
     const bearer = await getGatewayBearer();
 
     // ----- URLs -----
-    const USE_SANDBOX = true; // wire this to your env toggle in prod
+    const USE_SANDBOX = true; // tie to env in production
     const host = USE_SANDBOX ? "https://sandbox.api.deluxe.com" : "https://api.deluxe.com";
-    const refundsUrl = `${host}/dpp/v1/gateway/refunds`; 
+    const refundsUrl = `${host}/dpp/v1/gateway/refunds`;
     const searchUrl  = `${host}/dpp/v1/gateway/payments/search`;
 
     // ----- Resolve paymentId if needed (builds ONLY the search body) -----
@@ -566,17 +586,21 @@ if (
         body: JSON.stringify(searchBody),
       });
 
-      const searchText = await r.text();
-      let searchJson: any;
-      try { searchJson = searchText ? JSON.parse(searchText) : {}; } catch { searchJson = { raw: searchText }; }
+      const searchJson = await parseJsonLoose(r);
 
       if (!r.ok) {
-        logger.error("payments/search failed", { status: r.status, body: searchJson, searchBody });
+        console.error("payments/search failed", { status: r.status, searchBody, searchJson });
         res.status(404).json({ error: "payment-not-found", details: searchJson });
         return;
       }
 
-      const first = searchJson?.payments?.[0] || searchJson?.results?.[0] || searchJson?.data?.[0];
+      const arr =
+        (Array.isArray(searchJson.payments) && searchJson.payments) ||
+        (Array.isArray(searchJson.results)  && searchJson.results)  ||
+        (Array.isArray(searchJson.data)     && searchJson.data)     ||
+        [];
+
+      const first: PaymentHit | undefined = arr[0];
       paymentId = first?.paymentId || first?.id || undefined;
 
       if (!paymentId) {
@@ -588,7 +612,7 @@ if (
     // ----- Build the refund body ONCE (no `reason`) -----
     const requestBody = {
       paymentId: paymentId!,                       // guaranteed by now
-      amount: { amount: refundAmount, currency },  // MAJOR units
+      amount: { amount: refundAmount, currency },  // MAJOR units, e.g. 200 => $200.00
     };
 
     // ----- Call Deluxe /refunds -----
@@ -603,24 +627,30 @@ if (
       body: JSON.stringify(requestBody),
     });
 
-    const text = await resp.text();
+    // Deluxe usually returns JSON; on error, sometimes HTML. Handle both.
     let json: any;
-    try { json = text ? JSON.parse(text) : {}; } catch { json = { raw: text }; }
+    try {
+      json = await resp.json();
+    } catch {
+      json = { raw: await resp.text() };
+    }
 
     if (!resp.ok) {
-      logger.error("refunds failed", { status: resp.status, refundsUrl, body: json, requestBody });
+      console.error("refunds failed", { status: resp.status, refundsUrl, requestBody, response: json });
       res.status(resp.status).json({ error: "refunds-failed", status: resp.status, body: json });
       return;
     }
 
+    // success — webhook will still be your source of truth to reconcile
     res.status(200).json({ ...json, resolvedPaymentId: paymentId });
     return;
   } catch (err: any) {
-    logger.error("refundDeluxePayment error", { message: err?.message, stack: err?.stack });
+    console.error("refundDeluxePayment error", { message: err?.message, stack: err?.stack });
     res.status(500).json({ error: "refund-failed", message: err?.message ?? String(err) });
     return;
   }
 }
+
 
 
 
