@@ -481,7 +481,7 @@ const ClientDashboard: React.FC = () => {
               <div className="flex items-center justify-center w-20 font-acumin h-20 rounded-full bg-green-100 text-green-600 shadow-lg">
                 <span className="text-4xl">✓</span>
               </div>
-              <h2 className="mt-6 text-2xl font-bold text-green-500">
+              <h2 className="text-lg  mb-3 text-[var(--color-background)] font-acumin">
                 Payment Successful
               </h2>
               <p className="mt-2 text-sm text-neutral-400 max-w-md">
@@ -494,7 +494,7 @@ const ClientDashboard: React.FC = () => {
                   Loading order details…
                 </p>
               ) : successOrder ? (
-                <div className="mt-6 w-full max-w-lg text-left bg-neutral-100 p-4 rounded-md space-y-4 border border-green-200">
+                <div className="mt-6 w-full max-w-lg text-left bg-neutral-100 p-4 rounded-md space-y-4 ">
                   <div>
                     <p className="text-sm text-[var(--color-background)]">
                       Order ID
@@ -537,7 +537,7 @@ const ClientDashboard: React.FC = () => {
                   {!!successOrder.merchItems &&
                     (Array.isArray(successOrder.merchItems) ||
                       Object.keys(successOrder.merchItems).length > 0) && (
-                      <div className="space-y-1">
+                      <div className="space-y-1 text-[var(--color-background)]">
                         <p className="font-semibold">Merch Items</p>
                         <ul className="ml-4 list-disc space-y-0.5">
                           {normalizeMerchItems(successOrder.merchItems).map(
@@ -553,7 +553,9 @@ const ClientDashboard: React.FC = () => {
                     )}
 
                   <div>
-                    <p className="font-semibold">Total</p>
+                    <p className="font-semibold text-[var(--color-background)]">
+                      Total
+                    </p>
                     <p className="ml-4">${fmtMoney(successOrder.total)}</p>
                   </div>
                 </div>
@@ -687,7 +689,7 @@ const ClientDashboard: React.FC = () => {
             </>
           ) : (
             <>
-              <h2 className="text-xl font-bold mb-3 text-[var(--color-background)] font-acumin">
+              <h2 className="text-lg  mb-3 text-[var(--color-background)] font-acumin">
                 Cart Status
               </h2>
               {hasCartItems ? (
@@ -703,7 +705,9 @@ const ClientDashboard: React.FC = () => {
                   </button>
                 </div>
               ) : (
-                <p>Your cart is currently empty.</p>
+                <p className="mb-2 text-[var(--color-background)]/60">
+                  Your cart is currently empty.
+                </p>
               )}
             </>
           )}
