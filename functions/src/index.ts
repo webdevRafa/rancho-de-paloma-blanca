@@ -516,8 +516,6 @@ if (
     // ----- Inputs -----
     const refundAmount = asMoney(body.amount ?? body.refundAmount);
     const currency = (body.currency ?? "USD").toString().toUpperCase() as "USD" | "CAD";
-    const reason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim() : undefined;
-
     if (refundAmount === null || refundAmount <= 0) {
       res.status(400).json({ error: "invalid-amount" });
       return;
@@ -543,17 +541,15 @@ if (
     }
 
     // ----- Auth (OAuth Bearer) -----
-    // Uses your existing helper to fetch {host}/secservices/oauth2/v2/token
     const bearer = await getGatewayBearer();
 
-    // ----- Gateway URLs (no guessing, no regex) -----
-    // flip this flag or wire to your existing env switch; sandbox by default during testing
-    const USE_SANDBOX = true; // set to false in prod, or replace with your own env-driven toggle
+    // ----- URLs -----
+    const USE_SANDBOX = true; // wire this to your env toggle in prod
     const host = USE_SANDBOX ? "https://sandbox.api.deluxe.com" : "https://api.deluxe.com";
-    const refundsUrl = `${host}/dpp/v1/gateway/refunds`;
+    const refundsUrl = `${host}/dpp/v1/refunds`; // <— correct path (no /gateway)
     const searchUrl  = `${host}/dpp/v1/gateway/payments/search`;
 
-    // ----- Resolve paymentId if needed -----
+    // ----- Resolve paymentId if needed (builds ONLY the search body) -----
     if (!paymentId && (transactionId || orderId)) {
       const searchBody: Record<string, any> = {};
       if (transactionId) searchBody.transactionId = transactionId;
@@ -589,11 +585,10 @@ if (
       }
     }
 
-    // ----- Refund body: amount in MAJOR units (e.g., 20.00), currency "USD"/"CAD" -----
+    // ----- Build the refund body ONCE (no `reason`) -----
     const requestBody = {
-      paymentId: paymentId!, // now guaranteed
-      amount: { amount: refundAmount, currency },
-      ...(reason ? { reason } : {}),
+      paymentId: paymentId!,                       // guaranteed by now
+      amount: { amount: refundAmount, currency },  // MAJOR units
     };
 
     // ----- Call Deluxe /refunds -----
@@ -613,18 +608,11 @@ if (
     try { json = text ? JSON.parse(text) : {}; } catch { json = { raw: text }; }
 
     if (!resp.ok) {
-      // When the path is wrong, Deluxe returns HTML 404; we expose raw to spot it quickly
-      logger.error("refunds failed", {
-        status: resp.status,
-        refundsUrl,
-        body: json,
-        requestBody,
-      });
+      logger.error("refunds failed", { status: resp.status, refundsUrl, body: json, requestBody });
       res.status(resp.status).json({ error: "refunds-failed", status: resp.status, body: json });
       return;
     }
 
-    // Success — include the resolvedPaymentId for easy reconciliation in your UI
     res.status(200).json({ ...json, resolvedPaymentId: paymentId });
     return;
   } catch (err: any) {

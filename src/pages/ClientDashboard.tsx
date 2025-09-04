@@ -556,7 +556,9 @@ const ClientDashboard: React.FC = () => {
                     <p className="font-semibold text-[var(--color-background)]">
                       Total
                     </p>
-                    <p className="ml-4">${fmtMoney(successOrder.total)}</p>
+                    <p className="ml-4 text-[var(--color-background)]">
+                      ${fmtMoney(successOrder.total)}
+                    </p>
                   </div>
                 </div>
               ) : (
