@@ -505,13 +505,12 @@ export const api = onRequest(
         }
       }
 
-// ---- Refund Deluxe Payment (clean + deterministic) ----
-// ---- Refund Deluxe Payment (clean + deterministic, TS-safe) ----
+// ---- Refund Deluxe Payment (clean + deterministic, safe body reads) ----
 if (
   req.method === "POST" &&
   (url === "/api/refundDeluxePayment" || url === "/refundDeluxePayment")
 ) {
-  // ---- minimal types to keep TS happy but flexible ----
+  // loose shapes to satisfy TS without over-constraining
   type PaymentHit = { paymentId?: string; id?: string; [k: string]: any };
   type PaymentsSearchResponse = {
     payments?: PaymentHit[];
@@ -520,13 +519,33 @@ if (
     [k: string]: any;
   };
 
-  // small helper to parse JSON safely but keep the type we want
-  const parseJsonLoose = async (resp: Response): Promise<PaymentsSearchResponse> => {
-    try {
-      return (await resp.json()) as PaymentsSearchResponse;
-    } catch {
+  // Read a Response safely. We clone once up-front; if JSON parse fails,
+  // we read text() from the clone (so we never double-read the same stream).
+  const readResponse = async <T = any>(resp: Response): Promise<{
+    ok: boolean;
+    status: number;
+    headers: Record<string, string | null>;
+    json?: T;
+    raw?: string;
+  }> => {
+    const headers: Record<string, string | null> = {
+      "content-type": resp.headers.get("content-type"),
+      "x-request-id": resp.headers.get("x-request-id"),
+    };
+    const clone = resp.clone();
+    const ct = headers["content-type"] || "";
+    if (ct.includes("application/json")) {
+      try {
+        const json = (await resp.json()) as T;
+        return { ok: resp.ok, status: resp.status, headers, json };
+      } catch (e) {
+        // fall back to raw, but read from the clone
+        const raw = await clone.text();
+        return { ok: resp.ok, status: resp.status, headers, raw };
+      }
+    } else {
       const raw = await resp.text();
-      return { raw };
+      return { ok: resp.ok, status: resp.status, headers, raw };
     }
   };
 
@@ -541,9 +560,11 @@ if (
       return;
     }
 
-    // Accept paymentId directly, or allow fallback resolution by transactionId / orderId
+    // Prefer paymentId; allow fallback to transactionId or orderId
     let paymentId =
-      typeof body.paymentId === "string" && body.paymentId.trim() ? body.paymentId.trim() : undefined;
+      typeof body.paymentId === "string" && body.paymentId.trim()
+        ? body.paymentId.trim()
+        : undefined;
 
     const transactionId =
       typeof body.originalTransactionId === "string" && body.originalTransactionId.trim()
@@ -564,18 +585,18 @@ if (
     const bearer = await getGatewayBearer();
 
     // ----- URLs -----
-    const USE_SANDBOX = true; // tie to env in production
+    const USE_SANDBOX = true; // TODO: tie to env in prod
     const host = USE_SANDBOX ? "https://sandbox.api.deluxe.com" : "https://api.deluxe.com";
     const refundsUrl = `${host}/dpp/v1/gateway/refunds`;
     const searchUrl  = `${host}/dpp/v1/gateway/payments/search`;
 
-    // ----- Resolve paymentId if needed (builds ONLY the search body) -----
+    // ----- Resolve paymentId if needed -----
     if (!paymentId && (transactionId || orderId)) {
       const searchBody: Record<string, any> = {};
       if (transactionId) searchBody.transactionId = transactionId;
       if (orderId)       searchBody.orderId       = orderId;
 
-      const r = await fetch(searchUrl, {
+      const s = await fetch(searchUrl, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${bearer}`,
@@ -586,37 +607,43 @@ if (
         body: JSON.stringify(searchBody),
       });
 
-      const searchJson = await parseJsonLoose(r);
+      const sRead = await readResponse<PaymentsSearchResponse>(s);
 
-      if (!r.ok) {
-        console.error("payments/search failed", { status: r.status, searchBody, searchJson });
-        res.status(404).json({ error: "payment-not-found", details: searchJson });
+      if (!sRead.ok) {
+        console.error("payments/search failed", {
+          status: sRead.status,
+          searchUrl,
+          searchBody,
+          response: sRead.json ?? sRead.raw,
+        });
+        res.status(404).json({ error: "payment-not-found", details: sRead.json ?? sRead.raw });
         return;
       }
 
+      const src = sRead.json as PaymentsSearchResponse;
       const arr =
-        (Array.isArray(searchJson.payments) && searchJson.payments) ||
-        (Array.isArray(searchJson.results)  && searchJson.results)  ||
-        (Array.isArray(searchJson.data)     && searchJson.data)     ||
+        (Array.isArray(src?.payments) && src!.payments!) ||
+        (Array.isArray(src?.results)  && src!.results!)  ||
+        (Array.isArray(src?.data)     && src!.data!)     ||
         [];
 
       const first: PaymentHit | undefined = arr[0];
       paymentId = first?.paymentId || first?.id || undefined;
 
       if (!paymentId) {
-        res.status(404).json({ error: "payment-not-found", details: searchJson });
+        res.status(404).json({ error: "payment-not-found", details: sRead.json });
         return;
       }
     }
 
-    // ----- Build the refund body ONCE (no `reason`) -----
+    // ----- Build the refund body ONCE (no reason) -----
     const requestBody = {
       paymentId: paymentId!,                       // guaranteed by now
-      amount: { amount: refundAmount, currency },  // MAJOR units, e.g. 200 => $200.00
+      amount: { amount: refundAmount, currency },  // major units (e.g., 200 => $200.00)
     };
 
     // ----- Call Deluxe /refunds -----
-    const resp = await fetch(refundsUrl, {
+    const r = await fetch(refundsUrl, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${bearer}`,
@@ -627,22 +654,21 @@ if (
       body: JSON.stringify(requestBody),
     });
 
-    // Deluxe usually returns JSON; on error, sometimes HTML. Handle both.
-    let json: any;
-    try {
-      json = await resp.json();
-    } catch {
-      json = { raw: await resp.text() };
-    }
+    const rRead = await readResponse<any>(r);
 
-    if (!resp.ok) {
-      console.error("refunds failed", { status: resp.status, refundsUrl, requestBody, response: json });
-      res.status(resp.status).json({ error: "refunds-failed", status: resp.status, body: json });
+    if (!rRead.ok) {
+      console.error("refunds failed", {
+        status: rRead.status,
+        refundsUrl,
+        requestBody,
+        response: rRead.json ?? rRead.raw,
+      });
+      res.status(rRead.status).json({ error: "refunds-failed", status: rRead.status, body: rRead.json ?? rRead.raw });
       return;
     }
 
-    // success — webhook will still be your source of truth to reconcile
-    res.status(200).json({ ...json, resolvedPaymentId: paymentId });
+    // success — webhook still finalizes records/capacity
+    res.status(200).json({ ...(rRead.json ?? { raw: rRead.raw }), resolvedPaymentId: paymentId });
     return;
   } catch (err: any) {
     console.error("refundDeluxePayment error", { message: err?.message, stack: err?.stack });
