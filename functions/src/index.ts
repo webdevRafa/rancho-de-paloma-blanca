@@ -609,7 +609,7 @@ export const api = onRequest(
             }
           }
       
-          // Build refund request body WITHOUT reason
+          // Build refund request body
 const requestBody: any = {
   paymentId,
   amount: { amount: refundAmount, currency },
