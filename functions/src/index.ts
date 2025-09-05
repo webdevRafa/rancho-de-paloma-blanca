@@ -611,7 +611,21 @@ if (
     };
     if (typeof body.isACH === "boolean") requestBody.isACH = body.isACH;
 
-    logger.info("refunds request", { refundsUrl, requestBody });
+    // 👇 NEW: single-line raw JSON for easy copy/paste
+const requestBodyJson = JSON.stringify(requestBody);
+
+// Keep your structured log (nice for filtering)
+logger.info("refunds request", { refundsUrl, requestBody });
+
+// 👇 NEW: explicit raw JSON log line (easy to copy from Cloud Logs)
+logger.info("refunds request raw json", { body: requestBodyJson });
+
+// 👇 NEW: optional debug echo — returns the raw JSON without calling Deluxe
+if (String(req.query.debug) === "1") {
+  res.set("Content-Type", "application/json");
+  res.status(200).send(requestBodyJson);
+  return;
+}
 
     // ----- Call Deluxe /refunds -----
     const resp = await fetch(refundsUrl, {
@@ -622,18 +636,24 @@ if (
         "Content-Type": "application/json",
         Accept: "application/json",
       },
-      body: JSON.stringify(requestBody),
+      body: requestBodyJson,
     });
 
     const text = await resp.text();
+    const deluxeRequestId =
+  resp.headers.get("x-request-id") || resp.headers.get("request-id") || undefined;
+
+// 👇 NEW: log the raw response exactly as received
+logger.info("refunds response raw", { status: resp.status, deluxeRequestId, text });
     let json: any;
     try { json = text ? JSON.parse(text) : {}; }
     catch { json = { raw: text }; }
 
-    const deluxeRequestId = resp.headers.get("x-request-id") || resp.headers.get("request-id") || undefined;
+   
 
     if (!resp.ok) {
       logger.error("refunds failed", {
+        url: refundsUrl,
         status: resp.status,
         response: json,
         requestBody,
