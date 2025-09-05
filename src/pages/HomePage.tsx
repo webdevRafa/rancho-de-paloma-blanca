@@ -1,3 +1,4 @@
+// src/pages/HomePage.tsx
 import { useEffect, useState, useRef } from "react";
 import HeroSection from "../components/HeroSection";
 import InfoCards from "../components/InfoCards";
@@ -14,25 +15,46 @@ const HomePage = () => {
     setIsIOS(/iPad|iPhone|iPod/.test(ua));
   }, []);
 
-  // Parallax: apply to the hero image on ALL devices
+  // Parallax + Fade: apply to the hero image on ALL devices
+  const heroRef = useRef<HTMLDivElement>(null); // NEW
   const imgRef = useRef<HTMLImageElement>(null);
+
   useEffect(() => {
     let raf = 0;
-    const strength = 0.85; // parallax strength (tweak as desired)
+
+    // Tunables
+    const parallaxStrength = 0.85; // how much the image shifts
+    const baseOpacity = 0.6; // starting opacity (matches your old opacity-60)
+    const fadeEndFactor = 0.8; // reach full fade-out ~80% through the hero
 
     const onScroll = () => {
       if (raf) return;
       raf = requestAnimationFrame(() => {
-        const y = window.scrollY * strength;
+        const y = window.scrollY;
+
+        // Parallax translate
         if (imgRef.current) {
-          imgRef.current.style.transform = `translate3d(0, ${y}px, 0)`;
+          imgRef.current.style.transform = `translate3d(0, ${
+            y * parallaxStrength
+          }px, 0)`;
         }
+
+        // Fade based on how far through the hero we are
+        const heroH = heroRef.current?.offsetHeight || window.innerHeight;
+        const fadeEnd = heroH * fadeEndFactor;
+        const progress = Math.min(1, Math.max(0, y / fadeEnd)); // 0 → 1
+        const op = (1 - progress) * baseOpacity;
+
+        if (imgRef.current) {
+          imgRef.current.style.opacity = String(op);
+        }
+
         raf = 0;
       });
     };
 
     window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll(); // initial position
+    onScroll(); // set initial position/opacity
 
     return () => {
       window.removeEventListener("scroll", onScroll);
@@ -42,18 +64,21 @@ const HomePage = () => {
 
   return (
     <>
-      {/* HERO (parallax on all devices) */}
-      <div className="relative w-full h-[100vh] flex items-center justify-center overflow-hidden">
+      {/* HERO (parallax + fade on scroll) */}
+      <div
+        ref={heroRef}
+        className="relative w-full h-[100vh] flex items-center justify-center overflow-hidden"
+      >
         {/* Dark overlay so text stays readable regardless of image brightness */}
         <div className="absolute inset-0 bg-black/50 pointer-events-none" />
 
-        {/* Parallax layer (always shown; JS translates on scroll) */}
+        {/* Parallax layer */}
         <img
           ref={imgRef}
           src={heroImg}
           alt=""
-          className="absolute inset-0 w-full h-[120vh] object-cover opacity-60 will-change-transform"
-          style={{ top: "-10vh" }} // oversize & offset to avoid edge gaps during scroll
+          className="absolute inset-0 w-full h-[120vh] object-cover will-change-transform" // CHANGED: removed opacity-60 class
+          style={{ top: "-10vh", opacity: 0.6 }} // CHANGED: set base opacity inline so JS can override it
         />
 
         {/* Content */}
@@ -73,6 +98,7 @@ const HomePage = () => {
           </a>
         </div>
       </div>
+
       {/* Rest of page */}
       <div className="flex flex-col min-h-screen text-[var(--color-text)]">
         {/* Hero Section */}
@@ -86,7 +112,7 @@ const HomePage = () => {
             backgroundSize: "cover",
             backgroundPosition: "center",
             backgroundRepeat: "no-repeat",
-            backgroundAttachment: isIOS ? "scroll" : "fixed", // keep fixed for non‑iOS here
+            backgroundAttachment: isIOS ? "scroll" : "fixed",
           }}
         >
           {/* Precise overlay gradient: 5% dark on left/right */}
@@ -96,8 +122,6 @@ const HomePage = () => {
               backgroundImage: `linear-gradient(to right, var(--color-dark) 0%, transparent 1%, transparent 99%, var(--color-dark) 100%)`,
             }}
           />
-
-          {/* Content */}
           <div className="relative z-10 py-10">
             <InfoCards />
           </div>
