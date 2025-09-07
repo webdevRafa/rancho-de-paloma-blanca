@@ -112,7 +112,7 @@ const HomePage = () => {
 
         {/* Section with birds background */}
         <section
-          className="relative py-20 mt-40 px-6 w-[90%] mx-auto text-center"
+          className="relative py-20 mt-40 px-6 w-[90%] mx-auto text-center  shadow-lg shadow-amber-50/50"
           style={{
             backgroundImage: `url(${birds})`,
             backgroundSize: "cover",
