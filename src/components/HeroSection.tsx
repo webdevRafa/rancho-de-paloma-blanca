@@ -75,7 +75,10 @@ const HeroSection = () => {
       </div>
 
       <div data-aos="fade-in" className="py-10 text-center ">
-        <h2 id="info" className="text-4xl md:text-5xl mb-2 text-white pt-10">
+        <h2
+          id="info"
+          className="text-4xl md:text-5xl mb-2 text-white pt-10 font-bourbon uppercase"
+        >
           Why Choose Rancho de Paloma Blanca?
         </h2>
         <p className="text-md max-w-3xl mx-auto mb-10">

@@ -121,13 +121,18 @@ const HomePage = () => {
             backgroundAttachment: isIOS ? "scroll" : "fixed",
           }}
         >
-          {/* Precise overlay gradient: 5% dark on left/right */}
+          {/* 1) global tint to reduce background brightness */}
+          <div className="absolute inset-0 z-0 pointer-events-none bg-[var(--color-dark)]/70" />
+
+          {/* 2) your existing precise side gradient on top of the tint */}
           <div
             className="absolute inset-0 z-0 pointer-events-none"
             style={{
               backgroundImage: `linear-gradient(to right, var(--color-dark) 0%, transparent 1%, transparent 99%, var(--color-dark) 100%)`,
             }}
           />
+
+          {/* Content stays above overlays */}
           <div className="relative z-10 py-10">
             <InfoCards />
           </div>
