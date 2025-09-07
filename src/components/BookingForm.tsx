@@ -13,6 +13,7 @@ import { useNavigate } from "react-router-dom";
 import DateSelector from "./DateSelector";
 import { getSeasonConfig } from "../utils/getSeasonConfig";
 import { useCart } from "../context/CartContext";
+import type { Attendee } from "../types/Types";
 
 const BookingForm = () => {
   const { user, login } = useAuth();
@@ -22,6 +23,11 @@ const BookingForm = () => {
 
   const [step, setStep] = useState(1);
   const [seasonConfig, setSeasonConfig] = useState<SeasonConfig | null>(null);
+
+  // --- Attendees state ---
+  const [attendees, setAttendees] = useState<Attendee[]>(() => [
+    { fullName: (user?.displayName || "").trim(), waiverSigned: false },
+  ]);
 
   // Keep the canonical numeric value in form.numberOfHunters,
   // but expose a separate string input value so users can clear it while typing.
@@ -37,6 +43,28 @@ const BookingForm = () => {
   const [deckAvailability, setDeckAvailability] = useState<
     Record<string, boolean>
   >({});
+
+  // Keep attendees array length in sync with numberOfHunters
+  useEffect(() => {
+    setAttendees((prev) => {
+      const n = Math.max(1, form.numberOfHunters || 1);
+      const next = [...prev];
+
+      while (next.length < n) next.push({ fullName: "", waiverSigned: false });
+      if (next.length > n) next.length = n;
+
+      // prefill lead if missing
+      if (next[0] && !next[0].fullName && user?.displayName) {
+        next[0] = { ...next[0], fullName: user.displayName };
+      }
+      return next;
+    });
+  }, [form.numberOfHunters, user?.displayName]);
+
+  // require first + last name for each attendee
+  const attendeeNamesComplete =
+    attendees.length === Math.max(1, form.numberOfHunters || 1) &&
+    attendees.every((a) => a.fullName.trim().split(/\s+/).length >= 2);
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -228,6 +256,15 @@ const BookingForm = () => {
     return perPersonTotal * form.numberOfHunters + partyDeckCost;
   };
 
+  const blockIfNamesMissing = (): boolean => {
+    if (!attendeeNamesComplete) {
+      alert("Please enter a full name (first & last) for each attendee.");
+      setStep(3);
+      return true;
+    }
+    return false;
+  };
+
   const handleSubmit = async () => {
     if (!user) {
       alert("Please sign in with Google first.");
@@ -240,17 +277,24 @@ const BookingForm = () => {
     // Ensure hunters is committed before building the booking
     commitHunters();
 
+    // Enforce attendee names before proceeding
+    if (blockIfNamesMissing()) return;
+
     const price = calculateTotalPrice();
     const booking: Omit<NewBooking, "createdAt"> = {
       userId: user.uid,
       name: user.displayName || "Unknown",
       email: user.email || "No email",
-      phone: "",
+      phone: form.phone,
       dates: form.dates,
       numberOfHunters: form.numberOfHunters,
       partyDeckDates: form.partyDeckDates,
       price,
       status: "pending",
+      attendees: attendees.map((a) => ({
+        fullName: a.fullName.trim(),
+        waiverSigned: false,
+      })),
     };
     setBooking(booking);
     navigate("/checkout");
@@ -286,18 +330,25 @@ const BookingForm = () => {
     // Commit hunters before computing price or navigating
     commitHunters();
 
+    // Enforce attendee names before proceeding to merch
+    if (blockIfNamesMissing()) return;
+
     const price = calculateTotalPrice();
 
-    const booking = {
+    const booking: Omit<NewBooking, "createdAt"> = {
       userId: user.uid,
       name: user.displayName || "Unknown",
       email: user.email || "No email",
-      phone: "",
+      phone: form.phone,
       dates: form.dates,
       numberOfHunters: form.numberOfHunters,
       partyDeckDates: form.partyDeckDates,
       price,
       status: "pending" as BookingStatus,
+      attendees: attendees.map((a) => ({
+        fullName: a.fullName.trim(),
+        waiverSigned: false,
+      })),
     };
 
     setBooking(booking);
@@ -384,8 +435,43 @@ const BookingForm = () => {
               </p>
             </div>
 
+            {/* Attendees full-name capture */}
+            <div className="mt-4 border-t border-[var(--color-footer)] pt-4">
+              <p className="mb-2 text-[var(--color-footer)] text-sm font-semibold">
+                Enter full names for all attendees
+              </p>
+              <div className="space-y-2">
+                {attendees.map((a, i) => (
+                  <label key={i} className="block">
+                    <span className="text-xs text-[var(--color-footer)]/80">
+                      {i === 0 ? "Lead (you)" : `Attendee ${i + 1}`}
+                    </span>
+                    <input
+                      type="text"
+                      value={a.fullName}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setAttendees((prev) => {
+                          const next = [...prev];
+                          next[i] = { ...next[i], fullName: v };
+                          return next;
+                        });
+                      }}
+                      placeholder="First Last"
+                      className="mt-1 w-full bg-neutral-200 text-[var(--color-footer)] px-4 py-3 rounded-md placeholder:text-[var(--color-footer)]/40 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-gold)]"
+                    />
+                  </label>
+                ))}
+              </div>
+              {!attendeeNamesComplete && (
+                <p className="mt-2 text-xs text-red-600">
+                  Please provide a full name (first & last) for each attendee.
+                </p>
+              )}
+            </div>
+
             {form.dates.length > 0 && (
-              <div className="mt-4 border-t border-[var(--color-footer)] pt-4">
+              <div className="mt-6 border-t border-[var(--color-footer)] pt-4">
                 <p className="mb-2 text-[var(--color-footer)] text-sm font-semibold">
                   Add Party Deck ($500/day):
                 </p>

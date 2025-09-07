@@ -7,6 +7,8 @@ import SponsorPage from "./pages/SponsorPage";
 import { useEffect } from "react";
 import AOS from "aos";
 import "aos/dist/aos.css"; // Import AOS styles
+import DayDetail from "./pages/DayDetail"; // <-- add this import
+
 import BookingPage from "./pages/BookingPage";
 import DevSeed from "./pages/DevSeed";
 import MerchandisePage from "./pages/MerchandisePage";
@@ -21,7 +23,7 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import SetupProfile from "./pages/SetupProfile";
 import CartDrawer from "./components/CartDrawer";
-
+import AdminDashboard from "./pages/AdminDashboard";
 function App() {
   const { isHydrated } = useCart();
 
@@ -48,6 +50,8 @@ function App() {
           <Route path="/merch" element={<MerchandisePage />} />
           <Route path="/book" element={<BookingPage />} />
           <Route path="/about" element={<AboutPage />} />
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/day/:id" element={<DayDetail />} />
           <Route path="/videos" element={<VideoGallery />} />
           <Route path="/setup-profile" element={<SetupProfile />} />
 

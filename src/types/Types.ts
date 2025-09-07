@@ -13,37 +13,21 @@ export interface NewBooking {
   name: string;
   email: string;
   phone?: string;
-
-  /**
-   * An array of ISO date strings (YYYY-MM-DD) representing the days
-   * booked for this hunt.
-   */
   dates: string[];
-  /**
-   * Number of hunters in this party. Used to calculate price and
-   * update daily availability counts.
-   */
   numberOfHunters: number;
-  /**
-   * List of dates for which the customer has reserved the party deck.
-   * Each date must be one of the booked `dates`. The party deck can only
-   * be booked once per day, so this list cannot contain duplicate dates.
-   * The price calculation will add `partyDeckRatePerDay` for each date
-   * included here.
-   */
   partyDeckDates: string[];
-
-  /**
-   * Total price for this booking, calculated server-side from the
-   * season configuration and selected dates.
-   */
   price: number;
   status: BookingStatus;
   notes?: string;
-
+  attendees?: Attendee[];
   createdAt: ReturnType<typeof serverTimestamp>;
 }
-
+// Add these to your shared types
+export type Attendee = {
+  fullName: string;       // "First Last"
+  email?: string;         // optional if you decide to collect
+  waiverSigned?: boolean; // default false; admin can toggle later
+};
 // When fetching a booking (read)
 export interface Booking extends NewBooking {
   id: string;
