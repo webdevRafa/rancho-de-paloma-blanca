@@ -504,7 +504,33 @@ export const api = onRequest(
           return;
         }
       }
+// Diagnostic: show region & public egress IP of this function
+if (req.method === "GET" && (url === "/api/whoami" || url === "/whoami")) {
+  try {
+    // Public egress IP (what Deluxe will see)
+    const r = await fetch("https://api.ipify.org?format=json");
+    const { ip } = (await r.json()) as { ip: string };
 
+    // Regions envs commonly present on gen2 functions
+    const region =
+      process.env.FUNCTION_REGION ||
+      process.env.GCLOUD_REGION ||
+      process.env.X_GOOGLE_FUNCTION_REGION ||
+      "unknown";
+
+    res.setHeader("Cache-Control", "no-store");
+    res.status(200).json({
+      region,            // e.g., "us-central1"
+      ip,                // e.g., "34.122.x.x"
+      nowUtc: new Date().toISOString(),
+      userAgent: req.headers["user-agent"] || null,
+      xForwardedFor: req.headers["x-forwarded-for"] || null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: "whoami-failed", details: String(err) });
+  }
+  return;
+}
 // ---- Refund Deluxe Payment (production-ready) ----
 if (
   req.method === "POST" &&
@@ -727,4 +753,6 @@ logger.info("refunds response raw", { status: resp.status, deluxeRequestId, text
       res.status(500).json({ error: "internal", message: outerErr?.message || String(outerErr) });
     }
   }
+
+  
 );

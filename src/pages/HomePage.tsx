@@ -5,6 +5,7 @@ import InfoCards from "../components/InfoCards";
 import birds from "../assets/images/palomas.webp";
 import heroImg from "../assets/images/1000024263.webp";
 import logo from "../assets/logo-official.webp";
+import rdpb from "../assets/block.svg";
 
 const HomePage = () => {
   // Keep iOS detection for the birds section behavior below
@@ -83,11 +84,16 @@ const HomePage = () => {
 
         {/* Content */}
         <div className="relative z-10 text-center px-6">
-          <img className="w-30 mx-auto" src={logo} alt="" />
-          <h1 className="font-light text-2xl md:text-3xl text-white mb-0 font-acumin">
-            Welcome to Rancho de Paloma Blanca
-          </h1>
-          <p className="text-xs md:text-md max-w-2xl mx-auto mb-6 text-neutral-200">
+          <div className="flex flex-row items-center">
+            <img
+              className="h-[100px] md:h-full max-h-[200px] max-w-[300px] mx-auto"
+              src={logo}
+              alt=""
+            />
+            <img className="w-full max-w-[300px]" src={rdpb} alt="" />
+          </div>
+
+          <p className="text-xs md:text-md max-w-2xl text-center mt-4 mx-auto mb-6 text-neutral-200">
             Experience premium hunts and the beauty of Texas outdoors.
           </p>
           <a
