@@ -290,7 +290,7 @@ export default function AdminDashboard() {
               onClick={() => setRange(k)}
               className={`px-3 py-2 rounded-xl border text-sm transition duration-300 ease-in-out ${
                 range === k
-                  ? "bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] border-white/10"
+                  ? "bg-emerald-400 text-[var(--color-background)] hover:bg-emerald-300 border-white/10"
                   : "bg-neutral-400 text-[var(--color-background)] hover:bg-white border-white/10"
               }`}
             >
@@ -305,7 +305,7 @@ export default function AdminDashboard() {
             onClick={() => setRange("custom")}
             className={`px-3 py-2 rounded-xl border text-sm transition duration-300 ease-in-out ${
               range === "custom"
-                ? "bg-[var(--color-button)] border-white/10"
+                ? "bg-emerald-400 text-[var(--color-background)] hover:bg-emerald-300 border-white/10"
                 : "bg-neutral-400 hover:bg-white text-[var(--color-background)] border-white/10"
             }`}
           >
