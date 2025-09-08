@@ -334,7 +334,7 @@ export default function AdminDashboard() {
 
       {/* KPI cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
-        <div className="rounded-2xl border border-white/10 bg-white/85 shadow-lg p-5">
+        <div className="rounded-2xl border border-white/10 bg-white/85 hover:bg-white transition duration-300 ease-in-out shadow-lg p-5">
           <div className="text-3xl uppercase tracking-wide  font-bourbon text-[var(--color-background)]">
             Hunters Today
           </div>
@@ -343,7 +343,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-white/85 shadow-lg p-5 text-[var(--color-background)]">
+        <div className="rounded-2xl border border-white/10 bg-white/85 hover:bg-white transition duration-300 ease-in-out shadow-lg p-5 text-[var(--color-background)]">
           <div className="text-sm uppercase tracking-wide opacity-70 font-bourbon">
             Party Deck Today
           </div>
@@ -355,7 +355,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-white/85 shadow-lg p-5 text-[var(--color-background)]">
+        <div className="rounded-2xl border border-white/10 bg-white/85 hover:bg-white transition duration-300 ease-in-out shadow-lg p-5 text-[var(--color-background)]">
           <div className="text-sm uppercase tracking-wide opacity-70 font-bourbon">
             Paid Orders
           </div>
@@ -367,7 +367,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-white/85 shadow-lg p-5 text-[var(--color-background)]">
+        <div className="rounded-2xl border border-white/10 bg-white/85 hover:bg-white transition duration-300 ease-in-out shadow-lg p-5 text-[var(--color-background)]">
           <div className="text-sm uppercase tracking-wide opacity-70 font-bourbon">
             Revenue
           </div>
@@ -386,7 +386,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Hunters per day (TABLE, friendly dates + View link) */}
-      <div className="rounded-2xl border border-white/10 bg-white/85 shadow-lg p-5 mb-8 text-[var(--color-background)]">
+      <div className="rounded-2xl border border-white/10 bg-white/85 hover:bg-white transition duration-300 ease-in-out shadow-lg p-5 mb-8 text-[var(--color-background)]">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-2xl font-bourbon">Hunters per Day</h2>
           <span className="text-sm opacity-70">
@@ -470,7 +470,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Today's bookings (paid) */}
-      <div className="rounded-2xl border border-white/10 bg-white/85 shadow-lg p-5 mb-8">
+      <div className="rounded-2xl border border-white/10 bg-white/85 hover:bg-white transition duration-300 ease-in-out shadow-lg p-5 mb-8 text-[var(--color-background)]">
         <h2 className="text-2xl font-bourbon mb-4">
           Today’s Bookings (
           <CountUp end={todayOrders.length} duration={0.6} />)
@@ -537,7 +537,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Recent merch orders */}
-      <div className="rounded-2xl border border-white/10 bg-[var(--color-card)]/95 shadow-lg p-5">
+      <div className="rounded-2xl border border-white/10 bg-white/85 hover:bg-white transition duration-300 ease-in-out shadow-lg p-5 text-[var(--color-background)]">
         <h2 className="text-2xl font-bourbon mb-4">Recent Merch Orders</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
