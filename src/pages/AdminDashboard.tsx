@@ -269,11 +269,11 @@ export default function AdminDashboard() {
   );
 
   return (
-    <div className="min-h-screen text-[var(--color-text)] px-6 md:px-10 py-8 mt-20">
+    <div className="min-h-screen text-[var(--color-text)] max-w-[1800px]  mx-auto px-6 md:px-10 py-8 mt-30">
       {/* Header */}
       <div className="mb-8 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
         <div>
-          <h1 className="text-4xl  font-acumin tracking-tight">
+          <h1 className="text-4xl text-white font-acumin tracking-tight">
             Admin Dashboard
           </h1>
           <p className="opacity-70 mt-0 font-acumin">
@@ -288,10 +288,10 @@ export default function AdminDashboard() {
             <button
               key={k}
               onClick={() => setRange(k)}
-              className={`px-3 py-2 rounded-xl border text-sm transition ${
+              className={`px-3 py-2 rounded-xl border text-sm transition duration-300 ease-in-out ${
                 range === k
-                  ? "bg-[var(--color-button)] border-white/10"
-                  : "bg-[var(--color-card)] border-white/10"
+                  ? "bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] border-white/10"
+                  : "bg-neutral-400 text-[var(--color-background)] hover:bg-white border-white/10"
               }`}
             >
               {k === "today"
@@ -303,10 +303,10 @@ export default function AdminDashboard() {
           ))}
           <button
             onClick={() => setRange("custom")}
-            className={`px-3 py-2 rounded-xl border text-sm transition ${
+            className={`px-3 py-2 rounded-xl border text-sm transition duration-300 ease-in-out ${
               range === "custom"
-                ? "bg-[var(--color-accent-gold)] text-black border-white/10"
-                : "bg-[var(--color-card)]/80 border-white/10"
+                ? "bg-[var(--color-button)] border-white/10"
+                : "bg-neutral-400 hover:bg-white text-[var(--color-background)] border-white/10"
             }`}
           >
             Custom
@@ -335,19 +335,23 @@ export default function AdminDashboard() {
       {/* KPI cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
         <div className="rounded-2xl border border-white/10 bg-white/85 hover:bg-white transition duration-300 ease-in-out shadow-lg p-5">
-          <div className="text-3xl uppercase tracking-wide  font-bourbon text-[var(--color-background)]">
+          <div className="text-2xl uppercase tracking-wide  font-acumin font-bold text-[var(--color-background)]">
             Hunters Today
           </div>
-          <div className="text-4xl font-semibold mt-1 text-[var(--color-background)]">
+          <div className="text-4xl font-semibold mt-1  text-[var(--color-background)]">
             <CountUp end={huntersToday} duration={0.7} separator="," />
           </div>
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-white/85 hover:bg-white transition duration-300 ease-in-out shadow-lg p-5 text-[var(--color-background)]">
-          <div className="text-sm uppercase tracking-wide opacity-70 font-bourbon">
+          <div className="text-2xl uppercase tracking-wide  font-acumin font-bold text-[var(--color-background)]">
             Party Deck Today
           </div>
-          <div className="text-3xl font-semibold mt-1">
+          <div
+            className={`text-3xl font-acumin mt-1 px-2 rounded-lg ${
+              partyDeckToday ? "text-red-400" : "bg-emerald-400"
+            }`}
+          >
             {partyDeckToday ? "Reserved" : "Available"}
           </div>
           <div className="text-xs opacity-60 mt-1">
@@ -356,19 +360,19 @@ export default function AdminDashboard() {
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-white/85 hover:bg-white transition duration-300 ease-in-out shadow-lg p-5 text-[var(--color-background)]">
-          <div className="text-sm uppercase tracking-wide opacity-70 font-bourbon">
+          <div className="text-2xl uppercase tracking-wide  font-acumin font-bold text-[var(--color-background)]">
             Paid Orders
           </div>
           <div className="text-4xl font-semibold mt-1">
             <CountUp end={paidCount} duration={0.7} separator="," />
           </div>
           <div className="text-xs opacity-60 mt-1">
-            {fromIso} → {toIso}
+            From, {fromIso} → {toIso}
           </div>
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-white/85 hover:bg-white transition duration-300 ease-in-out shadow-lg p-5 text-[var(--color-background)]">
-          <div className="text-sm uppercase tracking-wide opacity-70 font-bourbon">
+          <div className="text-2xl uppercase tracking-wide  font-acumin font-bold text-[var(--color-background)]">
             Revenue
           </div>
           <div className="text-4xl font-semibold mt-1">
@@ -380,7 +384,7 @@ export default function AdminDashboard() {
             />
           </div>
           <div className="text-xs opacity-60 mt-1">
-            Paid orders by createdAt, {fromIso} → {toIso}
+            From, {fromIso} → {toIso}
           </div>
         </div>
       </div>
