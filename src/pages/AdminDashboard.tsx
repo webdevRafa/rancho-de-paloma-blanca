@@ -417,9 +417,9 @@ export default function AdminDashboard() {
               {availability.map((d) => (
                 <tr
                   key={d.id}
-                  className="border-b border-white/5 hover:bg-black/20"
+                  className="border-b border-white/5 hover:shadow-md transition duration-300 ease-in-out hover:bg-neutral-100"
                 >
-                  <td className="py-2 pr-4">
+                  <td className="py-2 px-1 md:px-4">
                     <div className="font-medium">{friendlyDay(d.id)}</div>
                     <div className="opacity-60 text-xs font-mono">{d.id}</div>
                   </td>
@@ -435,7 +435,7 @@ export default function AdminDashboard() {
                   <td className="py-2 pr-0 text-right">
                     <Link
                       to={`/admin/day/${d.id}`}
-                      className="inline-block px-3 py-1 rounded-lg border border-white/10 bg-white"
+                      className="inline-block px-3 py-1 rounded-lg border border-white/10 bg-white mr-2"
                     >
                       View
                     </Link>
