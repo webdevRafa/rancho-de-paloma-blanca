@@ -273,10 +273,10 @@ export default function AdminDashboard() {
       {/* Header */}
       <div className="mb-8 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
         <div>
-          <h1 className="text-4xl md:text-5xl font-bourbon tracking-tight">
+          <h1 className="text-4xl  font-acumin tracking-tight">
             Admin Dashboard
           </h1>
-          <p className="opacity-70 mt-2 font-bourbon">
+          <p className="opacity-70 mt-0 font-acumin">
             Availability-first overview of bookings, hunters, party deck, and
             merch.
           </p>
@@ -394,11 +394,11 @@ export default function AdminDashboard() {
           </span>
         </div>
 
-        <div className="overflow-x-auto max-h-96 p-5">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-white">
-              <tr className="text-left opacity-70 border-b border-white/10">
-                <th className="py-2 pr-4 px-2">Date</th>
+        <div className="overflow-x-auto max-h-96 bg-white relative">
+          <table className="w-full text-sm bg-white ">
+            <thead className="sticky top-0 z-20 py-2 bg-white!">
+              <tr className="text-left opacity-70 border-b bg-white! border-white/10">
+                <th className="py-2 pr-4 px-2 bg-white">Date</th>
                 <th className="py-2 pr-4">Hunters</th>
                 <th className="py-2 pr-4">Party Deck</th>
                 <th className="py-2 pr-4">Season</th>
