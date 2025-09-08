@@ -388,7 +388,7 @@ export default function AdminDashboard() {
       {/* Hunters per day (TABLE, friendly dates + View link) */}
       <div className="rounded-2xl border border-white/10 bg-white transition duration-300 ease-in-out shadow-lg p-5 mb-8 text-[var(--color-background)]">
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bourbon">Hunters per Day</h2>
+          <h2 className="text-2xl font-bourbon">Hunters by Day</h2>
           <span className="text-sm opacity-70">
             {fromIso} → {toIso}
           </span>
