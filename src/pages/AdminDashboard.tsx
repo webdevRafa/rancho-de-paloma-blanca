@@ -386,8 +386,8 @@ export default function AdminDashboard() {
       </div>
 
       {/* Hunters per day (TABLE, friendly dates + View link) */}
-      <div className="rounded-2xl border border-white/10 bg-white/85 hover:bg-white transition duration-300 ease-in-out shadow-lg p-5 mb-8 text-[var(--color-background)]">
-        <div className="flex items-center justify-between mb-3">
+      <div className="rounded-2xl border border-white/10 bg-white transition duration-300 ease-in-out shadow-lg p-5 mb-8 text-[var(--color-background)]">
+        <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bourbon">Hunters per Day</h2>
           <span className="text-sm opacity-70">
             {fromIso} → {toIso}
@@ -396,9 +396,9 @@ export default function AdminDashboard() {
 
         <div className="overflow-x-auto max-h-96 p-5">
           <table className="w-full text-sm">
-            <thead className="sticky top-0">
+            <thead className="sticky top-0 bg-white">
               <tr className="text-left opacity-70 border-b border-white/10">
-                <th className="py-2 pr-4">Date</th>
+                <th className="py-2 pr-4 px-2">Date</th>
                 <th className="py-2 pr-4">Hunters</th>
                 <th className="py-2 pr-4">Party Deck</th>
                 <th className="py-2 pr-4">Season</th>
