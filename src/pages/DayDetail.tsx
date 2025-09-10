@@ -200,14 +200,14 @@ export default function DayDetail() {
   }, [orders]);
 
   return (
-    <div className="min-h-screen text-[var(--color-text)] px-6 md:px-10 py-8 mt-20">
+    <div className="min-h-screen text-[var(--color-text)] px-6 md:px-10 py-8 mt-20 max-w-[1400px] mx-auto">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-4xl font-bourbon tracking-tight">
+        <h1 className="text-4xl font-acumin tracking-tight text-white">
           {nice} — Day Overview
         </h1>
         <Link
           to="/admin"
-          className="px-3 py-2 rounded-xl border border-white/10 bg-[var(--color-card)] hover:bg-black/30"
+          className="px-3 py-2 rounded-xl border border-white/10 bg-[var(--color-accent-gold)] text-[var(--color-background)] font-acumin"
         >
           ← Back to Dashboard
         </Link>
@@ -215,170 +215,165 @@ export default function DayDetail() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div className="rounded-2xl border border-white/10 bg-[var(--color-card)]/95 shadow p-5">
-          <div className="text-sm uppercase opacity-70 font-bourbon">
-            From Availability
+        <div className="rounded-2xl  bg-white/85 hover:bg-white transition duration-300 ease-in-out shadow-lg group">
+          <div className="mb-5 rounded-t-2xl text-xl p-1 text-center lowercase tracking-wide font-acumin   text-[var(--color-background)] bg-white group-hover:bg-emerald-400/50 transition duration-800 ease-in-out">
+            current hunters Booked
           </div>
-          <div className="mt-2">
-            <div className="text-lg">Hunters Booked</div>
-            <div className="text-3xl font-semibold">
-              <CountUp end={avail?.huntersBooked ?? 0} duration={0.6} />
-            </div>
-            <div className="mt-2 text-sm opacity-70">
-              Party Deck: {avail?.partyDeckBooked ? "Reserved" : "Available"}
-            </div>
-            <div className="mt-1 text-sm opacity-70">
-              {avail?.isOffSeason ? "Off-season" : "In-season"}
-            </div>
-            <div className="mt-1 text-xs opacity-60">
-              {avail?.timestamp?.toDate
-                ? avail.timestamp.toDate().toLocaleString()
-                : "—"}
+          <div className="flex items-center justify-start px-4">
+            <div>
+              <div className=" px-2 text-3xl font-semibold  lowercase tracking-wide text-[var(--color-background)]">
+                <CountUp end={avail?.huntersBooked ?? 0} duration={0.6} />
+              </div>
+              <div
+                className={`mt-2 text-sm text-[var(--color-background)] max-w-[200px] p-1 rounded-md ${
+                  avail?.partyDeckBooked ? "text-red-400" : "bg-emerald-400"
+                }`}
+              >
+                Party Deck: {avail?.partyDeckBooked ? "Reserved" : "Available"}
+              </div>
+              <div className="mt-2 text-sm text-[var(--color-background)]">
+                {avail?.isOffSeason ? "Off-season" : "In-season"}
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[var(--color-card)]/95 shadow p-5">
-          <div className="text-sm uppercase opacity-70 font-bourbon">
-            From Orders (Paid)
+        <div className="rounded-2xl border-white border-2 bg-white/85 hover:bg-white transition duration-300 ease-in-out shadow-lg p-5">
+          <div className="text-2xl lowercase tracking-wide font-acumin   text-[var(--color-background)]">
+            From paid orders
           </div>
-          <div className="mt-2">
-            <div className="text-lg">
-              Hunters (sum of booking.numberOfHunters)
+          <div>
+            <div className="text-lg text-[var(--color-background)]">
+              Hunters
             </div>
-            <div className="text-3xl font-semibold">
+            <div className="text-3xl font-semibold  lowercase tracking-wide text-[var(--color-background)]">
               <CountUp end={totalHuntersFromOrders} duration={0.6} />
             </div>
-            <div className="mt-2 text-sm opacity-70">
+            <div className="mt-2 text-lg text-[var(--color-background)]">
               Orders: <CountUp end={orders.length} duration={0.6} />
             </div>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[var(--color-card)]/95 shadow p-5">
-          <div className="text-sm uppercase opacity-70 font-bourbon">
+        <div className="rounded-2xl border-white border-2 bg-white/85 hover:bg-white transition duration-300 ease-in-out shadow-lg p-5">
+          <div className="text-lg text-[var(--color-background)]">
             Attendees (All)
           </div>
           <div className="mt-2">
-            <div className="text-lg">Unique Names</div>
-            <div className="text-3xl font-semibold">
-              <CountUp end={allNames.length} duration={0.6} />
+            <div className="text-lg text-[var(--color-background)]">
+              Unique Names
             </div>
-            <div className="mt-2 text-sm opacity-70">
-              Includes customers + party members (deduped)
+            <div className="text-3xl font-semibold  lowercase tracking-wide text-[var(--color-background)]">
+              <CountUp end={allNames.length} duration={0.6} />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Orders with party lists */}
-      <div className="rounded-2xl border border-white/10 bg-[var(--color-card)]/95 shadow p-5 mb-8">
-        <h2 className="text-2xl font-bourbon mb-4">Paid Orders for {nice}</h2>
+      {/* Paid orders — redesigned */}
+      <div className="rounded-2xl border mb-8 border-white/10 bg-white/90 hover:bg-white transition duration-300 ease-in-out shadow-lg">
+        <h2 className="text-xl p-2 text-center lowercase tracking-wide font-acumin text-[var(--color-background)] bg-white/95 rounded-t-2xl">
+          Paid orders for {nice}
+        </h2>
 
         {orders.length === 0 ? (
-          <div className="py-10 text-center opacity-60">
+          <div className="text-lg text-[var(--color-background)] p-10 flex items-center justify-center">
             No paid orders for this day.
           </div>
         ) : (
-          <ul className="space-y-4">
+          <ul className="divide-y divide-white/10">
             {orders.map((o) => {
               const b = o.booking;
               const party = extractPartyNames(o);
               const partySize = b?.numberOfHunters ?? party.length;
-              const deckToday = (b?.partyDeckDates ?? []).includes(id!)
-                ? "Yes"
-                : "No";
+              const deckToday = (b?.partyDeckDates ?? []).includes(id!);
               const customerName =
                 `${o.customer?.firstName ?? ""} ${
                   o.customer?.lastName ?? ""
                 }`.trim() || "Customer";
+              const shortId = o.id.slice(0, 8);
+              const total = new Intl.NumberFormat("en-US", {
+                style: "currency",
+                currency: "USD",
+              }).format(o.total ?? 0);
 
               return (
-                <li
-                  key={o.id}
-                  className="rounded-xl border border-white/10 bg-black/20"
-                >
-                  <details>
-                    <summary className="cursor-pointer list-none p-4 flex flex-col gap-1">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <span className="px-2 py-1 rounded-lg bg-black/30 border border-white/10 font-mono">
-                            {o.id}
-                          </span>
-                          <span className="font-medium">{customerName}</span>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <span className="text-sm">
-                            Party size:{" "}
-                            <strong>
-                              <CountUp end={partySize} duration={0.5} />
-                            </strong>
-                          </span>
-                          <span className="text-sm">
-                            Party Deck (this day): <strong>{deckToday}</strong>
-                          </span>
-                          <span className="text-sm">
-                            Total:{" "}
-                            <strong>
-                              <CountUp
-                                end={o.total ?? 0}
-                                prefix="$"
-                                separator=","
-                                duration={0.6}
-                              />
-                            </strong>
-                          </span>
-                        </div>
+                <li key={o.id} className="p-4">
+                  {/* Header row */}
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="inline-flex items-center gap-2 px-2 py-1 rounded-lg bg-black/10 border border-white/10 font-mono text-xs text-[var(--color-background)]">
+                        #{shortId}
+                        <button
+                          title="Copy full ID"
+                          onClick={() => navigator.clipboard.writeText(o.id)}
+                          className="ml-1 px-1.5 py-0.5 rounded bg-white/60 hover:bg-white text-[var(--color-background)]"
+                        >
+                          copy
+                        </button>
+                      </span>
+                      <div className="font-medium text-[var(--color-background)]">
+                        {customerName}
                       </div>
-                      <div className="opacity-60 text-xs mt-1">
-                        All Dates: {b?.dates?.join(", ") || "—"}
-                      </div>
-                    </summary>
-
-                    {/* Party list */}
-                    <div className="px-4 pb-4">
-                      <div className="text-sm uppercase opacity-70 mb-2">
-                        Party Members
-                      </div>
-                      <ol className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                        {party.map((name, idx) => (
-                          <li
-                            key={`${o.id}-member-${idx}`}
-                            className="rounded-lg border border-white/10 bg-[var(--color-card)]/80 px-3 py-2"
-                          >
-                            {idx === 0 ? (
-                              <span className="opacity-80">Lead: </span>
-                            ) : null}
-                            <span className="font-medium">{name}</span>
-                          </li>
-                        ))}
-                      </ol>
-
-                      {/* If there are more seats than names we already filled with placeholders in extractPartyNames() */}
                     </div>
-                  </details>
+
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                        Paid
+                      </span>
+                      <span className="text-lg font-semibold text-[var(--color-background)]">
+                        {total}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Meta chips */}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span className="inline-flex items-center px-2 py-1 rounded-md text-xs bg-black/10 text-[var(--color-background)]">
+                      Party size: <strong className="ml-1">{partySize}</strong>
+                    </span>
+                    <span
+                      className={`inline-flex items-center px-2 py-1 rounded-md text-xs ${
+                        deckToday
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-red-100 text-red-800"
+                      }`}
+                    >
+                      Party Deck: {deckToday ? "Yes" : "No"}
+                    </span>
+                    <span className="inline-flex items-center px-2 py-1 rounded-md text-xs bg-black/10 text-[var(--color-background)]">
+                      Orders today: 1
+                    </span>
+                    <span className="inline-flex items-center px-2 py-1 rounded-md text-xs bg-black/10 text-[var(--color-background)]">
+                      All dates:&nbsp;
+                      {(b?.dates ?? []).length
+                        ? b!.dates!.map((d) => friendlyDay(d)).join(", ")
+                        : "—"}
+                    </span>
+                  </div>
+
+                  {/* Attendees */}
+                  <div className="mt-4 border-t border-white/10 pt-3">
+                    <div className="text-xs uppercase opacity-60 mb-2">
+                      Attendees
+                    </div>
+                    <ol className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {party.map((name, idx) => (
+                        <li
+                          key={`${o.id}-member-${idx}`}
+                          className="rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-[var(--color-background)]"
+                        >
+                          {idx === 0 ? (
+                            <span className="opacity-70 mr-1">Lead:</span>
+                          ) : null}
+                          <span className="font-medium">{name}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
                 </li>
               );
             })}
-          </ul>
-        )}
-      </div>
-
-      {/* All attendees for the day */}
-      <div className="rounded-2xl border border-white/10 bg-[var(--color-card)]/95 shadow p-5">
-        <h2 className="text-2xl font-bourbon mb-3">All Attendees — {nice}</h2>
-        {allNames.length === 0 ? (
-          <div className="py-6 opacity-60">No attendees found.</div>
-        ) : (
-          <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
-            {allNames.map((n, i) => (
-              <li
-                key={`attendee-${i}`}
-                className="rounded-lg border border-white/10 bg-black/20 px-3 py-2"
-              >
-                {n}
-              </li>
-            ))}
           </ul>
         )}
       </div>

@@ -290,7 +290,7 @@ export default function AdminDashboard() {
               onClick={() => setRange(k)}
               className={`px-3 py-2 rounded-xl border text-sm transition duration-300 ease-in-out ${
                 range === k
-                  ? "bg-emerald-400 text-[var(--color-background)] hover:bg-emerald-300 border-white/10"
+                  ? "bg-[var(--color-accent-gold)] text-[var(--color-background)] hover:bg-emerald-300 border-white/10"
                   : "bg-neutral-400 text-[var(--color-background)] hover:bg-white border-white/10"
               }`}
             >
@@ -349,7 +349,7 @@ export default function AdminDashboard() {
           </div>
           <div
             className={`text-3xl font-acumin mt-1 px-2 rounded-lg ${
-              partyDeckToday ? "text-red-400" : "bg-emerald-400"
+              partyDeckToday ? "text-red-400" : "bg-emerald-400/60"
             }`}
           >
             {partyDeckToday ? "Reserved" : "Available"}
