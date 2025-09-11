@@ -8,6 +8,7 @@ import {
   orderBy,
   query,
   where,
+  updateDoc,
 } from "firebase/firestore";
 import CountUp from "react-countup";
 import { db } from "../firebase/firebaseConfig";
@@ -20,6 +21,7 @@ type AvailabilityDoc = {
   isOffSeason?: boolean;
   timestamp?: any;
 };
+type Attendee = { fullName: string; email?: string; waiverSigned?: boolean };
 
 type LineItem = {
   description: string;
@@ -76,6 +78,46 @@ function friendlyDay(iso: string) {
     "Dec",
   ];
   return `${MONTHS[(m ?? 1) - 1]} ${d ?? 1}`;
+}
+function toAttendeeObjects(order: OrderDoc): Attendee[] | null {
+  const arr = (order.booking as any)?.attendees;
+  if (Array.isArray(arr) && arr.length) {
+    return arr
+      .map((a: any) => ({
+        fullName: String(a?.fullName ?? a?.name ?? "").trim(),
+        email: a?.email || undefined,
+        waiverSigned: !!a?.waiverSigned || !!a?.waiverIsSigned, // tolerate alias
+      }))
+      .filter((a) => a.fullName);
+  }
+  return null;
+}
+
+async function initializeAttendees(order: OrderDoc, names: string[]) {
+  const attendees: Attendee[] = names.map((n) => ({
+    fullName: n,
+    waiverSigned: false,
+  }));
+  const ref = doc(db, "orders", order.id);
+  await updateDoc(ref, { "booking.attendees": attendees });
+}
+
+async function toggleWaiver(orderId: string, index: number, next: boolean) {
+  const ref = doc(db, "orders", orderId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+
+  const data = snap.data() as any;
+  const attendees: Attendee[] = Array.isArray(data?.booking?.attendees)
+    ? data.booking.attendees
+    : [];
+  if (!attendees[index]) return;
+
+  const updated = attendees.map((a: Attendee, i: number) =>
+    i === index ? { ...a, waiverSigned: next } : a
+  );
+
+  await updateDoc(ref, { "booking.attendees": updated });
 }
 
 // Pull best-effort party names from whatever the booking has
@@ -200,7 +242,7 @@ export default function DayDetail() {
   }, [orders]);
 
   return (
-    <div className="min-h-screen text-[var(--color-text)] px-6 md:px-10 py-8 mt-20 max-w-[1400px] mx-auto">
+    <div className="min-h-screen text-[var(--color-text)] px-6 md:px-10 py-8 mt-40 max-w-[1400px] mx-auto">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-4xl font-acumin tracking-tight text-white">
           {nice} — Day Overview
@@ -215,8 +257,8 @@ export default function DayDetail() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div className="rounded-2xl  bg-white/85 hover:bg-white transition duration-300 ease-in-out shadow-lg group">
-          <div className="mb-5 rounded-t-2xl text-xl p-1 text-center lowercase tracking-wide font-acumin   text-[var(--color-background)] bg-white group-hover:bg-emerald-400/50 transition duration-800 ease-in-out">
+        <div className="rounded-2xl  bg-gradient-to-t from-white to-neutral-100 hover:bg-white transition duration-300 ease-in-out shadow-lg group">
+          <div className="mb-5 rounded-t-2xl shadow-lg text-xl p-1 text-center lowercase tracking-wide font-acumin   text-[var(--color-background)] bg-white group-hover:bg-emerald-400/50 transition duration-800 ease-in-out">
             current hunters Booked
           </div>
           <div className="flex items-center justify-start px-4">
@@ -226,31 +268,33 @@ export default function DayDetail() {
               </div>
               <div
                 className={`mt-2 text-sm text-[var(--color-background)] max-w-[200px] p-1 rounded-md ${
-                  avail?.partyDeckBooked ? "text-red-400" : "bg-emerald-400"
+                  avail?.partyDeckBooked ? "text-red-400" : "bg-emerald-400/50"
                 }`}
               >
                 Party Deck: {avail?.partyDeckBooked ? "Reserved" : "Available"}
               </div>
-              <div className="mt-2 text-sm text-[var(--color-background)]">
+              <div className="mt-1 text-sm text-[var(--color-background)]/60 mb-3">
                 {avail?.isOffSeason ? "Off-season" : "In-season"}
               </div>
             </div>
           </div>
         </div>
 
-        <div className="rounded-2xl border-white border-2 bg-white/85 hover:bg-white transition duration-300 ease-in-out shadow-lg p-5">
-          <div className="text-2xl lowercase tracking-wide font-acumin   text-[var(--color-background)]">
+        <div className="rounded-2xl  bg-gradient-to-t from-white to-white hover:bg-white transition duration-300 ease-in-out shadow-lg group">
+          <div className="mb-5 rounded-t-2xl shadow-md text-xl p-1 text-center lowercase tracking-wide font-acumin   text-[var(--color-background)] bg-white group-hover:bg-emerald-400/50 transition duration-800 ease-in-out">
             From paid orders
           </div>
-          <div>
-            <div className="text-lg text-[var(--color-background)]">
-              Hunters
-            </div>
-            <div className="text-3xl font-semibold  lowercase tracking-wide text-[var(--color-background)]">
-              <CountUp end={totalHuntersFromOrders} duration={0.6} />
-            </div>
-            <div className="mt-2 text-lg text-[var(--color-background)]">
-              Orders: <CountUp end={orders.length} duration={0.6} />
+          <div className="flex items-center justify-start px-4">
+            <div>
+              <div className="text-lg text-[var(--color-background)]">
+                Hunters
+              </div>
+              <div className="text-3xl font-semibold  lowercase tracking-wide text-[var(--color-background)]">
+                <CountUp end={totalHuntersFromOrders} duration={0.6} />
+              </div>
+              <div className="mt-2 text-lg text-[var(--color-background)]">
+                Orders: <CountUp end={orders.length} duration={0.6} />
+              </div>
             </div>
           </div>
         </div>
@@ -353,24 +397,86 @@ export default function DayDetail() {
                   </div>
 
                   {/* Attendees */}
-                  <div className="mt-4 border-t border-white/10 pt-3">
-                    <div className="text-xs uppercase opacity-60 mb-2">
-                      Attendees
-                    </div>
-                    <ol className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                      {party.map((name, idx) => (
-                        <li
-                          key={`${o.id}-member-${idx}`}
-                          className="rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-[var(--color-background)]"
-                        >
-                          {idx === 0 ? (
-                            <span className="opacity-70 mr-1">Lead:</span>
-                          ) : null}
-                          <span className="font-medium">{name}</span>
-                        </li>
-                      ))}
-                    </ol>
-                  </div>
+                  {/* inside the order card */}
+                  {/* Attendees */}
+                  {(() => {
+                    // compute once per order
+                    const structured = toAttendeeObjects(o);
+                    const hasStructured = !!structured?.length;
+
+                    return (
+                      <div className="mt-4 border-t border-white/10 pt-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="text-xs uppercase opacity-60">
+                            Attendees
+                          </div>
+
+                          {/* Initialize button appears only when no structured attendees yet */}
+                          {!hasStructured && party.length > 0 && (
+                            <button
+                              onClick={() => initializeAttendees(o, party)}
+                              className="text-xs px-2 py-1 rounded-md border border-white/10 hover:bg-white/10"
+                              title="Create attendee records so you can track waiver signatures"
+                            >
+                              Initialize for waivers
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Prefer structured attendees (checkbox UI); fallback to names only */}
+                        {hasStructured ? (
+                          <ol className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                            {structured!.map((a, idx) => (
+                              <li
+                                key={`${o.id}-attendee-${idx}`}
+                                className="rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-[var(--color-background)] flex items-center gap-2"
+                              >
+                                {idx === 0 ? (
+                                  <span className="opacity-70 mr-1">Lead:</span>
+                                ) : null}
+                                <input
+                                  type="checkbox"
+                                  className="accent-[var(--color-accent-gold)]"
+                                  checked={!!a.waiverSigned}
+                                  onChange={(e) =>
+                                    toggleWaiver(
+                                      o.id,
+                                      idx,
+                                      e.currentTarget.checked
+                                    )
+                                  }
+                                  aria-label={`Waiver signed for ${a.fullName}`}
+                                />
+                                <span
+                                  className={`font-medium ${
+                                    a.waiverSigned
+                                      ? "line-through opacity-70"
+                                      : ""
+                                  }`}
+                                >
+                                  {a.fullName}
+                                </span>
+                              </li>
+                            ))}
+                          </ol>
+                        ) : (
+                          <ol className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                            {party.map((name, idx) => (
+                              <li
+                                key={`${o.id}-member-${idx}`}
+                                className="rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-[var(--color-background)]"
+                              >
+                                {idx === 0 ? (
+                                  <span className="opacity-70 mr-1">Lead:</span>
+                                ) : null}
+                                <span className="font-medium">{name}</span>
+                              </li>
+                            ))}
+                          </ol>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </li>
               );
             })}

@@ -15,6 +15,7 @@ import CustomerInfoForm from "../components/CustomerInfoForm";
 import { getSeasonConfig } from "../utils/getSeasonConfig";
 import toIsoAlpha3 from "../utils/toIsoAlpha3";
 import { formatLongDate } from "../utils/formatDate";
+import type { Attendee } from "../types/Types";
 
 type EPApi = {
   init: (jwt: string, config: Record<string, any>) => any;
@@ -70,6 +71,7 @@ type BookingLine = {
    * embedded panel to display $NaN for that line.  Make sure to include
    * `bookingTotal` when calling `buildProductsForJwt`. */
   bookingTotal?: number;
+  attendees?: Attendee[];
 };
 
 type MerchItem = { skuCode: string; name: string; qty: number; price: number };
@@ -87,6 +89,7 @@ type OrderDoc = {
     numberOfHunters: number;
     partyDeckDates?: string[];
     seasonConfig?: SeasonConfig;
+    attendees?: Attendee[];
     lineItems?: Array<{
       description: string;
       quantity: number;
@@ -764,6 +767,11 @@ export default function CheckoutPage() {
             numberOfHunters: booking.numberOfHunters,
             partyDeckDates: booking.partyDeckDates || [],
             seasonConfig: seasonConfig || undefined,
+            attendees: booking.attendees?.map((a) => ({
+              fullName: a.fullName,
+              waiverSigned: !!a.waiverSigned,
+              // include email if you ever collect it
+            })),
             lineItems: [
               {
                 description: "Hunt package",
