@@ -4,33 +4,11 @@ import { motion } from "framer-motion";
 export function PackagesBrochure() {
   const items = [
     {
-      key: "one",
-      title: "1-Day Hunt",
-      price: "$200",
-      unit: "/day per person",
-      details: "In-season (Sept 6 – Oct 26). Choose any single in-season day.",
-    },
-    {
-      key: "two",
-      title: "2-Day Combo",
-      price: "$350",
-      unit: "/person",
-      details:
-        "Any two consecutive in-season days. Discount applied automatically.",
-    },
-    {
-      key: "three",
-      title: "3-Day Fri–Sun",
-      price: "$450",
-      unit: "/person",
-      details: "Friday → Sunday bundle (in-season) priced as a package.",
-    },
-    {
       key: "off",
       title: "Off-Season Day",
       price: "$125",
       unit: "/day per person",
-      details: "Available year-round, outside Sept 6 – Oct 26.",
+      details: "Available year-round, outside Sept 14th – Oct 26th.",
     },
   ];
 
@@ -148,7 +126,7 @@ export function PackagesBrochure() {
           </p>
           <p className="text-[var(--color-background)]/80">
             We host up to{" "}
-            <span className="font-medium">75 hunters per day</span>.
+            <span className="font-medium">100 hunters per day!</span>&nbsp;
             Availability updates in real-time; spots are confirmed after
             payment.
           </p>
