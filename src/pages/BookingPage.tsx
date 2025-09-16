@@ -59,7 +59,7 @@ const BookingPage = () => {
   // ---------- 1) AUTH GATE (friendly) ----------
   if (!user) {
     return (
-      <div className="relative min-h-[70vh]">
+      <div className="relative min-h-[70vh] pt-30">
         {/* Background / hero */}
         <div
           className="absolute inset-0 bg-center bg-cover"
@@ -68,63 +68,65 @@ const BookingPage = () => {
         />
         <div className="absolute inset-0 bg-black/60" aria-hidden="true" />
 
-        <div className="relative max-w-3xl mx-auto px-4 py-24">
-          <motion.div
-            initial={{ opacity: 0, y: 16, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.45 }}
-            className="bg-white/95 backdrop-blur rounded-2xl shadow-2xl p-8 border border-white/20"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h1 className="text-2xl md:text-3xl font-acumin text-[var(--color-background)]">
-                Sign in to book your hunt
-              </h1>
-            </div>
-            <p className="text-sm md:text-base text-[var(--color-background)]/80">
-              Create an account or sign in to choose your hunt dates, party
-              size, and optional Party Deck. You can also add merch and check
-              out in a single order.
-            </p>
+        <div className="flex flex-col md:flex-row gap-5 max-w-[1400px] mx-auto">
+          <div className="relative max-w-3xl= mx-auto px-4 py-24">
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.45 }}
+              className="bg-white/95 backdrop-blur rounded-2xl shadow-2xl p-8 border border-white/20"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h1 className="text-2xl md:text-3xl font-acumin text-[var(--color-background)]">
+                  Sign in to book your hunt
+                </h1>
+              </div>
+              <p className="text-sm md:text-base text-[var(--color-background)]/80">
+                Create an account or sign in to choose your hunt dates, party
+                size, and optional Party Deck. You can also add merch and check
+                out in a single order.
+              </p>
 
-            <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button
-                onClick={() => setAuthOpen(true)}
-                className="w-full rounded-lg bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white font-semibold py-3 transition-colors"
-              >
-                Sign in / Create account
-              </button>
-              <button
-                onClick={async () => {
-                  try {
-                    await loginWithGoogle();
-                  } catch (e) {
-                    console.warn(e);
-                  }
-                }}
-                className="w-full rounded-lg border border-[var(--color-footer)]/30 bg-white hover:bg-neutral-50 text-[var(--color-background)] font-semibold py-3 transition-colors"
-                aria-label="Continue with Google"
-                title="Continue with Google"
-              >
-                Continue with Google
-              </button>
-            </div>
+              <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  onClick={() => setAuthOpen(true)}
+                  className="w-full rounded-lg bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white font-semibold py-3 transition-colors"
+                >
+                  Sign in / Create account
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      await loginWithGoogle();
+                    } catch (e) {
+                      console.warn(e);
+                    }
+                  }}
+                  className="w-full rounded-lg border border-[var(--color-footer)]/30 bg-white hover:bg-neutral-50 text-[var(--color-background)] font-semibold py-3 transition-colors"
+                  aria-label="Continue with Google"
+                  title="Continue with Google"
+                >
+                  Continue with Google
+                </button>
+              </div>
 
-            <ul className="mt-6 space-y-2 text-sm text-[var(--color-background)]/80">
-              <li>
-                • No spam — we use your account to keep bookings and receipts in
-                one place.
-              </li>
-              <li>
-                • You’ll see availability in real time and package pricing for
-                in‑season weekends.
-              </li>
-              <li>
-                • Pay securely online; your spots are confirmed after payment.
-              </li>
-            </ul>
-          </motion.div>
+              <ul className="mt-6 space-y-2 text-sm text-[var(--color-background)]/80">
+                <li>
+                  • No spam — we use your account to keep bookings and receipts
+                  in one place.
+                </li>
+                <li>
+                  • You’ll see availability in real time and package pricing for
+                  in‑season weekends.
+                </li>
+                <li>
+                  • Pay securely online; your spots are confirmed after payment.
+                </li>
+              </ul>
+            </motion.div>
+          </div>
+          <PackagesBrochure />
         </div>
-        <PackagesBrochure />
         {/* Reuse our global AuthModal */}
         <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} />
       </div>

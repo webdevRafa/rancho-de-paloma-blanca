@@ -5,7 +5,7 @@ export function PackagesBrochure() {
   const items = [
     {
       key: "off",
-      title: "Off-Season Day",
+      title: "Regular Season",
       price: "$125",
       unit: "/day per person",
       details: "Available year-round, outside Sept 14th – Oct 26th.",
