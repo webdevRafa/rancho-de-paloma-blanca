@@ -274,7 +274,7 @@ export default function DayDetail() {
                 Party Deck: {avail?.partyDeckBooked ? "Reserved" : "Available"}
               </div>
               <div className="mt-1 text-sm text-[var(--color-background)]/60 mb-3">
-                {avail?.isOffSeason ? "Off-season" : "In-season"}
+                {avail?.isOffSeason ? "Regular Season" : "In-season"}
               </div>
             </div>
           </div>

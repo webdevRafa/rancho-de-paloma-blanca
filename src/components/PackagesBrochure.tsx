@@ -116,8 +116,8 @@ export function PackagesBrochure() {
             In-Season Window
           </p>
           <p className="text-[var(--color-background)]/80">
-            Sept 6 – Oct 26. Off-season bookings are available all other dates
-            at <span className="font-medium">$125/day per person</span>.
+            Sept 6 – Oct 26. Regular season bookings are available all other
+            dates at <span className="font-medium">$125/day per person</span>.
           </p>
         </div>
         <div className="rounded-xl border border-black/5 bg-white p-4">

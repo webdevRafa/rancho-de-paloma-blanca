@@ -355,7 +355,7 @@ export default function AdminDashboard() {
             {partyDeckToday ? "Reserved" : "Available"}
           </div>
           <div className="text-xs opacity-60 mt-1">
-            {todayAvail?.isOffSeason ? "Off-season" : "In-season"}
+            {todayAvail?.isOffSeason ? "Regular Season" : "In-season"}
           </div>
         </div>
 
@@ -434,7 +434,7 @@ export default function AdminDashboard() {
                     {d.partyDeckBooked ? "Reserved" : "Available"}
                   </td>
                   <td className="py-2 pr-4">
-                    {d.isOffSeason ? "Off-season" : "In-season"}
+                    {d.isOffSeason ? "Regular Season" : "In-season"}
                   </td>
                   <td className="py-2 pr-0 text-right">
                     <Link
