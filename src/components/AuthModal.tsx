@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import googleCont from "../assets/cont-w-google.png";
-
+import logo from "../assets/logo-official.webp";
 interface Props {
   isOpen: boolean;
   onClose: () => void;
@@ -62,7 +62,7 @@ const AuthModal = ({ isOpen, onClose }: Props) => {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 40, opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="bg-[var(--color-card)] max-w-md w-full rounded-lg shadow-lg p-6 text-[var(--color-text)] relative"
+            className="bg-white max-w-md w-full rounded-lg shadow-lg p-6 text-[var(--color-text)] relative"
           >
             {/* Close Button */}
             <button
@@ -71,9 +71,9 @@ const AuthModal = ({ isOpen, onClose }: Props) => {
             >
               ×
             </button>
-
+            <img className="max-w-[100px] mx-auto" src={logo} alt="" />
             {/* Tabs */}
-            <div className="flex mb-6 border-b border-[var(--color-footer)]">
+            <div className="flex mb-6">
               <button
                 onClick={() => setTab("login")}
                 className={`flex-1 pb-2 text-sm font-bold tracking-wide ${
@@ -101,7 +101,7 @@ const AuthModal = ({ isOpen, onClose }: Props) => {
               <input
                 type="email"
                 placeholder="Email"
-                className="bg-[var(--color-footer)] border border-[var(--color-accent-gold)]/30 px-4 py-2 rounded text-sm focus:outline-none"
+                className="bg-neutral-100 text-[var(--color-background)]  px-4 py-2 rounded text-sm focus:outline-none"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -109,7 +109,7 @@ const AuthModal = ({ isOpen, onClose }: Props) => {
               <input
                 type="password"
                 placeholder="Password"
-                className="bg-[var(--color-footer)] border border-[var(--color-accent-gold)]/30 px-4 py-2 rounded text-sm focus:outline-none"
+                className="bg-neutral-100 text-[var(--color-background)] px-4 py-2 rounded text-sm focus:outline-none"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
