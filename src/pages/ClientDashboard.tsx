@@ -1,4 +1,4 @@
-// /pages/ClientDashboard.tsx (patched to prevent hook-order mismatch after cancel+refresh)
+// /pages/ClientDashboard.tsx — compact UI + Cancel/Refund confirm modal
 import React, { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { db } from "../firebase/firebaseConfig";
@@ -20,13 +20,9 @@ import type { Order } from "../types/Types";
 import { toast } from "react-toastify";
 
 /**
- * WHY THIS PATCH?
- * - Your dashboard crashed after cancel -> refresh with “Minified React error #310”.
- *   That error typically means “rendered fewer hooks than expected / invalid hook call”.
- *   The most common trigger is an early return that skips some hooks on a later render.
- * - This version keeps the hook call order 100% stable across every render and adds
- *   extra guards for merch‑only orders (no booking dates).
- * - Also: we hardened cancel logic and rendering for orders missing fields.
+ * NOTE:
+ * - This preserves your logic, strengthens UI/UX, and adds a confirm modal before cancellations.
+ * - Hooks remain in a fixed order on every render to avoid “invalid hook call / #310” issues.
  */
 
 /** Format money safely. */
@@ -52,6 +48,41 @@ function findDeepId(obj: any, re: RegExp): string | null {
     }
   }
   return null;
+}
+// ---- Order filters & classification ----
+
+// Earliest hunt date (if any)
+function firstHuntDate(order: Order): string | undefined {
+  const d = order?.booking?.dates;
+  if (!Array.isArray(d) || d.length === 0) return undefined;
+  return [...d].sort()[0]; // YYYY-MM-DD sorts safely
+}
+
+// midnight-local comparison helpers
+function isPast(iso?: string) {
+  if (!iso) return false;
+  try {
+    const [y, m, d] = iso.split("-").map(Number);
+    const t = new Date(y, m - 1, d);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    t.setHours(0, 0, 0, 0);
+    return t.getTime() < today.getTime();
+  } catch {
+    return false;
+  }
+}
+
+// UX stage for the pill beside status (purely visual)
+type Stage = "active" | "completed" | "pending" | "cancelled";
+function classifyStage(
+  order: Order
+): "active" | "completed" | "pending" | "cancelled" {
+  if (order.status === "cancelled") return "cancelled";
+  if (order.status === "pending") return "pending";
+  const first = firstHuntDate(order);
+  if (!first) return "completed"; // paid merch-only
+  return isPast(first) ? "completed" : "active"; // <— now uses isPast
 }
 
 /** "Friday, October 4th, 2025" (safe) */
@@ -89,7 +120,6 @@ function normalizeMerchItems(merch: Order["merchItems"]) {
       price: number;
       quantity: number;
     }>;
-  // If it is an array (legacy), convert to a map-ish array
   if (Array.isArray(merch)) {
     return (merch as any[]).map((item, idx) => ({
       id: String(idx),
@@ -106,7 +136,6 @@ function normalizeMerchItems(merch: Order["merchItems"]) {
           : Number(item?.quantity) || 0,
     }));
   }
-  // Object map
   return Object.entries(merch as Record<string, any>).map(([id, item]) => ({
     id,
     name: item?.product?.name ?? item?.name ?? "Item",
@@ -141,7 +170,7 @@ function daysUntil(iso: string) {
   }
 }
 
-/** Lightweight error boundary (keeps app usable if any render throws). */
+/** Lightweight error boundary */
 class Boundary extends React.Component<
   { children: React.ReactNode },
   { error: Error | null }
@@ -174,8 +203,16 @@ class Boundary extends React.Component<
 
 type Tab = "orders" | "cart";
 
+type CancelPreview = {
+  order: Order;
+  hasBooking: boolean;
+  firstDate?: string;
+  eligibleForRefund: boolean;
+  previewRefundAmount: number;
+};
+
 const ClientDashboard: React.FC = () => {
-  // ----- Hooks (must be called in the exact same order on every render) -----
+  // ---------------- Hooks (fixed order) ----------------
   const { user, checkAndCreateUser } = useAuth();
   const { isHydrated, booking, merchItems } = useCart();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -184,21 +221,23 @@ const ClientDashboard: React.FC = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [successOrder, setSuccessOrder] = useState<Order | null>(null);
   const [loadingSuccess, setLoadingSuccess] = useState(false);
+  type OrdersTab = "all" | "paid" | "cancelled";
+  const [ordersTab, setOrdersTab] = useState<OrdersTab>("all");
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmData, setConfirmData] = useState<CancelPreview | null>(null);
+
   const navigate = useNavigate();
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const status = params.get("status"); // 'pending' | 'paid' | null
   const orderIdParam = params.get("orderId");
 
-  // NOTE: We do *not* early-return before these hooks. We'll render a "please sign in"
-  // panel later, but the component *always* calls the same hooks each render.
-
-  // Show a gentle nudge when we come back from checkout with a pending order
+  // Gentle nudge when back from checkout with a pending order
   useEffect(() => {
     if (status === "pending") toast("You have an order waiting for payment.");
   }, [status]);
 
-  // If redirected with ?status=paid&orderId=..., load that order for the success panel
+  // If redirected with ?status=paid&orderId=..., load the order for success panel
   useEffect(() => {
     let abort = false;
     (async () => {
@@ -249,10 +288,7 @@ const ClientDashboard: React.FC = () => {
         }));
         setOrders(list);
       } catch (err) {
-        console.warn(
-          "Primary orders query failed; falling back without orderBy.",
-          err
-        );
+        console.warn("Primary orders query failed; falling back.", err);
         try {
           const q2 = query(
             collection(db, "orders"),
@@ -268,7 +304,7 @@ const ClientDashboard: React.FC = () => {
             );
           setOrders(list2);
         } catch (err2) {
-          console.error("Fallback orders query also failed.", err2);
+          console.error("Fallback orders query failed.", err2);
           setOrders([]);
           toast.error("Could not load your orders.");
         }
@@ -292,8 +328,21 @@ const ClientDashboard: React.FC = () => {
       : 0;
     return hasBooking || merchCount > 0;
   }, [isHydrated, booking, merchItems]);
+  const validOrders = useMemo(
+    () => orders.filter((o) => o.status !== "cancelled"),
+    [orders]
+  );
+  const cancelledOrders = useMemo(
+    () => orders.filter((o) => o.status === "cancelled"),
+    [orders]
+  );
 
-  // Cancel & refund (with merch-only awareness)
+  const filteredOrders = useMemo(() => {
+    if (ordersTab === "cancelled") return cancelledOrders;
+    return orders;
+  }, [orders, validOrders, cancelledOrders, ordersTab]);
+
+  // ---------------- Cancel + Refund (unchanged logic; now triggered from modal) ----------------
   const handleCancelOrder = async (order: Order) => {
     try {
       if (!order?.id) return;
@@ -306,7 +355,7 @@ const ClientDashboard: React.FC = () => {
       const hasBooking = Boolean(order?.booking?.dates?.length);
       const firstDate = hasBooking ? order!.booking!.dates![0] : undefined;
       const dUntil = firstDate ? daysUntil(firstDate) : 0;
-      const eligibleForRefund = hasBooking && isPaid && dUntil >= 14; // merch‑only => false
+      const eligibleForRefund = hasBooking && isPaid && dUntil >= 14; // merch-only => false
       const totalNum =
         typeof order.total === "number"
           ? order.total
@@ -315,26 +364,20 @@ const ClientDashboard: React.FC = () => {
         ? Math.round(totalNum * 0.5 * 100) / 100
         : 0;
 
-      // 1) If eligible, attempt Deluxe refund via our function (non-blocking UI flow)
+      // 1) Attempt Deluxe refund if eligible
       let refundPayload: any = null;
       if (refundAmount > 0) {
-        // Prefer the *real* paymentId; never send paymentLinkId (not refundable)
         const paymentId = findDeepId(order.deluxe, /\bpaymentId\b/i) || null;
-
-        // Fallbacks Deluxe can use to search/resolve a payment
         const originalTransactionId =
           findDeepId(order.deluxe, /\boriginalTransactionId\b/i) ||
           findDeepId(order.deluxe, /\btransactionId\b/i) ||
           null;
 
-        // Always include orderId so the server can /payments/search on 404
         const body: Record<string, any> = {
           orderId: order.id,
-          // send major units; server converts to minor (cents)
           amount: Number(refundAmount.toFixed(2)),
           currency: ((order as any)?.currency || "USD").toUpperCase(),
         };
-
         if (paymentId) body.paymentId = paymentId;
         else if (originalTransactionId)
           body.originalTransactionId = originalTransactionId;
@@ -349,7 +392,6 @@ const ClientDashboard: React.FC = () => {
 
           if (r.ok) {
             toast.success(`Refund initiated for $${fmtMoney(refundAmount)}`);
-            // Optional: surface the resolved paymentId for debugging
             if (refundPayload?.resolvedPaymentId) {
               console.log(
                 "Refund resolvedPaymentId:",
@@ -368,7 +410,7 @@ const ClientDashboard: React.FC = () => {
         }
       }
 
-      // 2) Firestore updates (cancel order, free capacity, and (server should) restock merch)
+      // 2) Firestore updates (cancel order, free capacity)
       const batch = writeBatch(db);
       const orderRef = doc(db, "orders", order.id!);
       batch.set(
@@ -385,7 +427,7 @@ const ClientDashboard: React.FC = () => {
         { merge: true }
       );
 
-      // Free booked hunt capacity (if there was a booking)
+      // Free booked hunt capacity (if any)
       const nHunters = Number(order?.booking?.numberOfHunters || 0);
       if (hasBooking && nHunters > 0) {
         for (const date of order!.booking!.dates!) {
@@ -411,11 +453,6 @@ const ClientDashboard: React.FC = () => {
             : o
         )
       );
-
-      // NOTE: Merch restock should be handled *server-side* (webhook or dedicated function)
-      // because inventory integrity must not rely on the client.
-      // If you need a quick stopgap, create a callable/HTTPS function that takes
-      // the orderId and performs atomic restock for each merch line.
     } catch (err) {
       console.error(err);
       toast.error("Could not cancel this order.");
@@ -428,32 +465,166 @@ const ClientDashboard: React.FC = () => {
     navigate("/dashboard", { replace: true });
   };
 
-  // ----- Render (single return — no conditional early returns) -----
+  // ---------------- UI helpers ----------------
+  function computeCancelPreview(order: Order): CancelPreview {
+    const hasBooking = Boolean(order?.booking?.dates?.length);
+    const firstDate = hasBooking ? order.booking!.dates![0] : undefined;
+    const isPaid = order.status === "paid";
+    const dUntil = firstDate ? daysUntil(firstDate) : 0;
+
+    const totalNum =
+      typeof order.total === "number" ? order.total : Number(order.total) || 0;
+    const eligibleForRefund = hasBooking && isPaid && dUntil >= 14;
+    const previewRefundAmount = eligibleForRefund
+      ? Math.round(totalNum * 0.5 * 100) / 100
+      : 0;
+
+    return {
+      order,
+      hasBooking,
+      firstDate,
+      eligibleForRefund,
+      previewRefundAmount,
+    };
+  }
+
+  function openCancelConfirm(order: Order) {
+    setConfirmData(computeCancelPreview(order));
+    setConfirmOpen(true);
+  }
+
+  function closeCancelConfirm() {
+    setConfirmOpen(false);
+    setConfirmData(null);
+  }
+
+  const StageChip: React.FC<{ stage: Stage }> = ({ stage }) => {
+    const base =
+      "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium border";
+    const by = {
+      active: "border-emerald-300 text-emerald-700 bg-emerald-50",
+      completed: "border-neutral-300 text-neutral-600 bg-neutral-50",
+      pending: "border-amber-300 text-amber-700 bg-amber-50",
+      cancelled: "border-rose-300 text-rose-700 bg-rose-50",
+    } as const;
+    return <span className={`${base} ${by[stage]}`}>{stage}</span>;
+  };
+  // Single slim order row
+  const OrderRow: React.FC<{ order: Order }> = ({ order }) => {
+    const merchLines = normalizeMerchItems(order.merchItems);
+    const hasMerch = merchLines.length > 0;
+    const hasBooking = Boolean(order?.booking?.dates?.length);
+
+    return (
+      <li
+        key={order.id}
+        className=" border border-black/5 bg-white px-4 py-3 shadow-sm hover:shadow-md transition-shadow"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="flex items-center gap-2">
+              <StageChip stage={classifyStage(order)} />
+            </div>
+            <div>
+              <div className="text-[13px] text-neutral-400 leading-none">
+                Order
+              </div>
+              <div className="text-sm font-medium text-neutral-800 break-all">
+                #{order.id}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-6">
+            <div className="text-right">
+              <div className="text-[13px] text-neutral-400 leading-none">
+                Total
+              </div>
+              <div className="text-sm font-semibold text-neutral-900">
+                ${fmtMoney(order.total)}
+              </div>
+            </div>
+            {order.status === "paid" && (
+              <button
+                onClick={() => openCancelConfirm(order)}
+                className="text-xs rounded-md bg-red-600 hover:bg-red-700 text-white px-3 py-1.5"
+              >
+                Cancel{hasBooking ? " & Refund" : ""}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Compact details row */}
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 md:grid-cols-1">
+          {hasBooking ? (
+            <div className="text-[13px] text-neutral-700">
+              <div className="text-md bg-[var(--color-accent-gold)]/10 rounded-md max-w-[100px] p-1 text-neutral-900 mb-0.5">
+                Hunt booking
+              </div>
+              <div>
+                <span className="text-neutral-400">Dates: </span>
+                {order.booking!.dates!.map(formatFriendlyDateSafe).join(", ")}
+              </div>
+              <div>
+                <span className="text-neutral-400">Hunters: </span>
+                {order.booking!.numberOfHunters}
+              </div>
+              {!!order.booking!.partyDeckDates?.length && (
+                <div>
+                  <span className="text-neutral-400">Party Deck: </span>
+                  {order
+                    .booking!.partyDeckDates.map(formatFriendlyDateSafe)
+                    .join(", ")}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-[13px] text-neutral-700">
+              <div className="font-medium text-neutral-900 mb-0.5">
+                No booking in this order
+              </div>
+              <div className="text-neutral-500">Merch-only purchase</div>
+            </div>
+          )}
+
+          {hasMerch && (
+            <div className="text-[13px] text-neutral-700">
+              <div className="font-medium text-neutral-900 mb-0.5">Merch</div>
+              <ul className="list-disc ml-5 space-y-0.5">
+                {merchLines.map((li) => (
+                  <li key={li.id}>
+                    {li.name} × {li.quantity} — $
+                    {fmtMoney(li.price * li.quantity)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </li>
+    );
+  };
+
+  // ---------------- Render ----------------
   return (
     <Boundary>
-      <div className="max-w-[1400px] mx-auto text-[var(--color-text)] py-6 min-h-[600px] px-6 flex flex-col md:flex-row gap-8 mt-20 md:mt-40 bg-neutral-100">
+      <div className="max-w-[1400px] mx-auto text-[var(--color-text)] py-6 min-h-[600px] px-6 flex flex-col md:flex-row gap-8 mt-20 md:mt-36">
         {/* Sidebar */}
         <aside className="w-full md:w-1/4">
-          <h1 className="text-2xl font-acumin text-[var(--color-background)] font-bold mb-6">
-            Dashboard
-          </h1>
-          <nav className="flex flex-col space-y-2">
+          <nav className="grid grid-cols-2 md:grid-cols-1 gap-2 max-w-[400px] ">
             <button
-              className={`text-left px-4 py-2 rounded-md text-[var(--color-background)] hover:scale-105 hover:bg-white transition-all duration-300 ease-in-out  ${
-                activeTab === "orders"
-                  ? "bg-white shadow-lg"
-                  : "bg-neutral-100 hover:bg-white"
-              }`}
+              className={`text-left w-full px-4 py-2 rounded-lg border border-white/0 transition-all duration-300 ease-in-out ${
+                activeTab === "orders" && "border-white/100"
+              } `}
               onClick={() => setActiveTab("orders")}
             >
               My Orders
             </button>
             <button
-              className={`text-left px-4 py-2 rounded-md text-[var(--color-background)] hover:scale-105 hover:bg-white transition-all duration-300 ease-in-out ${
-                activeTab === "cart"
-                  ? "bg-white shadow-lg scale-105"
-                  : "bg-neutral-100"
-              }`}
+              className={`text-left rounded-lg w-full  px-4 py-2 border border-white/0 transition-all duration-300 ease-in-out ${
+                activeTab === "cart" && "border-white/100"
+              } `}
               onClick={() => setActiveTab("cart")}
             >
               Continue Checkout
@@ -461,7 +632,7 @@ const ClientDashboard: React.FC = () => {
             {!user && (
               <button
                 onClick={checkAndCreateUser}
-                className="mt-4 text-sm underline hover:text-[var(--color-accent-gold)]"
+                className="mt-1 text-xs underline text-neutral-500 hover:text-[var(--color-accent-gold)]"
               >
                 Create My Account
               </button>
@@ -469,24 +640,25 @@ const ClientDashboard: React.FC = () => {
           </nav>
         </aside>
 
-        {/* Main Content */}
-        <section className="flex-1 bg-white p-6 rounded-md shadow">
-          {/* If no user, show a stable, safe panel — we NEVER early-return above. */}
+        {/* Main */}
+        <section className="flex-1  w-full  backdrop-blur p-5 md:p-6 rounded-xl border border-black/5">
           {!user ? (
             <div className="text-center py-10">
-              <p className="text-white">Please sign in to view your orders.</p>
+              <p className="text-neutral-600">
+                Please sign in to view your orders.
+              </p>
             </div>
           ) : showSuccess && status === "paid" ? (
             <div className="flex flex-col items-center justify-center text-center min-h-[300px]">
               <div className="flex items-center justify-center w-20 font-acumin h-20 rounded-full bg-green-100 text-green-600 shadow-lg">
                 <span className="text-4xl">✓</span>
               </div>
-              <h2 className="text-lg  mb-3 text-[var(--color-background)] font-acumin">
+              <h2 className="text-lg mb-1 text-[var(--color-background)] font-acumin">
                 Payment Successful
               </h2>
-              <p className="mt-2 text-sm text-neutral-400 max-w-md">
-                Thank you for your purchase! Your order has been confirmed and
-                is now available in your dashboard.
+              <p className="mt-1 text-sm text-neutral-500 max-w-md">
+                Thank you for your purchase! Your order is now in your
+                dashboard.
               </p>
 
               {loadingSuccess ? (
@@ -494,18 +666,16 @@ const ClientDashboard: React.FC = () => {
                   Loading order details…
                 </p>
               ) : successOrder ? (
-                <div className="mt-6 w-full max-w-lg text-left bg-neutral-100 p-4 rounded-md space-y-4 ">
+                <div className="mt-6 w-full max-w-lg text-left bg-neutral-50 border border-black/5 p-4 rounded-lg space-y-4">
                   <div>
-                    <p className="text-sm text-[var(--color-background)]">
-                      Order ID
-                    </p>
-                    <p className="font-mono text-sm break-all text-[var(--color-background)]">
+                    <p className="text-[13px] text-neutral-500">Order ID</p>
+                    <p className="font-mono text-sm break-all text-neutral-800">
                       {successOrder.id}
                     </p>
                   </div>
 
                   {successOrder.booking && (
-                    <div className="space-y-1 text-[var(--color-background)]">
+                    <div className="space-y-1 text-neutral-800">
                       <p className="font-semibold">Booking</p>
                       <div className="ml-4 space-y-0.5">
                         <p>
@@ -517,7 +687,7 @@ const ClientDashboard: React.FC = () => {
                         <p>Hunters: {successOrder.booking.numberOfHunters}</p>
                         {successOrder.booking.partyDeckDates?.length ? (
                           <p>
-                            Party Deck Days:{" "}
+                            Party Deck:{" "}
                             {successOrder.booking.partyDeckDates
                               .map(formatFriendlyDateSafe)
                               .join(", ")}
@@ -537,7 +707,7 @@ const ClientDashboard: React.FC = () => {
                   {!!successOrder.merchItems &&
                     (Array.isArray(successOrder.merchItems) ||
                       Object.keys(successOrder.merchItems).length > 0) && (
-                      <div className="space-y-1 text-[var(--color-background)]">
+                      <div className="space-y-1 text-neutral-800">
                         <p className="font-semibold">Merch Items</p>
                         <ul className="ml-4 list-disc space-y-0.5">
                           {normalizeMerchItems(successOrder.merchItems).map(
@@ -553,10 +723,8 @@ const ClientDashboard: React.FC = () => {
                     )}
 
                   <div>
-                    <p className="font-semibold text-[var(--color-background)]">
-                      Total
-                    </p>
-                    <p className="ml-4 text-[var(--color-background)]">
+                    <p className="font-semibold text-neutral-800">Total</p>
+                    <p className="ml-4 text-neutral-900">
                       ${fmtMoney(successOrder.total)}
                     </p>
                   </div>
@@ -578,125 +746,56 @@ const ClientDashboard: React.FC = () => {
             <p className="text-sm text-neutral-400">Loading your data...</p>
           ) : activeTab === "orders" ? (
             <>
-              <h2 className="text-lg  mb-2 text-[var(--color-background)] font-acumin">
-                My Orders
-              </h2>
-              {orders.length === 0 ? (
-                <p className="text-[var(--color-background)]/60">
-                  No orders found.
-                </p>
+              <div className="flex items-center justify-between mb-3">
+                {/* Tabs */}
+                <div className="flex items-center gap-1 rounded-lg border border-black/5 p-1">
+                  <button
+                    onClick={() => setOrdersTab("all")}
+                    className={
+                      "px-3 py-1.5 text-xs rounded-md border " +
+                      (ordersTab === "all"
+                        ? "border-white text-white"
+                        : "border-white/20")
+                    }
+                  >
+                    All <span className="opacity-60">({orders.length})</span>
+                  </button>
+
+                  <button
+                    onClick={() => setOrdersTab("cancelled")}
+                    className={
+                      "px-3 py-1.5 text-xs rounded-md border " +
+                      (ordersTab === "cancelled"
+                        ? "border-white text-white"
+                        : "border-white/20")
+                    }
+                  >
+                    Cancelled{" "}
+                    <span className="opacity-60">
+                      ({cancelledOrders.length})
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {filteredOrders.length === 0 ? (
+                <p className="text-neutral-500"></p>
               ) : (
-                <ul className="space-y-4 text-sm">
-                  {orders.map((order) => {
-                    const merchLines = normalizeMerchItems(order.merchItems);
-                    const hasBooking = Boolean(order?.booking?.dates?.length);
-
-                    const statusPill =
-                      order.status === "pending" ? (
-                        <span className="text-yellow-400 font-semibold">
-                          ⏳ Pending Payment
-                        </span>
-                      ) : order.status === "paid" ? (
-                        <span className="text-green-400 font-semibold">
-                          ✅ Paid
-                        </span>
-                      ) : (
-                        <span className="text-red-400 bg-red-100 rounded-lg p-1  font-semibold">
-                          ❌ Cancelled
-                        </span>
-                      );
-
-                    return (
-                      <li
-                        key={order.id || Math.random()}
-                        className="border-b pb-4 border-[var(--color-footer)]"
-                      >
-                        <p className="text-xs uppercase text-neutral-400 mb-4">
-                          {statusPill}
-                        </p>
-
-                        {hasBooking && (
-                          <div className="mb-2  text-[var(--color-background)] ">
-                            <h2 className="text-lg  mb-1 text-[var(--color-background)] font-acumin">
-                              Booking:{" "}
-                            </h2>
-                            <div className="ml-4 space-y-1">
-                              <p>
-                                Dates:{" "}
-                                {order
-                                  .booking!.dates!.map(formatFriendlyDateSafe)
-                                  .join(", ")}
-                              </p>
-                              <p>Hunters: {order.booking!.numberOfHunters}</p>
-                              {order.booking!.partyDeckDates?.length ? (
-                                <p>
-                                  Party Deck Days:{" "}
-                                  {order
-                                    .booking!.partyDeckDates.map(
-                                      formatFriendlyDateSafe
-                                    )
-                                    .join(", ")}
-                                </p>
-                              ) : null}
-                              {typeof (order as any)?.booking?.price ===
-                                "number" && (
-                                <p>
-                                  Booking Total: $
-                                  {fmtMoney((order as any).booking.price)}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {merchLines.length > 0 && (
-                          <div className="mb-2 text-[var(--color-background)]">
-                            <strong>Merch Items:</strong>
-                            <ul className="ml-4 list-disc">
-                              {merchLines.map((li) => (
-                                <li key={li.id}>
-                                  {li.name} × {li.quantity} = $
-                                  {fmtMoney(li.price * li.quantity)}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        <p className="mt-2 font-semibold text-[var(--color-background)]">
-                          Total: ${fmtMoney(order.total)}
-                        </p>
-
-                        {order.status === "paid" && (
-                          <div className="mt-3">
-                            <button
-                              className="px-3 py-2 rounded-md bg-red-900 hover:bg-red-700 text-white"
-                              onClick={() => handleCancelOrder(order)}
-                            >
-                              Cancel Order
-                              {hasBooking ? " & Request Refund" : ""}
-                            </button>
-                            <p className="text-xs text-neutral-400 mt-1">
-                              {hasBooking
-                                ? "Refund policy: 50% if cancelled ≥ 14 days before first hunt date; otherwise no refund."
-                                : "Merch‑only orders are not refundable via the dashboard."}
-                            </p>
-                          </div>
-                        )}
-                      </li>
-                    );
-                  })}
+                <ul className="grid gap-4 grid-cols-1">
+                  {filteredOrders.map((order) => (
+                    <OrderRow key={order.id || Math.random()} order={order} />
+                  ))}
                 </ul>
               )}
             </>
           ) : (
             <>
-              <h2 className="text-lg  mb-3 text-[var(--color-background)] font-acumin">
+              <h2 className="text-lg mb-3  text-white font-acumin">
                 Cart Status
               </h2>
               {hasCartItems ? (
-                <div>
-                  <p className="mb-2 text-[var(--color-background)]/60">
+                <div className="rounded-lg border border-black/5 p-4 bg-neutral-50">
+                  <p className="mb-2 text-neutral-600">
                     You have items in your cart.
                   </p>
                   <button
@@ -707,7 +806,7 @@ const ClientDashboard: React.FC = () => {
                   </button>
                 </div>
               ) : (
-                <p className="mb-2 text-[var(--color-background)]/60">
+                <p className="mb-2 text-neutral-500">
                   Your cart is currently empty.
                 </p>
               )}
@@ -715,6 +814,96 @@ const ClientDashboard: React.FC = () => {
           )}
         </section>
       </div>
+
+      {/* ---------- Cancel/Refund Confirm Modal ---------- */}
+      {confirmOpen && confirmData && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={closeCancelConfirm}
+          />
+          <div className="relative w-full max-w-md rounded-xl bg-white shadow-xl border border-black/5 p-5">
+            <h3 className="text-lg font-acumin font-semibold text-neutral-900">
+              Cancel order
+            </h3>
+
+            <div className="mt-3 space-y-3 text-[13px] text-neutral-700">
+              <div>
+                <div className="text-neutral-500">Order</div>
+                <div className="font-medium break-all">
+                  #{confirmData.order.id}
+                </div>
+              </div>
+
+              {confirmData.hasBooking ? (
+                <div>
+                  <div className="text-neutral-500">First hunt date</div>
+                  <div className="font-medium">
+                    {confirmData.firstDate
+                      ? formatFriendlyDateSafe(confirmData.firstDate)
+                      : "—"}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div className="text-neutral-500">Booking</div>
+                  <div className="font-medium">No booking in this order</div>
+                </div>
+              )}
+
+              <div className="rounded-md bg-neutral-50 border border-black/5 p-3">
+                {confirmData.eligibleForRefund ? (
+                  <>
+                    <div className="text-neutral-500">Refund preview</div>
+                    <div className="text-base font-semibold text-green-700">
+                      ${fmtMoney(confirmData.previewRefundAmount)}
+                    </div>
+                    <p className="mt-1 text-[12px] text-neutral-500">
+                      Our policy grants a 50% refund if cancelled at least 14
+                      days before the first hunt date.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-neutral-500">Refund</div>
+                    <div className="text-base font-semibold text-red-700">
+                      $0.00
+                    </div>
+                    <p className="mt-1 text-[12px] text-neutral-500">
+                      {confirmData.hasBooking
+                        ? "Cancellations within 14 days of the first hunt date are not refundable."
+                        : "Merch-only orders are not refundable from the dashboard."}
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                onClick={closeCancelConfirm}
+                className="px-4 py-2 text-sm rounded-md bg-neutral-100 hover:bg-neutral-200 text-neutral-800"
+              >
+                Keep Order
+              </button>
+              <button
+                onClick={async () => {
+                  const target = confirmData.order;
+                  closeCancelConfirm();
+                  await handleCancelOrder(target);
+                }}
+                className="px-4 py-2 text-sm rounded-md bg-red-600 hover:bg-red-700 text-white"
+              >
+                Confirm Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Boundary>
   );
 };
