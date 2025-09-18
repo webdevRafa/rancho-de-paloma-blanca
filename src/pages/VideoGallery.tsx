@@ -3,7 +3,7 @@ import VimeoEmbed from "../components/VimeoEmbed";
 const VideoGallery = () => {
   return (
     <div className="min-h-screen pt-24 pb-20 px-6 md:px-12 text-[var(--color-text)] bg-[var(--color-dark)] mt-30">
-      <h1 className="text-4xl font-broadsheet text-center mb-12 text-[var(--color-accent-gold)]">
+      <h1 className="text-4xl font-gin text-left mb-12 text-[var(--color-accent-gold)] max-w-[1200px] mx-auto">
         Our Featured Videos
       </h1>
       <div className="grid md:grid-cols-2 gap-12 max-w-6xl mx-auto">

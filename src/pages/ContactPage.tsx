@@ -5,10 +5,7 @@ const ContactPage = () => {
   return (
     <div className="min-h-screen pt-24 pb-16 px-4 text-[var(--color-text)] bg-[var(--color-dark)] mt-30">
       <div className="max-w-2xl mx-auto text-center">
-        <h1
-          className="text-4xl font-broadsheet mb-6 text-[var(--color-accent-gold)]"
-          data-aos="fade-up"
-        >
+        <h1 className="text-4xl font-gin mb-2 text-white" data-aos="fade-up">
           Contact Us
         </h1>
         <p
