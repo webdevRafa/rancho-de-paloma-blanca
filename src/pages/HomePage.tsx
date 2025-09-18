@@ -67,6 +67,8 @@ const HomePage = () => {
     <>
       {/* HERO (parallax + fade on scroll) */}
       <div
+        data-aos="fade-in"
+        data-aos-duration="2000"
         ref={heroRef}
         className="relative w-full h-[100vh] flex items-center justify-center overflow-hidden"
       >
@@ -112,7 +114,7 @@ const HomePage = () => {
 
         {/* Section with birds background */}
         <section
-          className="relative py-20 mt-40 px-6 w-[90%] mx-auto text-center  shadow-lg shadow-amber-50/50"
+          className="relative py-20 mt-40 px-6 w-[90%] mx-auto text-center  shadow-lg shadow-amber-50/10"
           style={{
             backgroundImage: `url(${birds})`,
             backgroundSize: "cover",
@@ -122,7 +124,7 @@ const HomePage = () => {
           }}
         >
           {/* 1) global tint to reduce background brightness */}
-          <div className="absolute inset-0 z-0 pointer-events-none bg-[var(--color-dark)]/70" />
+          <div className="absolute inset-0 z-0 pointer-events-none bg-[var(--color-dark)]/40" />
 
           {/* 2) your existing precise side gradient on top of the tint */}
           <div

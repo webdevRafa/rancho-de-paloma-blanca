@@ -38,7 +38,7 @@ const InfoCards = () => {
             transition={{ duration: 0.6 }}
             className="absolute max-w-[500px] mx-auto inset-0 flex flex-col items-center text-center text-[var(--color-text)] p-10 rounded-xl"
           >
-            <h3 className="text-5xl md:text-6xl text-[var(--color-accent-gold)] mb-4 font-bourbon">
+            <h3 className="text-5xl md:text-6xl text-white mb-4 font-gin">
               {cards[current].title}
             </h3>
             <p className="text-base max-w-md">{cards[current].text}</p>

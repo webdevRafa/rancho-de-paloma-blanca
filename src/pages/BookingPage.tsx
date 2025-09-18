@@ -279,9 +279,8 @@ const BookingPage = () => {
           )}
         </AnimatePresence>
         <div
-          data-aos="fade-up"
-          data-aos-delay="400"
-          data-aos-duration="800"
+          data-aos="zoom-out-down"
+          data-aos-duration="2000"
           className="absolute inset-0 z-10"
           style={{
             backgroundImage: `url(${partyDeck})`,
