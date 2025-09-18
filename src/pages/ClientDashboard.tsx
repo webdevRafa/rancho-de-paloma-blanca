@@ -518,7 +518,7 @@ const ClientDashboard: React.FC = () => {
     return (
       <li
         key={order.id}
-        className=" border border-black/5 bg-white px-4 py-3 shadow-sm hover:shadow-md transition-shadow"
+        className=" border border-white/50  px-4 py-3 shadow-sm hover:shadow-md transition-shadow"
       >
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div className="flex items-start sm:items-center gap-3">
@@ -526,10 +526,8 @@ const ClientDashboard: React.FC = () => {
               <StageChip stage={classifyStage(order)} />
             </div>
             <div>
-              <div className="text-[13px] text-neutral-400 leading-none">
-                Order
-              </div>
-              <div className="text-sm font-medium text-neutral-800 break-all">
+              <div className="text-[13px] text-white leading-none">Order</div>
+              <div className="text-sm font-medium text-neutral-500 break-all">
                 #{order.id}
               </div>
             </div>
@@ -537,10 +535,8 @@ const ClientDashboard: React.FC = () => {
 
           <div className="flex items-center gap-6">
             <div className="text-right">
-              <div className="text-[13px] text-neutral-400 leading-none">
-                Total
-              </div>
-              <div className="text-sm font-semibold text-neutral-900">
+              <div className="text-[13px] text-lg! text-white">Total</div>
+              <div className="text-md font-semibold text-white">
                 ${fmtMoney(order.total)}
               </div>
             </div>
@@ -558,18 +554,21 @@ const ClientDashboard: React.FC = () => {
         {/* Compact details row */}
         <div className="mt-3 grid gap-2 sm:grid-cols-2 md:grid-cols-1">
           {hasBooking ? (
-            <div className="text-[13px] text-neutral-700">
-              <div className="text-md bg-[var(--color-accent-gold)]/10 rounded-md max-w-[100px] p-1 text-neutral-900 mb-0.5">
+            <div className="text-[13px] text-white">
+              <div className="text-lg  rounded-md font-gin  text-white mb-0.5">
                 Hunt booking
               </div>
               <div>
-                <span className="text-neutral-400">Dates: </span>
-                {order.booking!.dates!.map(formatFriendlyDateSafe).join(", ")}
-              </div>
-              <div>
-                <span className="text-neutral-400">Hunters: </span>
+                <span className="text-lg  rounded-md font-gin  text-white mb-0.5">
+                  Hunters:{" "}
+                </span>
                 {order.booking!.numberOfHunters}
               </div>
+              <div className="mt-3">
+                <span className="text-white">Dates: </span>
+                {order.booking!.dates!.map(formatFriendlyDateSafe).join(", ")}
+              </div>
+
               {!!order.booking!.partyDeckDates?.length && (
                 <div>
                   <span className="text-neutral-400">Party Deck: </span>
