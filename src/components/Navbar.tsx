@@ -134,7 +134,7 @@ const Navbar = () => {
         <div className="flex items-center justify-between p-4 border-b border-[var(--color-background)]">
           <div className="flex items-center gap-2 text-white">
             <img className="w-10" src={logo} alt="Rancho logo" />
-            <p className="text-md font-broadsheet text-white">
+            <p className="text-md font-gin text-white">
               Rancho de Paloma Blanca
             </p>
           </div>
