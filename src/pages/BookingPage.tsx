@@ -30,7 +30,7 @@ import { formatLongDate } from "../utils/formatDate";
 import { useCart } from "../context/CartContext";
 import dove from "../assets/dove.webp";
 import { PackagesBrochure } from "../components/PackagesBrochure";
-
+import partyDeck from "../assets/images/1000024264.webp";
 const BookingPage = () => {
   const navigate = useNavigate();
   const { user, loginWithGoogle } = useAuth();
@@ -159,7 +159,7 @@ const BookingPage = () => {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 py-10">
+      <div className="w-[90%] mx-auto px-4 relative">
         <AnimatePresence mode="wait">
           {!hasBooking && cartTotalItems === 0 ? (
             // No cart yet — show the booking form
@@ -169,7 +169,7 @@ const BookingPage = () => {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 16, scale: 0.98 }}
               transition={{ duration: 0.4 }}
-              className="bg-neutral-200 mt-10 shadow-2xl p-6 md:p-8 border border-white/10"
+              className=" mt-20 shadow-2xl py-2 relative z-20 "
             >
               <BookingForm />
             </motion.div>
@@ -265,6 +265,13 @@ const BookingPage = () => {
             </motion.div>
           )}
         </AnimatePresence>
+        <div className="absolute top-0 left-0 w-full h-full z-10 bg-[var(--color-card)]">
+          <img
+            className="w-full h-full object-cover opacity-20"
+            src={partyDeck}
+            alt=""
+          />
+        </div>
       </div>
 
       {/* Edit dates directly from here */}

@@ -24,6 +24,8 @@ import "react-toastify/dist/ReactToastify.css";
 import SetupProfile from "./pages/SetupProfile";
 import CartDrawer from "./components/CartDrawer";
 import AdminDashboard from "./pages/AdminDashboard";
+import RefundPage from "./pages/RefundPage";
+
 function App() {
   const { isHydrated } = useCart();
 
@@ -54,6 +56,7 @@ function App() {
           <Route path="/admin/day/:id" element={<DayDetail />} />
           <Route path="/videos" element={<VideoGallery />} />
           <Route path="/setup-profile" element={<SetupProfile />} />
+          <Route path="/refunds" element={<RefundPage />} />
 
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/gallery" element={<GalleryPage />} />

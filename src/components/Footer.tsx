@@ -1,5 +1,5 @@
 import { FaFacebookF, FaInstagram } from "react-icons/fa";
-
+import { Link } from "react-router-dom";
 const Footer = () => {
   return (
     <footer className="w-full py-20 bg-gradient-to-r from-[var(--color-dark)] via-[var(--color-footer)] to-[var(--color-dark)] mt-20">
@@ -9,7 +9,12 @@ const Footer = () => {
           © {new Date().getFullYear()} Rancho de Paloma Blanca. All rights
           reserved.
         </p>
-
+        <Link
+          className="text-[var(--color-accent-gold)] text-sm mb-3 md:mb-0"
+          to="/refunds"
+        >
+          Refund Policy
+        </Link>
         {/* Social Links */}
         <div className="flex space-x-6 text-white">
           {/* Facebook */}
