@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Menu, X } from "lucide-react";
-import logo from "../assets/rdp-white.svg";
+import logo from "../assets/logo-official.webp";
 import { useAuth } from "../context/AuthContext";
 import AuthModal from "./AuthModal";
 
@@ -66,7 +66,7 @@ const Navbar = () => {
               alt="Rancho Logo"
               className="h-10 w-10 rounded-full"
             />
-            <span className=" text-sm text-white font-acumin">
+            <span className=" text-md text-white font-gin">
               Rancho de Paloma Blanca
             </span>
           </Link>

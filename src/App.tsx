@@ -8,6 +8,7 @@ import { useEffect } from "react";
 import AOS from "aos";
 import "aos/dist/aos.css"; // Import AOS styles
 import DayDetail from "./pages/DayDetail"; // <-- add this import
+import ScrollToTop from "./components/ScrollToTop";
 
 import BookingPage from "./pages/BookingPage";
 import DevSeed from "./pages/DevSeed";
@@ -45,6 +46,7 @@ function App() {
     <>
       <div className="min-h-screen mx-auto ">
         <Navbar />
+        <ScrollToTop behavior="auto" />
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/sponsor" element={<SponsorPage />} />

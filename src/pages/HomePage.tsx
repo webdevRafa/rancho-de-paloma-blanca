@@ -90,7 +90,7 @@ const HomePage = () => {
               src={logo}
               alt=""
             />
-            <img className="w-full max-w-[300px]" src={rdpb} alt="" />
+            <img className="w-full max-w-[260px] " src={rdpb} alt="" />
           </div>
 
           <p className="text-xs md:text-md max-w-2xl text-center mt-4 mx-auto mb-6 text-neutral-200">

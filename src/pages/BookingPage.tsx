@@ -172,16 +172,20 @@ const BookingPage = () => {
         <AnimatePresence mode="wait">
           {!hasBooking && cartTotalItems === 0 ? (
             // No cart yet — show the booking form
-            <motion.div
-              key="booking-form"
-              initial={{ opacity: 0, y: 16, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 16, scale: 0.98 }}
-              transition={{ duration: 0.4 }}
-              className="  py-2 relative z-20"
-            >
-              <BookingForm />
-            </motion.div>
+            <div className="relative z-20 peer">
+              {" "}
+              {/* ⬅️ becomes the hover source */}
+              <motion.div
+                key="booking-form"
+                initial={{ opacity: 0, y: 16, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 16, scale: 0.98 }}
+                transition={{ duration: 0.4 }}
+                className="py-2"
+              >
+                <BookingForm />
+              </motion.div>
+            </div>
           ) : (
             // Cart‑in‑progress panel replaces the form
             <motion.div
@@ -275,16 +279,16 @@ const BookingPage = () => {
           )}
         </AnimatePresence>
         <div
+          data-aos="fade-up"
+          data-aos-delay="400"
+          data-aos-duration="800"
           className="absolute inset-0 z-10"
           style={{
-            // object-cover equivalent for background images
             backgroundImage: `url(${partyDeck})`,
             backgroundSize: "cover",
             backgroundPosition: "center",
             backgroundRepeat: "no-repeat",
-            // fixed on desktop, scroll on iOS (fallback)
             backgroundAttachment: isIOS ? "scroll" : "fixed",
-            // grayscale + soft fade
             opacity: 0.5,
           }}
           aria-hidden="true"
