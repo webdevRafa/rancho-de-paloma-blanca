@@ -248,7 +248,7 @@ export default function MerchandisePage() {
   return (
     <div className="max-w-6xl mx-auto mt-28 px-6 py-10 text-[var(--color-text)]">
       <div className="text-center mb-10">
-        <h1 className="text-3xl md:text-4xl font-broadsheet text-white">
+        <h1 className="text-3xl md:text-4xl font-gin text-white">
           Rancho de Paloma Blanca Merch
         </h1>
         <p className="text-white/70 mt-2 font-acumin">
@@ -309,7 +309,7 @@ export default function MerchandisePage() {
                 <div>
                   <div className="flex items-center justify-between gap-3 p-3">
                     <div>
-                      <h2 className="text-lg text-white font-semibold leading-tight">
+                      <h2 className="text-lg text-white font-gin font-semibold leading-tight">
                         {baseName || baseId}
                       </h2>
                       <p className="text-white/70 text-sm mt-0.5">
