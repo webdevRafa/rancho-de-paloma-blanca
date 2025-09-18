@@ -63,8 +63,8 @@ const GalleryPage = () => {
 
   return (
     <div className="min-h-screen pt-24 pb-12 px-4 md:px-8 bg-[var(--color-dark)] text-[var(--color-text)] max-w-[1400px] mx-auto md:mt-20">
-      <h1 className="text-4xl font-broadsheet mb-10 text-[var(--color-accent-gold)]">
-        Photo Gallery
+      <h1 className="text-4xl font-gin mb-10 text-[var(--color-accent-gold)]">
+        RANCHO DE PALOMA BLANCA
       </h1>
 
       {/* Desktop View */}
