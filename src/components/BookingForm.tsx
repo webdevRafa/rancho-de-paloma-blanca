@@ -356,8 +356,8 @@ const BookingForm = () => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto translate-y-[-30px] bg-white  p-8  shadow-2xl text-[var(--color-text)]">
-      <h2 className="text-3xl font-acumin mb-0 text-center text-[var(--color-footer)]">
+    <div className="max-w-2xl mx-auto mt-15 bg-white  p-8  shadow-2xl text-[var(--color-text)]">
+      <h2 className="text-3xl font-gin mb-0 text-center text-[var(--color-footer)] bg-neutral-100 py-1">
         {step === 1 && "Enter Party Size"}
         {step === 2 && "Choose Your Dates"}
         {step === 3 && "Review & Submit Your Booking"}

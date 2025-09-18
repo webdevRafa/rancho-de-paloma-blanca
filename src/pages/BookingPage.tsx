@@ -30,7 +30,7 @@ import { formatLongDate } from "../utils/formatDate";
 import { useCart } from "../context/CartContext";
 import dove from "../assets/dove.webp";
 import { PackagesBrochure } from "../components/PackagesBrochure";
-import partyDeck from "../assets/images/1000024264.webp";
+import partyDeck from "../assets/images/1000024260.webp";
 const BookingPage = () => {
   const navigate = useNavigate();
   const { user, loginWithGoogle } = useAuth();
@@ -55,7 +55,16 @@ const BookingPage = () => {
     const days = booking?.dates?.length ?? 0;
     return merchCount + days;
   }, [merchItems, booking]);
-
+  // iOS doesn't support background-attachment: fixed reliably
+  const isIOS = useMemo(() => {
+    if (typeof navigator === "undefined") return false;
+    const ua = navigator.userAgent || "";
+    const iOS = /iPad|iPhone|iPod/.test(ua);
+    const iPadOS =
+      navigator.platform === "MacIntel" &&
+      (navigator as any).maxTouchPoints > 1;
+    return iOS || iPadOS;
+  }, []);
   // ---------- 1) AUTH GATE (friendly) ----------
   if (!user) {
     return (
@@ -137,16 +146,16 @@ const BookingPage = () => {
   return (
     <div className="relative">
       {/* Hero banner (subtle) */}
-      <div className="relative h-[180px] md:h-[220px] overflow-hidden rounded-b-[24px]">
+      <div className="relative h-[180px] md:h-[320px] overflow-hidden rounded-b-[24px]">
         <div
-          className="absolute inset-0 bg-center bg-cover scale-105"
+          className="absolute inset-0 bg-center bg-cover scale-105 opacity-30"
           style={{ backgroundImage: `url(${dove})` }}
           aria-hidden="true"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-black/60" />
         <div className="relative z-10 max-w-5xl mx-auto h-full flex items-end px-4 pb-6">
           <div>
-            <h1 className="text-white text-3xl md:text-4xl font-acumin">
+            <h1 className="text-white text-3xl md:text-4xl font-gin">
               Book your hunt
             </h1>
             <p className="text-white/80 text-sm md:text-base">
@@ -159,7 +168,7 @@ const BookingPage = () => {
         </div>
       </div>
 
-      <div className="w-[90%] mx-auto px-4 relative">
+      <div className="w-full h-[600px] mx-auto px-4 relative">
         <AnimatePresence mode="wait">
           {!hasBooking && cartTotalItems === 0 ? (
             // No cart yet — show the booking form
@@ -169,7 +178,7 @@ const BookingPage = () => {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 16, scale: 0.98 }}
               transition={{ duration: 0.4 }}
-              className=" mt-20 shadow-2xl py-2 relative z-20 "
+              className="  py-2 relative z-20"
             >
               <BookingForm />
             </motion.div>
@@ -265,13 +274,21 @@ const BookingPage = () => {
             </motion.div>
           )}
         </AnimatePresence>
-        <div className="absolute top-0 left-0 w-full h-full z-10 bg-[var(--color-card)]">
-          <img
-            className="w-full h-full object-cover opacity-20"
-            src={partyDeck}
-            alt=""
-          />
-        </div>
+        <div
+          className="absolute inset-0 z-10"
+          style={{
+            // object-cover equivalent for background images
+            backgroundImage: `url(${partyDeck})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            backgroundRepeat: "no-repeat",
+            // fixed on desktop, scroll on iOS (fallback)
+            backgroundAttachment: isIOS ? "scroll" : "fixed",
+            // grayscale + soft fade
+            opacity: 0.5,
+          }}
+          aria-hidden="true"
+        />
       </div>
 
       {/* Edit dates directly from here */}
