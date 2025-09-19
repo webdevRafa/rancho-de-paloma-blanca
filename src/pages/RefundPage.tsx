@@ -4,7 +4,7 @@ export default function RefundPage() {
   return (
     <div className="min-h-screen flex items-center justify-center px-6">
       <div>
-        <h1 className="text-white text-6xl text-center mb-3 font-gin">
+        <h1 className="text-white text-5xl text-center mb-3 font-gin">
           REFUND POLICY
         </h1>
         <p className="text-white text-center text-lg leading-relaxed max-w-2xl opacity-76">

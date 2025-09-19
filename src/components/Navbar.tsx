@@ -126,7 +126,7 @@ const Navbar = () => {
 
       {/* Mobile Drawer */}
       <div
-        className={`fixed top-0 right-0 h-screen w-80 bg-gradient-to-r  from-[var(--color-background)] to-[var(--color-footer)] shadow-xl z-50 flex flex-col transform transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 right-0 h-screen w-full bg-gradient-to-r  from-[var(--color-background)] to-[var(--color-footer)] shadow-xl z-50 flex flex-col transform transition-transform duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
@@ -151,7 +151,7 @@ const Navbar = () => {
         <Link
           to="/dashboard"
           onClick={() => setIsOpen(false)}
-          className="flex items-center gap-3 px-6 py-4 border-b border-[var(--color-background)] hover:bg-[var(--color-card)] transition"
+          className="flex items-center gap-3 px-6 py-4 border-b border-[var(--color-background)] bg-[var(--color-card)] transition"
         >
           {user?.photoURL ? (
             <img
@@ -164,22 +164,22 @@ const Navbar = () => {
               ?
             </div>
           )}
-          <div className="text-white text-sm leading-tight">
+          <div className="text-white leading-tight font-gin">
             {user?.displayName || user?.email || "Guest"}
-            <div className="text-xs text-[var(--color-accent-sage)]">
+            <div className="text-xs text-[var(--color-accent-sage)] font-gin">
               Dashboard
             </div>
           </div>
         </Link>
 
         {/* Nav Links */}
-        <div className="flex flex-col flex-grow px-6 py-6 space-y-4 text-md text-[var(--color-text)]">
+        <div className="grid grid-cols-3 px-6 py-6 space-y-4 text-md text-[var(--color-text)]">
           {navLinks.map((link) => (
             <Link
               key={link.to}
               to={link.to}
               onClick={() => setIsOpen(false)}
-              className="hover:text-[var(--color-button-hover)] transition font-acumin text-lg"
+              className="hover:text-[var(--color-button-hover)] transition font-gin text-md"
             >
               {link.label}
             </Link>
@@ -192,7 +192,7 @@ const Navbar = () => {
                   logout();
                   setIsOpen(false);
                 }}
-                className="text-left text-red-400 hover:text-red-500"
+                className="text-left text-red-400 hover:text-red-500 font-gin text-md mt-10"
               >
                 Sign Out
               </button>
