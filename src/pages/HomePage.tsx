@@ -106,7 +106,7 @@ const HomePage = () => {
           </a>
         </div>
       </div>
-
+      <div className="bg-black w-full h-[100px]"></div>
       {/* Rest of page */}
       <div className="flex flex-col min-h-screen text-[var(--color-text)]">
         {/* Hero Section */}

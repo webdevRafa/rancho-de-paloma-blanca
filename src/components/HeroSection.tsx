@@ -42,7 +42,12 @@ const HeroSection = () => {
   return (
     <section className="relative text-[var(--color-text)] min-h-[100vh] flex items-center justify-center overflow-hidden">
       {/* Background Videos */}
-      <div className="absolute inset-0 overflow-hidden">
+      <div
+        data-aos="fade-in"
+        data-aos-delay="1000"
+        data-aos-duration="1000"
+        className="absolute inset-0 overflow-hidden"
+      >
         {/* Desktop Horizontal Video */}
         <video
           className="hidden md:block w-full h-full object-cover opacity-50"
@@ -74,14 +79,14 @@ const HeroSection = () => {
         />
       </div>
 
-      <div data-aos="fade-in" className="py-10 text-center ">
+      <div data-aos="zoom-in-up" className="py-10 text-center ">
         <h2
           id="info"
           className="text-4xl md:text-5xl mb-2 text-white pt-10 font-bourbon uppercase"
         >
           Why Choose Rancho de Paloma Blanca?
         </h2>
-        <p className="text-md max-w-3xl mx-auto mb-10">
+        <p className="text-md max-w-3xl mx-auto mb-10 px-10">
           We offer premium hunts, breathtaking Texas landscapes, and a ranch
           experience designed for hunters of all levels.
         </p>
