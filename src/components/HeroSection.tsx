@@ -44,7 +44,7 @@ const HeroSection = () => {
       {/* Background Videos */}
       <div
         data-aos="fade-in"
-        data-aos-delay="1000"
+        data-aos-delay="1500"
         data-aos-duration="1000"
         className="absolute inset-0 overflow-hidden"
       >
