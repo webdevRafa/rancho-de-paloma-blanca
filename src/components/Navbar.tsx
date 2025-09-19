@@ -126,7 +126,7 @@ const Navbar = () => {
 
       {/* Mobile Drawer */}
       <div
-        className={`fixed top-0 right-0 h-screen w-full bg-gradient-to-r  from-[var(--color-background)] to-[var(--color-footer)] shadow-xl z-50 flex flex-col transform transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 right-0 h-screen w-full bg-gradient-to-r  from-[var(--color-background)]/70 to-[var(--color-footer)] shadow-xl z-50 flex flex-col transform transition-transform duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
@@ -151,7 +151,7 @@ const Navbar = () => {
         <Link
           to="/dashboard"
           onClick={() => setIsOpen(false)}
-          className="flex items-center gap-3 px-6 py-4 border-b border-[var(--color-background)] bg-[var(--color-card)] transition"
+          className="flex items-center gap-3 px-6 py-4 ] bg-[var(--color-card)]/70 transition"
         >
           {user?.photoURL ? (
             <img
@@ -185,7 +185,7 @@ const Navbar = () => {
             </Link>
           ))}
 
-          <div className="mt-6 border-t border-[var(--color-background)] pt-4 flex flex-col space-y-2 text-sm">
+          <div className="mt-6  pt-4 flex flex-col space-y-2 text-sm">
             {user ? (
               <button
                 onClick={() => {
