@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import HeroSection from "../components/HeroSection";
 import InfoCards from "../components/InfoCards";
 import birds from "../assets/images/palomas.webp";
-import heroImg from "../assets/images/1000024263.webp";
+import heroImg from "../assets/images/four.webp";
 import logo from "../assets/logo-official.webp";
 import rdpb from "../assets/block.svg";
 
@@ -80,8 +80,8 @@ const HomePage = () => {
           ref={imgRef}
           src={heroImg}
           alt=""
-          className="absolute inset-0 w-full h-[120vh] object-cover will-change-transform" // CHANGED: removed opacity-60 class
-          style={{ top: "-10vh", opacity: 0.6 }} // CHANGED: set base opacity inline so JS can override it
+          className="absolute inset-0 w-full h-[120vh] object-cover will-change-transform blur-xs" // CHANGED: removed opacity-60 class
+          style={{ top: "-10vh", opacity: 0.3 }} // CHANGED: set base opacity inline so JS can override it
         />
 
         {/* Content */}
@@ -106,7 +106,7 @@ const HomePage = () => {
           </a>
         </div>
       </div>
-      <div className="bg-black w-full h-[100px]"></div>
+
       {/* Rest of page */}
       <div className="flex flex-col min-h-screen text-[var(--color-text)]">
         {/* Hero Section */}
