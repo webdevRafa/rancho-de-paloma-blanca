@@ -5,6 +5,8 @@ import InfoCards from "../components/InfoCards";
 import birds from "../assets/images/palomas.webp";
 import heroImg from "../assets/images/four.webp";
 import logo from "../assets/logo-official.webp";
+import { FaFlagUsa } from "react-icons/fa";
+import { Link } from "react-router-dom";
 
 const HomePage = () => {
   // Keep iOS detection for the birds section behavior below
@@ -118,14 +120,25 @@ const HomePage = () => {
             </p>
           </div>
 
-          <a
+          <div
             data-aos="fade-up"
             data-aos-delay="2000"
-            href="/book"
-            className="inline-block p-2 text-white font-acumin bg-[var(--color-card)]/40 border-[var(--color-accent-gold)]/50 border-2 hover:bg-[var(--color-card)]/80 hover:scale-105 text-sm transition duration-300 ease-in-out"
+            className="flex items-center justify-center gap-2"
           >
-            Book Your Hunt
-          </a>
+            <a
+              href="/book"
+              className="inline-block p-2 text-white font-acumin bg-[var(--color-card)]/40 border-[var(--color-accent-gold)]/50 border-2 hover:bg-[var(--color-card)]/80 hover:scale-105 text-sm transition duration-300 ease-in-out"
+            >
+              Book Your Hunt
+            </a>
+            <Link
+              to="/backtheblue"
+              className="text-white bg-gradient-to-b font-gin hover:scale-105 cursor-pointer from-[var(--color-blue)] to-[var(--color-bluedarker)] flex gap-2 items-center justify-center p-1.5"
+            >
+              Back the Blue
+              <FaFlagUsa />
+            </Link>
+          </div>
         </div>
       </div>
 

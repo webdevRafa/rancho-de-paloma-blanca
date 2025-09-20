@@ -11,7 +11,8 @@
   /* Buttons */
   --color-button: #4C5B3A;       /* Golden-copper buttons */
   --color-button-hover: #6C7F4E; /* Brighter hover tone */
-
+  --color-blue: #001bca;
+  --color-bluedarker: #001392;
   /* Footer */
   --color-footer: #1A0D06;       /* Near-black footer */
   --color-dark: #0f0803;       /* Near-black footer */
@@ -74,3 +75,7 @@ h1, h2, h3, span.broadsheet, .hero-btn {
   font-family: "gin", serif;
 }
 
+.btb {
+  background-color: #001bca;
+  border: 2px solid #0d2bec;
+}

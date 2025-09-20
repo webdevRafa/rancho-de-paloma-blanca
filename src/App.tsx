@@ -26,6 +26,7 @@ import SetupProfile from "./pages/SetupProfile";
 import CartDrawer from "./components/CartDrawer";
 import AdminDashboard from "./pages/AdminDashboard";
 import RefundPage from "./pages/RefundPage";
+import BackTheBluePage from "./pages/BackTheBluePage";
 
 function App() {
   const { isHydrated } = useCart();
@@ -50,6 +51,7 @@ function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/sponsor" element={<SponsorPage />} />
+          <Route path="/backtheblue" element={<BackTheBluePage />} />
           <Route path="/rules" element={<PropertyRules />} />
           <Route path="/merch" element={<MerchandisePage />} />
           <Route path="/book" element={<BookingPage />} />
