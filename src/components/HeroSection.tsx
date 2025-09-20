@@ -82,13 +82,14 @@ const HeroSection = () => {
       <div data-aos="zoom-in-up" className="py-10 text-center ">
         <h2
           id="info"
-          className="text-4xl md:text-5xl mb-2 text-white pt-10 font-bourbon uppercase"
+          className="text-2xl mb-2 text-white pt-10 font-gin uppercase"
         >
-          Why Choose Rancho de Paloma Blanca?
+          Brownsville’s Premier Dove Hunting Destination
         </h2>
         <p className="text-md max-w-3xl mx-auto mb-10 px-10">
-          We offer premium hunts, breathtaking Texas landscapes, and a ranch
-          experience designed for hunters of all levels.
+          Rooted in South Texas tradition, Rancho de Paloma Blanca brings
+          hunters to Brownsville for unmatched dove hunting and authentic ranch
+          hospitality.
         </p>
       </div>
 
