@@ -5,7 +5,6 @@ import InfoCards from "../components/InfoCards";
 import birds from "../assets/images/palomas.webp";
 import heroImg from "../assets/images/four.webp";
 import logo from "../assets/logo-official.webp";
-import rdpb from "../assets/block.svg";
 
 const HomePage = () => {
   // Keep iOS detection for the birds section behavior below
@@ -81,24 +80,47 @@ const HomePage = () => {
           src={heroImg}
           alt=""
           className="absolute inset-0 w-full h-[120vh] object-cover will-change-transform blur-xs" // CHANGED: removed opacity-60 class
-          style={{ top: "-10vh", opacity: 0.3 }} // CHANGED: set base opacity inline so JS can override it
+          style={{ top: "-10vh", opacity: 0.29 }} // CHANGED: set base opacity inline so JS can override it
         />
 
         {/* Content */}
         <div className="relative z-10 text-center px-6">
-          <div className="flex flex-row items-center">
+          <div
+            data-aos="zoom-in"
+            data-aos-duration="1000"
+            className="flex flex-row items-center max-w-[300px] md:max-w-[400px] mx-auto"
+          >
             <img
               className="h-[130px] md:h-[150px] max-h-[200px] max-w-[300px] mx-auto"
               src={logo}
               alt=""
             />
-            <img className="w-full max-w-[200px] " src={rdpb} alt="" />
           </div>
 
-          <p className="text-xs md:text-md max-w-2xl text-center mt-4 mx-auto mb-6 text-neutral-200">
-            Experience premium hunts and the beauty of Texas outdoors.
-          </p>
+          <div>
+            <h1
+              data-aos="fade-in"
+              data-aos-delay="1000"
+              className="text-white font-gin mt-6 mb-3 max-w-[800px] mx-auto text-2xl"
+            >
+              Best Dove Hunting in Brownsville, Texas — Rancho de Paloma Blanca
+            </h1>
+            <p
+              data-aos="fade-in"
+              data-aos-delay="1500"
+              className="text-sm md:text-base text-neutral-100/90 max-w-[760px] mx-auto mb-5 font-acumin"
+            >
+              Dove Hunting at <strong>Rancho de Paloma Blanca</strong> in{" "}
+              <strong>Brownsville</strong> is perfect for families, friends, and
+              larger groups. Choose flexible single-day hunts or weekend
+              packages, add the exclusive Party Deck, and enjoy seamless online
+              booking—everything you need for a memorable South Texas hunt.
+            </p>
+          </div>
+
           <a
+            data-aos="fade-up"
+            data-aos-delay="2000"
             href="/book"
             className="inline-block p-2 text-white font-acumin bg-[var(--color-card)]/40 border-[var(--color-accent-gold)]/50 border-2 hover:bg-[var(--color-card)]/80 hover:scale-105 text-sm transition duration-300 ease-in-out"
           >

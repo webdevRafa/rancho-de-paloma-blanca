@@ -24,6 +24,7 @@
     "react-router-dom": "^7.7.1",
     "react-toastify": "^11.0.5",
     "tailwindcss": "^4.1.11",
+    "typeit-react": "^2.7.8",
     "yet-another-react-lightbox": "^3.25.0"
   },
   "devDependencies": {
