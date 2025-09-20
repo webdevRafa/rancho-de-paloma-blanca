@@ -114,7 +114,7 @@ const Photos = () => {
   return (
     <>
       {/* Mobile strip (auto-advances) / Desktop grid */}
-      <div className="w-full">
+      <div className="w-full py-6">
         {/* Mobile / tablet */}
         <div
           ref={stripRef}
@@ -124,7 +124,7 @@ const Photos = () => {
             <button
               key={i}
               onClick={() => open(i)}
-              className="flex-none w-[80vw] max-w-[520px] aspect-[16/10] snap-start overflow-hidden rounded-xl border border-white/10"
+              className="flex-none w-[80vw] max-w-[520px] aspect-[16/10] snap-start overflow-hidden border border-white/10"
               aria-label={`Open photo ${i + 1}`}
             >
               <img
@@ -143,7 +143,7 @@ const Photos = () => {
             <button
               key={i}
               onClick={() => open(i)}
-              className="group relative h-40 overflow-hidden rounded-xl border border-white/10"
+              className="group relative h-40 overflow-hidden border border-white/10"
               aria-label={`Open photo ${i + 1}`}
             >
               <img
