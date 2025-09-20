@@ -2,14 +2,24 @@ import { Link } from "react-router-dom";
 import btb from "../assets/images/IMG_20250920_094948.jpg";
 import { TiArrowBack } from "react-icons/ti";
 import { RxCrosshair2 } from "react-icons/rx";
+import group from "../assets/images/group.webp";
 
 const BackTheBluePage = () => {
   return (
     <>
+      <div className="absolute h-[100vh] w-full overflow-hidden z-[-1]">
+        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,transparent_0%,transparent_30%,rgba(0,0,0,0.02)_45%,var(--color-footer)_100%)]"></div>
+
+        <img
+          className="object-cover w-full h-full opacity-20"
+          src={group}
+          alt=""
+        />
+      </div>
       <div className="flex gap-2">
         <Link
           to="/"
-          className="flex items-center justify-center text-sm mb-5 mx-auto  mt-30 max-w-[300px] font-gin p-2 border-red-300 border-2 bg-red-400 hover:bg-red-500 transition duration-300 ease-in-out"
+          className="flex items-center justify-center text-sm mb-5 mx-auto  mt-40 max-w-[300px] font-gin p-2 border-red-300 border-2 bg-red-400 hover:bg-red-500 transition duration-300 ease-in-out"
         >
           <p>Back to Home</p>
           <TiArrowBack />
