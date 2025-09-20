@@ -143,10 +143,12 @@ const Photos = () => {
             <button
               key={i}
               onClick={() => open(i)}
-              className="group relative h-40 overflow-hidden border border-white/10"
+              className="group relative h-40 overflow-hidden "
               aria-label={`Open photo ${i + 1}`}
             >
               <img
+                data-aos="fade-up"
+                data-aos-delay={100 * i}
                 src={src}
                 alt={`Photo ${i + 1}`}
                 className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
