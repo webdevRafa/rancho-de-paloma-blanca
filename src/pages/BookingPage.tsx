@@ -194,7 +194,7 @@ const BookingPage = () => {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 16, scale: 0.98 }}
               transition={{ duration: 0.4 }}
-              className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 border border-white/10 mt-10"
+              className="bg-white max-w-[800px] mx-auto  z-40 relative rounded-b-2xl shadow-2xl p-6 md:p-8 border border-white/10 mt-10"
             >
               <h2 className="text-2xl md:text-3xl text-[var(--color-background)] font-acumin mb-2">
                 You’ve got a cart in progress
