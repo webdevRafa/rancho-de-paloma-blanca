@@ -7,6 +7,7 @@ import heroImg from "../assets/images/four.webp";
 import logo from "../assets/logo-official.webp";
 import { FaFlagUsa } from "react-icons/fa";
 import { Link } from "react-router-dom";
+import Photos from "../components/Photos";
 
 const HomePage = () => {
   // Keep iOS detection for the birds section behavior below
@@ -141,7 +142,7 @@ const HomePage = () => {
           </div>
         </div>
       </div>
-
+      <Photos />
       {/* Rest of page */}
       <div className="flex flex-col min-h-screen text-[var(--color-text)]">
         {/* Hero Section */}
