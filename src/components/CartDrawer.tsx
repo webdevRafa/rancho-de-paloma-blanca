@@ -10,52 +10,62 @@ import { getSeasonConfig } from "../utils/getSeasonConfig";
 import { formatLongDate } from "../utils/formatDate";
 import { RiShoppingCartFill } from "react-icons/ri";
 
-/**
- * Shapes we expect back from Firestore season config.
- * This is defensive and allows for partial configs.
- */
-type SeasonConfig = {
-  // Capacity
-  maxHuntersPerDay?: number;
-
-  // Dates (ISO "YYYY-MM-DD") for in-season boundaries (inclusive)
-  seasonStart?: string;
-  seasonEnd?: string;
-
-  // Pricing (currency units, e.g., 125 = $125.00)
-  weekdayRate?: number; // in-season weekday
-  weekendSingleDayRate?: number; // in-season Fri/Sat/Sun single day
-  twoDayConsecutiveRate?: number; // in-season 2 consecutive days (Fri-Sat or Sat-Sun)
-  threeDayFriSatSunRate?: number; // in-season Fri–Sat–Sun 3-day combo
-  offSeasonRate?: number; // out-of-season flat per-day
-  partyDeckPrice?: number; // per-day party deck
-
-  // Optional: allow weekends array if you ever customize days (0=Sun..6=Sat)
-  weekendDays?: number[];
-};
-
 type AvailabilityDoc = { huntersBooked?: number; partyDeckBooked?: boolean };
 
-// ---- Fallbacks if config is missing fields (kept from your previous logic) ----
-const FALLBACKS: Required<
-  Pick<
-    SeasonConfig,
-    | "weekdayRate"
-    | "weekendSingleDayRate"
-    | "twoDayConsecutiveRate"
-    | "threeDayFriSatSunRate"
-    | "offSeasonRate"
-    | "partyDeckPrice"
-    | "maxHuntersPerDay"
-  >
-> = {
-  weekdayRate: 125,
-  weekendSingleDayRate: 200,
-  twoDayConsecutiveRate: 350,
-  threeDayFriSatSunRate: 450,
-  offSeasonRate: 125,
-  partyDeckPrice: 500,
-  maxHuntersPerDay: 75,
+// Shape helper that tolerates both the nested weekendRates
+// (like BookingForm uses) and any prior flattened fields.
+type RawSeasonConfig = {
+  seasonStart?: string;
+  seasonEnd?: string;
+  maxHuntersPerDay?: number;
+
+  // current canonical fields
+  weekdayRate?: number;
+  offSeasonRate?: number;
+  partyDeckRatePerDay?: number;
+  weekendRates?: {
+    singleDay?: number;
+    twoConsecutiveDays?: number;
+    threeDayCombo?: number;
+  };
+
+  // legacy/alt keys we’ll accept as fallback
+  weekendSingleDayRate?: number;
+  twoDayConsecutiveRate?: number;
+  threeDayFriSatSunRate?: number;
+  partyDeckPrice?: number;
+};
+
+// Normalize any seasonConfig into a single, consistent object.
+const normalizeConfig = (cfg: RawSeasonConfig | null | undefined) => {
+  const single =
+    cfg?.weekendRates?.singleDay ?? cfg?.weekendSingleDayRate ?? 125; // default single day
+
+  const twoDay =
+    cfg?.weekendRates?.twoConsecutiveDays ?? cfg?.twoDayConsecutiveRate ?? 350;
+
+  const threeDay =
+    cfg?.weekendRates?.threeDayCombo ?? cfg?.threeDayFriSatSunRate ?? 450;
+
+  const weekday = cfg?.weekdayRate ?? 125;
+  const offSeason = cfg?.offSeasonRate ?? 125;
+  const partyDeck = cfg?.partyDeckRatePerDay ?? cfg?.partyDeckPrice ?? 500;
+
+  const maxCap = cfg?.maxHuntersPerDay ?? 75;
+
+  return {
+    seasonStart: cfg?.seasonStart,
+    seasonEnd: cfg?.seasonEnd,
+    maxHuntersPerDay: maxCap,
+    weekdayRate: weekday,
+    offSeasonRate: offSeason,
+    partyDeckPerDay: partyDeck,
+    weekend: {
+      singleDay: single,
+      twoConsecutiveDays: twoDay,
+      threeDayCombo: threeDay,
+    },
+  };
 };
 
 const toDate = (iso: string) => {
@@ -64,28 +74,20 @@ const toDate = (iso: string) => {
 };
 const isISO = (s?: string) => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
 
-// Check whether a given date is within [seasonStart, seasonEnd] inclusive.
-const isInSeason = (d: Date, cfg: SeasonConfig) => {
-  if (!isISO(cfg.seasonStart) || !isISO(cfg.seasonEnd)) return true; // if unknown, treat as in-season
-  const start = toDate(cfg.seasonStart!);
-  const end = toDate(cfg.seasonEnd!);
-  const t = d.setHours(0, 0, 0, 0);
-  return t >= start.setHours(0, 0, 0, 0) && t <= end.setHours(0, 0, 0, 0);
-};
-
-const getDowWeekendSet = (cfg: SeasonConfig): Set<number> => {
-  const arr = cfg.weekendDays ?? [5, 6, 0]; // Fri, Sat, Sun by default
-  return new Set(arr);
+const isInSeason = (
+  d: Date,
+  cfg: { seasonStart?: string; seasonEnd?: string }
+) => {
+  if (!isISO(cfg.seasonStart) || !isISO(cfg.seasonEnd)) return true;
+  const t = new Date(d).setHours(0, 0, 0, 0);
+  const start = toDate(cfg.seasonStart!).setHours(0, 0, 0, 0);
+  const end = toDate(cfg.seasonEnd!).setHours(0, 0, 0, 0);
+  return t >= start && t <= end;
 };
 
 const CartDrawer = () => {
-  const {
-    booking,
-    merchItems,
-    setBooking,
-    addOrUpdateMerchItem,
-    clearCart, // new: use the context's clearCart to fully reset
-  } = useCart();
+  const { booking, merchItems, setBooking, addOrUpdateMerchItem, clearCart } =
+    useCart();
   const [isOpen, setIsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const navigate = useNavigate();
@@ -93,35 +95,42 @@ const CartDrawer = () => {
   const hasBooking = !!booking && booking.dates?.length > 0;
   const hasMerch = Object.keys(merchItems).length > 0;
 
-  // --- load dynamic season config ---
-  const [seasonCfg, setSeasonCfg] = useState<SeasonConfig | null>(null);
+  // Load live season config and normalize it
+  const [normCfg, setNormCfg] = useState<ReturnType<
+    typeof normalizeConfig
+  > | null>(null);
   useEffect(() => {
     (async () => {
       try {
-        const cfg = await getSeasonConfig();
-        setSeasonCfg(cfg || {});
+        const raw = (await getSeasonConfig()) as RawSeasonConfig;
+        setNormCfg(normalizeConfig(raw));
       } catch {
-        setSeasonCfg({});
+        setNormCfg(
+          normalizeConfig({
+            weekdayRate: 125,
+            offSeasonRate: 125,
+            partyDeckRatePerDay: 500,
+            weekendRates: {
+              singleDay: 125,
+              twoConsecutiveDays: 350,
+              threeDayCombo: 450,
+            },
+            maxHuntersPerDay: 75,
+          })
+        );
       }
     })();
   }, []);
 
-  // --- party-size edit: draft -> validate -> commit ---
+  // Party size draft -> validate -> commit
   const [huntersDraft, setHuntersDraft] = useState<string>("");
   useEffect(() => {
     setHuntersDraft(String(booking?.numberOfHunters ?? 1));
   }, [booking?.numberOfHunters]);
 
-  // Capacity comes from config, fallback retained.
-  const [maxCapacity, setMaxCapacity] = useState<number>(
-    FALLBACKS.maxHuntersPerDay
-  );
-  useEffect(() => {
-    const max = seasonCfg?.maxHuntersPerDay ?? FALLBACKS.maxHuntersPerDay;
-    setMaxCapacity(max);
-  }, [seasonCfg?.maxHuntersPerDay]);
+  const maxCapacity = normCfg?.maxHuntersPerDay ?? 75;
 
-  // Availability lookups for selected dates
+  // Availability lookups
   const [availByDate, setAvailByDate] = useState<Record<string, number>>({});
   useEffect(() => {
     const load = async () => {
@@ -152,7 +161,6 @@ const CartDrawer = () => {
     [huntersDraft]
   );
 
-  // per-date cap check using the current draft number
   const violatingDates = useMemo(() => {
     if (!hasBooking) return [] as string[];
     return booking!.dates.filter(
@@ -164,34 +172,17 @@ const CartDrawer = () => {
 
   const applyHunters = () => {
     if (!booking) return;
-    if (hasViolations) return; // do not commit if any date would exceed
+    if (hasViolations) return;
     setBooking({ ...booking, numberOfHunters: draftHuntersNum });
   };
 
-  // --- pricing helpers (now driven by seasonCfg with safe fallbacks) ---
-  const partyDeckPrice = seasonCfg?.partyDeckPrice ?? FALLBACKS.partyDeckPrice;
+  // ---- Pricing driven by seasonConfig (no hardcoded $200 anymore) ----
+  const computePerPersonTotal = (isoDates: string[]) => {
+    if (!normCfg || !isoDates.length) return 0;
 
-  /**
-   * Compute per-person cost for the selected dates with season-aware rules.
-   * - If a date is outside in-season bounds, use offSeasonRate.
-   * - If all in-season, apply your weekend/combos logic.
-   * - Mixed selections are handled day-by-day: out-of-season days use offSeasonRate,
-   *   in-season days participate in weekend/combos where possible.
-   */
-  const computePerPersonTotal = (isoDates: string[], cfg: SeasonConfig) => {
-    if (!isoDates.length) return 0;
+    const { seasonStart, seasonEnd, weekdayRate, offSeasonRate, weekend } =
+      normCfg;
 
-    const weekdayRate = cfg.weekdayRate ?? FALLBACKS.weekdayRate;
-    const weekendSingle =
-      cfg.weekendSingleDayRate ?? FALLBACKS.weekendSingleDayRate;
-    const twoDay = cfg.twoDayConsecutiveRate ?? FALLBACKS.twoDayConsecutiveRate;
-    const threeDay =
-      cfg.threeDayFriSatSunRate ?? FALLBACKS.threeDayFriSatSunRate;
-    const offSeason = cfg.offSeasonRate ?? FALLBACKS.offSeasonRate;
-
-    const weekendSet = getDowWeekendSet(cfg);
-
-    // Convert & sort
     const dates = isoDates
       .map((d) => {
         const [y, m, dd] = d.split("-").map(Number);
@@ -205,84 +196,78 @@ const CartDrawer = () => {
     let i = 0;
 
     while (i < dates.length) {
-      const current = dates[i];
-      const inSeasonNow = isInSeason(current, cfg);
+      const cur = dates[i];
+      const inSeasonNow = isInSeason(cur, { seasonStart, seasonEnd });
+      const dow = cur.getDay();
 
-      // Off-season: flat per-day price (no bundles)
+      // Off-season: flat per day
       if (!inSeasonNow) {
-        total += offSeason;
+        total += offSeasonRate;
         i++;
         continue;
       }
 
-      // In-season bundle checks:
-      const dow = current.getDay();
-
-      // Try 3-day Fri-Sat-Sun
+      // 3-day Fri–Sat–Sun combo
       if (dow === 5 && i + 2 < dates.length) {
         const d1 = dates[i + 1];
         const d2 = dates[i + 2];
-        const diff1 = (d1.getTime() - current.getTime()) / 86400000;
+        const diff1 = (d1.getTime() - cur.getTime()) / 86400000;
         const diff2 = (d2.getTime() - d1.getTime()) / 86400000;
-        const inSeasonAll = isInSeason(d1, cfg) && isInSeason(d2, cfg);
         if (
-          inSeasonAll &&
           diff1 === 1 &&
           diff2 === 1 &&
           d1.getDay() === 6 &&
-          d2.getDay() === 0
+          d2.getDay() === 0 &&
+          isInSeason(d1, { seasonStart, seasonEnd }) &&
+          isInSeason(d2, { seasonStart, seasonEnd })
         ) {
-          total += threeDay;
+          total += weekend.threeDayCombo;
           i += 3;
           continue;
         }
       }
 
-      // Try 2-day consecutive (Fri-Sat or Sat-Sun)
+      // 2-day Fri–Sat or Sat–Sun
       if (i + 1 < dates.length) {
         const next = dates[i + 1];
-        const diff = (next.getTime() - current.getTime()) / 86400000;
-        const inSeasonBoth = isInSeason(next, cfg);
-        const isFriSat = dow === 5 && next.getDay() === 6;
-        const isSatSun = dow === 6 && next.getDay() === 0;
-        if (inSeasonBoth && diff === 1 && (isFriSat || isSatSun)) {
-          total += twoDay;
+        const diff = (next.getTime() - cur.getTime()) / 86400000;
+        const dowNext = next.getDay();
+        if (
+          diff === 1 &&
+          isInSeason(next, { seasonStart, seasonEnd }) &&
+          ((dow === 5 && dowNext === 6) || (dow === 6 && dowNext === 0))
+        ) {
+          total += weekend.twoConsecutiveDays;
           i += 2;
           continue;
         }
       }
 
-      // Single in-season day: weekend vs weekday
-      if (weekendSet.has(dow)) total += weekendSingle;
-      else total += weekdayRate;
-
+      // Single in-season day — **this now uses weekend.singleDay (125) even on weekends**
+      const isWeekend = dow === 5 || dow === 6 || dow === 0;
+      total += isWeekend ? weekend.singleDay : weekdayRate;
       i++;
     }
 
     return total;
   };
 
-  // --- booking subtotal (uses COMMITTED booking value, not draft) ---
   const bookingTotal = useMemo(() => {
     if (!hasBooking) return 0;
-    const dates = booking!.dates;
-    const hunters = booking!.numberOfHunters || 0;
-    const deckDays = booking!.partyDeckDates || [];
-
-    const perPerson = computePerPersonTotal(dates, seasonCfg || {});
-    const partyDeckCost = (deckDays?.length || 0) * partyDeckPrice;
-
-    return perPerson * hunters + partyDeckCost;
+    const perPerson = computePerPersonTotal(booking!.dates);
+    const partyDeckDays = booking!.partyDeckDates || [];
+    const partyDeckCost =
+      (normCfg?.partyDeckPerDay ?? 500) * (partyDeckDays?.length || 0);
+    return perPerson * (booking!.numberOfHunters || 0) + partyDeckCost;
   }, [
     hasBooking,
     booking?.dates,
     booking?.numberOfHunters,
     booking?.partyDeckDates,
-    seasonCfg,
-    partyDeckPrice,
+    normCfg,
   ]);
 
-  // --- MERCH STOCK: fetch up-to-date stock per product so we can prevent ordering more than available ---
+  // --- Merch stock & totals (unchanged) ---
   const [merchStock, setMerchStock] = useState<Record<string, number | null>>(
     {}
   );
@@ -313,7 +298,6 @@ const CartDrawer = () => {
     loadStock();
   }, [JSON.stringify(merchItems)]);
 
-  // recompute friendly error messages when items or stock change
   useEffect(() => {
     const errs: Record<string, string> = {};
     Object.values(merchItems || {}).forEach((item: any) => {
@@ -350,13 +334,12 @@ const CartDrawer = () => {
   const hasMerchViolations = Object.keys(merchErrors).length > 0;
 
   const handleGoToCheckout = () => {
-    if (hasViolations || hasMerchViolations) return;
+    if (violatingDates.length || hasMerchViolations) return;
     setIsOpen(false);
     navigate("/checkout");
   };
 
   const handleClearCart = () => {
-    // Fully reset cart (booking + merch + storage) and close drawer
     clearCart();
     setIsOpen(false);
   };
@@ -367,13 +350,10 @@ const CartDrawer = () => {
         <AnimatePresence>
           {isOpen ? (
             <>
-              {/* Backdrop overlay */}
               <div
                 className="fixed inset-0 bg-black/30 backdrop-blur-xs z-40"
                 onClick={() => setIsOpen(false)}
               />
-
-              {/* Drawer */}
               <motion.div
                 initial={{ y: "100%" }}
                 animate={{ y: 0 }}
@@ -387,11 +367,9 @@ const CartDrawer = () => {
                       Cart Summary
                     </h3>
                     <div className="flex items-center gap-3">
-                      {/** Clear cart button */}
                       <button
                         onClick={handleClearCart}
                         className="text-xs font-bold text-red-700 hover:underline"
-                        title="Remove all selected hunts and merchandise"
                       >
                         Clear cart
                       </button>
@@ -403,15 +381,6 @@ const CartDrawer = () => {
                       </button>
                     </div>
                   </div>
-
-                  {/* Season note (optional, helpful for debugging pricing) */}
-                  {seasonCfg &&
-                    (seasonCfg.seasonStart || seasonCfg.seasonEnd) && (
-                      <div className="mb-3 text-[10px] text-neutral-600">
-                        In-season: {seasonCfg.seasonStart ?? "?"} to{" "}
-                        {seasonCfg.seasonEnd ?? "?"}
-                      </div>
-                    )}
 
                   {hasBooking && (
                     <div className="mb-4">
@@ -427,7 +396,7 @@ const CartDrawer = () => {
                         </button>
                       </div>
 
-                      {/* Party size editor (draft) */}
+                      {/* Party size editor */}
                       <div className="mt-2 mb-3">
                         <label className="text-xs font-semibold block mb-1">
                           Number of Hunters
@@ -440,8 +409,7 @@ const CartDrawer = () => {
                                 1,
                                 parseInt(huntersDraft || "1", 10) || 1
                               );
-                              const next = Math.max(1, current - 1);
-                              setHuntersDraft(String(next));
+                              setHuntersDraft(String(Math.max(1, current - 1)));
                             }}
                             className="px-3 py-1 rounded bg-white border"
                             aria-label="Decrease hunters"
@@ -498,7 +466,7 @@ const CartDrawer = () => {
                         </div>
                       </div>
 
-                      {/* Dates list with per-day inline warnings (based on draft) */}
+                      {/* Dates list with per-day inline warnings */}
                       <ul className="text-sm ml-1 space-y-1">
                         {booking!.dates.map((d) => {
                           const over =
@@ -526,7 +494,7 @@ const CartDrawer = () => {
                         {!!booking!.partyDeckDates?.length && (
                           <li>
                             Party Deck: {booking!.partyDeckDates.length} × $
-                            {partyDeckPrice}
+                            {normCfg?.partyDeckPerDay ?? 500}
                           </li>
                         )}
                         <li className="bg-white max-w-[220px] text-[var(--color-footer)] p-1 shadow-sm text-md font-bold">
@@ -574,6 +542,7 @@ const CartDrawer = () => {
                               ) : (
                                 <div className="w-12 h-12 rounded bg-gray-200" />
                               )}
+
                               <div className="flex-1">
                                 <div className="flex items-center justify-between">
                                   <div className="font-semibold">
@@ -581,6 +550,7 @@ const CartDrawer = () => {
                                   </div>
                                   <div className="text-sm">${unit * qty}</div>
                                 </div>
+
                                 <div className="mt-1 flex items-center gap-2">
                                   <button
                                     className="px-2 py-1 border rounded"
@@ -589,6 +559,7 @@ const CartDrawer = () => {
                                   >
                                     –
                                   </button>
+
                                   <input
                                     type="number"
                                     min={0}
@@ -606,6 +577,7 @@ const CartDrawer = () => {
                                     }}
                                     className="w-14 px-1 py-0.5 border rounded text-center"
                                   />
+
                                   <button
                                     className={
                                       "px-2 py-1 border rounded " +
@@ -624,6 +596,7 @@ const CartDrawer = () => {
                                   >
                                     +
                                   </button>
+
                                   <button
                                     className="ml-2 text-xs underline"
                                     onClick={remove}
@@ -631,6 +604,7 @@ const CartDrawer = () => {
                                     Remove
                                   </button>
                                 </div>
+
                                 {err && (
                                   <div className="text-xs text-red-700 mt-1">
                                     {err}. Please reduce quantity to proceed.
@@ -641,11 +615,11 @@ const CartDrawer = () => {
                           );
                         })}
                       </ul>
+
                       <p className="mt-3 bg-white max-w-[220px] text-[var(--color-footer)] p-1 shadow-sm text-sm font-bold">
                         Merch Subtotal: ${merchTotal}
                       </p>
 
-                      {/* If there are stock issues, show a friendly banner */}
                       {Object.keys(merchErrors).length > 0 && (
                         <div className="mt-3 rounded-md border border-red-300 bg-red-50 text-red-700 text-sm p-2">
                           Please adjust the highlighted items to match available
@@ -667,13 +641,6 @@ const CartDrawer = () => {
                           ? "bg-gray-400 text-white cursor-not-allowed"
                           : "bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white"
                       }`}
-                      title={
-                        hasViolations
-                          ? "Fix the days marked 'Exceeds limit' and any merch stock issues to continue."
-                          : Object.keys(merchErrors).length > 0
-                          ? "Resolve merch stock issues to continue."
-                          : undefined
-                      }
                     >
                       Go to Checkout
                     </button>
@@ -688,7 +655,7 @@ const CartDrawer = () => {
               exit={{ y: 100 }}
               transition={{ duration: 0.3 }}
               onClick={() => setIsOpen(true)}
-              className="pointer-events-auto  flex  items-center gap-3 mx-auto bg-[var(--color-accent-gold)] text-[var(--color-footer)] text-sm font-bold py-3 px-6 rounded-t-lg shadow-lg"
+              className="pointer-events-auto flex items-center gap-3 mx-auto bg-[var(--color-accent-gold)] text-[var(--color-footer)] text-sm font-bold py-3 px-6 rounded-t-lg shadow-lg"
             >
               <RiShoppingCartFill className="size-10" />
               (${total})

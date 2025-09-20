@@ -2,6 +2,7 @@
 import { createContext, useContext, useState, useEffect, useMemo } from "react";
 import type { Product } from "../types/MerchTypes";
 import type { NewBooking } from "../types/Types";
+import { getSeasonConfig } from "../utils/getSeasonConfig";
 
 type MerchCartItem = {
   product: Product;
@@ -46,6 +47,63 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 const STORAGE_KEY = "rdp_cart";
 
+type RawSeasonConfig = {
+  seasonStart?: string;
+  seasonEnd?: string;
+  maxHuntersPerDay?: number;
+  weekdayRate?: number;
+  offSeasonRate?: number;
+  partyDeckRatePerDay?: number;
+  weekendRates?: {
+    singleDay?: number;
+    twoConsecutiveDays?: number;
+    threeDayCombo?: number;
+  };
+  // legacy keys we’ll tolerate
+  weekendSingleDayRate?: number;
+  twoDayConsecutiveRate?: number;
+  threeDayFriSatSunRate?: number;
+  partyDeckPrice?: number;
+};
+
+const normalizeConfig = (cfg?: RawSeasonConfig) => {
+  const single =
+    cfg?.weekendRates?.singleDay ?? cfg?.weekendSingleDayRate ?? 125;
+  const twoDay =
+    cfg?.weekendRates?.twoConsecutiveDays ?? cfg?.twoDayConsecutiveRate ?? 350;
+  const threeDay =
+    cfg?.weekendRates?.threeDayCombo ?? cfg?.threeDayFriSatSunRate ?? 450;
+
+  return {
+    seasonStart: cfg?.seasonStart,
+    seasonEnd: cfg?.seasonEnd,
+    weekdayRate: cfg?.weekdayRate ?? 125,
+    offSeasonRate: cfg?.offSeasonRate ?? 125,
+    partyDeckPerDay: cfg?.partyDeckRatePerDay ?? cfg?.partyDeckPrice ?? 500,
+    weekend: {
+      singleDay: single,
+      twoConsecutiveDays: twoDay,
+      threeDayCombo: threeDay,
+    },
+  };
+};
+
+const isISO = (s?: string) => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
+const toDate = (iso: string) => {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1);
+};
+const isInSeason = (
+  d: Date,
+  cfg: { seasonStart?: string; seasonEnd?: string }
+) => {
+  if (!isISO(cfg.seasonStart) || !isISO(cfg.seasonEnd)) return true;
+  const t = new Date(d).setHours(0, 0, 0, 0);
+  const start = toDate(cfg.seasonStart!).setHours(0, 0, 0, 0);
+  const end = toDate(cfg.seasonEnd!).setHours(0, 0, 0, 0);
+  return t >= start && t <= end;
+};
+
 export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   const [isHydrated, setIsHydrated] = useState(false);
 
@@ -58,6 +116,30 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   const [booking, setBooking] = useState<Omit<NewBooking, "createdAt"> | null>(
     null
   );
+  const [seasonCfg, setSeasonCfg] = useState<ReturnType<
+    typeof normalizeConfig
+  > | null>(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = (await getSeasonConfig()) as RawSeasonConfig;
+        setSeasonCfg(normalizeConfig(raw));
+      } catch {
+        setSeasonCfg(
+          normalizeConfig({
+            weekdayRate: 125,
+            offSeasonRate: 125,
+            partyDeckRatePerDay: 500,
+            weekendRates: {
+              singleDay: 125,
+              twoConsecutiveDays: 350,
+              threeDayCombo: 450,
+            },
+          })
+        );
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -116,61 +198,82 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
 
     if (!dates.length) return 0;
 
-    const weekdayRate = 125;
-    const baseWeekendRates = {
-      singleDay: 200,
-      twoConsecutiveDays: 350,
-      threeDayCombo: 450,
-    };
+    const cfg = seasonCfg ?? normalizeConfig(); // safe defaults
+    const {
+      seasonStart,
+      seasonEnd,
+      weekdayRate,
+      offSeasonRate,
+      partyDeckPerDay,
+      weekend,
+    } = cfg;
+
     const dateObjs = dates
       .map((d) => {
         const [y, m, d2] = d.split("-").map(Number);
-        return new Date(y, m - 1, d2);
+        const obj = new Date(y, m - 1, d2);
+        obj.setHours(0, 0, 0, 0);
+        return obj;
       })
       .sort((a, b) => a.getTime() - b.getTime());
 
     let perPersonTotal = 0;
     let i = 0;
+
     while (i < dateObjs.length) {
-      const current = dateObjs[i];
-      const dow = current.getDay();
+      const cur = dateObjs[i];
+      const dow = cur.getDay();
+
+      // Off-season day: flat per-day price
+      if (!isInSeason(cur, { seasonStart, seasonEnd })) {
+        perPersonTotal += offSeasonRate;
+        i += 1;
+        continue;
+      }
+
+      // 3-day Fri–Sat–Sun bundle
       if (dow === 5 && i + 2 < dateObjs.length) {
         const d1 = dateObjs[i + 1];
         const d2 = dateObjs[i + 2];
-        const diff1 = (d1.getTime() - current.getTime()) / 86400000;
-        const diff2 = (d2.getTime() - d1.getTime()) / 86400000;
+        const diff1 = (d1.getTime() - cur.getTime()) / 86_400_000;
+        const diff2 = (d2.getTime() - d1.getTime()) / 86_400_000;
         if (
           diff1 === 1 &&
           diff2 === 1 &&
           d1.getDay() === 6 &&
-          d2.getDay() === 0
+          d2.getDay() === 0 &&
+          isInSeason(d1, { seasonStart, seasonEnd }) &&
+          isInSeason(d2, { seasonStart, seasonEnd })
         ) {
-          perPersonTotal += baseWeekendRates.threeDayCombo;
+          perPersonTotal += weekend.threeDayCombo;
           i += 3;
           continue;
         }
       }
-      if (
-        i + 1 < dateObjs.length &&
-        ((dow === 5 && dateObjs[i + 1].getDay() === 6) ||
-          (dow === 6 && dateObjs[i + 1].getDay() === 0))
-      ) {
+
+      // 2-day consecutive Fri–Sat or Sat–Sun
+      if (i + 1 < dateObjs.length) {
         const next = dateObjs[i + 1];
-        const diff = (next.getTime() - current.getTime()) / 86400000;
-        if (diff === 1) {
-          perPersonTotal += baseWeekendRates.twoConsecutiveDays;
+        const diff = (next.getTime() - cur.getTime()) / 86_400_000;
+        const dowNext = next.getDay();
+        if (
+          diff === 1 &&
+          isInSeason(next, { seasonStart, seasonEnd }) &&
+          ((dow === 5 && dowNext === 6) || (dow === 6 && dowNext === 0))
+        ) {
+          perPersonTotal += weekend.twoConsecutiveDays;
           i += 2;
           continue;
         }
       }
-      if ([5, 6, 0].includes(dow)) {
-        perPersonTotal += baseWeekendRates.singleDay;
-      } else {
-        perPersonTotal += weekdayRate;
-      }
-      i++;
+
+      // Single in-season day — weekend uses weekend.singleDay (e.g., 125)
+      const isWeekend = dow === 5 || dow === 6 || dow === 0;
+      perPersonTotal += isWeekend ? weekend.singleDay : weekdayRate;
+      i += 1;
     }
-    const partyDeckCost = deckDates.length * 500;
+
+    const partyDeckCost = (deckDates.length || 0) * partyDeckPerDay;
     return perPersonTotal * hunters + partyDeckCost;
   };
 
