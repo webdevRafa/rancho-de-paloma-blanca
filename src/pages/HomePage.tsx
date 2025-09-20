@@ -88,11 +88,11 @@ const HomePage = () => {
         <div className="relative z-10 text-center px-6">
           <div className="flex flex-row items-center">
             <img
-              className="h-[100px] md:h-full max-h-[200px] max-w-[300px] mx-auto"
+              className="h-[130px] md:h-[150px] max-h-[200px] max-w-[300px] mx-auto"
               src={logo}
               alt=""
             />
-            <img className="w-full max-w-[260px] " src={rdpb} alt="" />
+            <img className="w-full max-w-[200px] " src={rdpb} alt="" />
           </div>
 
           <p className="text-xs md:text-md max-w-2xl text-center mt-4 mx-auto mb-6 text-neutral-200">

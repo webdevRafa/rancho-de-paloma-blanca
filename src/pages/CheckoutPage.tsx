@@ -962,8 +962,17 @@ export default function CheckoutPage() {
         hideGooglePayButton: !googlePayEnabled,
       } as any;
 
-      // IMPORTANT: init may return void OR an instance; setEventHandlers may exist on EP or return value.
-      const initResult = EP.init(jwt, config);
+      // IMPORTANT: init may return a promise that resolves to an instance.  Always
+      // await the result so the SDK can finish initialisation before we
+      // register handlers or render the panel.  Some older builds may
+      // synchronously return the EP object; awaiting handles both cases.
+      const initResult: any = await EP.init(jwt, config);
+
+      // Determine where to attach handlers and render.  Prefer the object
+      // returned by init() when it exposes the expected functions.  Fallback
+      // to the EP singleton for backwards compatibility.  By awaiting init
+      // above, initResult will be resolved regardless of whether init returns
+      // a promise or a plain object.
       const handlerHost: any =
         (initResult &&
           typeof initResult.setEventHandlers === "function" &&

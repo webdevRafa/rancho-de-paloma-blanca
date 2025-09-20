@@ -21,10 +21,10 @@ const ContactPage = () => {
           data-aos="fade-up"
           data-aos-delay="200"
         >
-          <h2 className="text-xl font-semibold text-[var(--color-accent-gold)] mb-2">
+          <h2 className="text-xl  text-[var(--color-accent-gold)] mb-2 font-gin">
             Justin S.
           </h2>
-          <p className="flex items-center justify-center gap-2 text-sm text-[var(--color-text)]">
+          <p className="flex items-center justify-center  gap-2 text-sm text-[var(--color-text)]">
             <Phone size={16} /> 956-466-9614
           </p>
         </div>
@@ -34,7 +34,7 @@ const ContactPage = () => {
           data-aos="fade-up"
           data-aos-delay="300"
         >
-          <h2 className="text-xl font-semibold text-[var(--color-accent-gold)] mb-2">
+          <h2 className="text-xl font-gin text-[var(--color-accent-gold)] mb-2">
             Allison W.
           </h2>
           <p className="flex items-center justify-center gap-2 text-sm text-[var(--color-text)]">
@@ -47,7 +47,7 @@ const ContactPage = () => {
           data-aos="fade-up"
           data-aos-delay="400"
         >
-          <h2 className="text-xl font-semibold text-[var(--color-accent-gold)] mb-2">
+          <h2 className="text-xl font-gin text-[var(--color-accent-gold)] mb-2">
             General Email
           </h2>
           <p className="flex items-center justify-center gap-2 text-sm text-[var(--color-text)]">
