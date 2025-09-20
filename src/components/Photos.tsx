@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import image1 from "../assets/images/group.webp";
 import image2 from "../assets/images/IMG_20250919_225159.webp";
 import image3 from "../assets/images/IMG_20250919_225210.webp";
 import image4 from "../assets/images/IMG_20250919_225208.webp";
 import image5 from "../assets/images/IMG_20250919_225201.webp";
+
+const AUTO_MS = 3500; // change speed here
 
 const Photos = () => {
   const images = [image1, image2, image3, image4, image5];
@@ -11,11 +13,19 @@ const Photos = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [index, setIndex] = useState<number>(0);
 
+  // refs for mobile scroller + state
+  const stripRef = useRef<HTMLDivElement | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
+
   const open = (i: number) => {
     setIndex(i);
     setIsOpen(true);
+    setIsPaused(true); // pause auto-advance when modal opens
   };
-  const close = () => setIsOpen(false);
+  const close = () => {
+    setIsOpen(false);
+    setIsPaused(false);
+  };
   const prev = () => setIndex((i) => (i - 1 + images.length) % images.length);
   const next = () => setIndex((i) => (i + 1) % images.length);
 
@@ -31,12 +41,85 @@ const Photos = () => {
     return () => window.removeEventListener("keydown", onKey);
   }, [isOpen]);
 
+  // ---- Auto-advance on mobile only ----
+  useEffect(() => {
+    const mqlDesktop = window.matchMedia("(min-width: 768px)");
+    const prefersReduced = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    );
+
+    // bail if desktop or user prefers reduced motion
+    if (mqlDesktop.matches || prefersReduced.matches) return;
+
+    let timer: number | undefined;
+
+    const scrollToChild = (idx: number) => {
+      const el = stripRef.current;
+      if (!el) return;
+      const child = el.children[idx] as HTMLElement | undefined;
+      if (!child) return;
+      el.scrollTo({ left: child.offsetLeft, behavior: "smooth" });
+    };
+
+    const start = () => {
+      stop();
+      timer = window.setInterval(() => {
+        if (isPaused || isOpen) return;
+        // compute next visible index based on current snap position
+        const el = stripRef.current;
+        if (!el) return;
+        const children = Array.from(el.children) as HTMLElement[];
+        if (!children.length) return;
+
+        // find nearest child to current scrollLeft
+        const curr = children.findIndex(
+          (c) =>
+            Math.abs(c.offsetLeft - el.scrollLeft) <
+            Math.max(8, c.clientWidth * 0.1)
+        );
+        const nextIdx = ((curr === -1 ? 0 : curr) + 1) % children.length;
+
+        scrollToChild(nextIdx);
+      }, AUTO_MS);
+    };
+
+    const stop = () => {
+      if (timer) window.clearInterval(timer);
+    };
+
+    // pause/resume on interaction & tab visibility
+    const handleDown = () => setIsPaused(true);
+    const handleUp = () => setIsPaused(false);
+    const handleVisibility = () => setIsPaused(document.hidden);
+
+    const el = stripRef.current;
+    el?.addEventListener("touchstart", handleDown, { passive: true });
+    el?.addEventListener("touchend", handleUp, { passive: true });
+    el?.addEventListener("mouseenter", handleDown);
+    el?.addEventListener("mouseleave", handleUp);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    start();
+
+    return () => {
+      stop();
+      el?.removeEventListener("touchstart", handleDown);
+      el?.removeEventListener("touchend", handleUp);
+      el?.removeEventListener("mouseenter", handleDown);
+      el?.removeEventListener("mouseleave", handleUp);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [isPaused, isOpen]);
+
   return (
     <>
-      {/* Mobile: horizontal scroll strip (snap) ; Desktop: grid */}
+      {/* Mobile strip (auto-advances) / Desktop grid */}
       <div className="w-full">
         {/* Mobile / tablet */}
-        <div className="flex md:hidden gap-4 overflow-x-auto snap-x snap-mandatory px-2 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div
+          ref={stripRef}
+          className="flex md:hidden gap-4 overflow-x-auto snap-x snap-mandatory px-2 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
           {images.map((src, i) => (
             <button
               key={i}
