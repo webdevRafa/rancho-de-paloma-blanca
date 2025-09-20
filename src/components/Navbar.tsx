@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Menu, X } from "lucide-react";
+import { Menu, X, LogOut } from "lucide-react";
 import logo from "../assets/logo-official.webp";
 import { useAuth } from "../context/AuthContext";
 import AuthModal from "./AuthModal";
@@ -93,23 +93,38 @@ const Navbar = () => {
                 Login / Signup
               </button>
             ) : (
-              <Link
-                to="/dashboard"
-                className="ml-2 rounded-full overflow-hidden w-10 h-10 border border-white hover:opacity-80 transition"
-                title="Dashboard"
-              >
-                {user.photoURL ? (
-                  <img
-                    src={user.photoURL}
-                    alt="User avatar"
-                    className="object-cover w-full h-full rounded-full"
-                  />
-                ) : (
-                  <span className="text-white text-sm font-bold flex items-center justify-center h-full w-full">
-                    DB
+              <>
+                <Link
+                  to="/dashboard"
+                  className="ml-2 rounded-full overflow-hidden w-10 h-10 border border-white hover:opacity-80 transition"
+                  title="Dashboard"
+                >
+                  {user.photoURL ? (
+                    <img
+                      src={user.photoURL}
+                      alt="User avatar"
+                      className="object-cover w-full h-full rounded-full"
+                    />
+                  ) : (
+                    <span className="text-white text-sm font-bold flex items-center justify-center h-full w-full">
+                      DB
+                    </span>
+                  )}
+                </Link>
+
+                {/* Desktop-only Sign Out */}
+                <button
+                  onClick={logout}
+                  className="ml-3 hidden lg:inline-flex items-center gap-2 text-xs text-white/90 hover:text-red-400 border border-white/20 hover:border-red-400 rounded-full px-3 py-1 transition"
+                  aria-label="Sign out"
+                  title="Sign out"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span className="text-md font-acumin text-white">
+                    Sign Out
                   </span>
-                )}
-              </Link>
+                </button>
+              </>
             )}
           </div>
 

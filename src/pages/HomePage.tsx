@@ -97,7 +97,7 @@ const HomePage = () => {
             />
           </div>
 
-          <div>
+          <div className=" p-1 mb-2">
             <h1
               data-aos="fade-in"
               data-aos-delay="1000"
