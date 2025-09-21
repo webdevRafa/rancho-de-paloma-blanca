@@ -648,98 +648,152 @@ const ClientDashboard: React.FC = () => {
               </p>
             </div>
           ) : showSuccess && status === "paid" ? (
-            <div className="flex flex-col items-center justify-center text-center min-h-[300px]">
-              <div className="flex items-center justify-center w-20 font-acumin h-20 rounded-full bg-green-100 text-green-600 shadow-lg">
-                <span className="text-4xl">✓</span>
+            <div className="relative flex flex-col items-center text-center min-h-[360px] py-8">
+              {/* Success emblem */}
+              <div className="relative">
+                <div className="h-24 w-24 rounded-full bg-emerald-600/10 ring-2 ring-emerald-400/50 flex items-center justify-center shadow-lg">
+                  <span className="text-4xl text-emerald-500">✓</span>
+                </div>
+                <div
+                  className="absolute -inset-2 rounded-full animate-ping bg-emerald-400/10"
+                  aria-hidden
+                />
               </div>
-              <h2 className="text-lg mb-1 text-[var(--color-background)] font-acumin">
+
+              {/* Title + blurb */}
+              <h2 className="mt-5 text-2xl font-gin text-white">
                 Payment Successful
               </h2>
-              <p className="mt-1 text-sm text-neutral-500 max-w-md">
-                Thank you for your purchase! Your order is now in your
+              <p className="mt-2 text-sm text-neutral-400 max-w-[42ch]">
+                Thank you for your purchase. Your order has been added to your
                 dashboard.
               </p>
 
+              {/* Body states */}
               {loadingSuccess ? (
-                <p className="mt-6 text-sm text-neutral-400">
+                <p className="mt-8 text-sm text-neutral-400">
                   Loading order details…
                 </p>
               ) : successOrder ? (
-                <div className="mt-6 w-full max-w-lg text-left bg-neutral-50 border border-black/5 p-4 rounded-lg space-y-4">
-                  <div>
-                    <p className="text-[13px] text-neutral-500">Order ID</p>
-                    <p className="font-mono text-sm break-all text-neutral-800">
-                      {successOrder.id}
-                    </p>
+                <div className="mt-8 w-full max-w-xl text-left rounded-2xl border border-white/10 bg-[var(--color-card)]/60 backdrop-blur p-5">
+                  {/* Order header */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-neutral-400">
+                        Order
+                      </div>
+                      <div className="font-mono text-sm text-white break-all">
+                        #{successOrder.id}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs uppercase tracking-wide text-neutral-400">
+                        Total
+                      </div>
+                      <div className="text-lg font-semibold text-white">
+                        ${fmtMoney(successOrder.total)}
+                      </div>
+                    </div>
                   </div>
 
+                  <hr className="my-4 border-white/10" />
+
+                  {/* Booking */}
                   {successOrder.booking && (
-                    <div className="space-y-1 text-neutral-800">
-                      <p className="font-semibold">Booking</p>
-                      <div className="ml-4 space-y-0.5">
-                        <p>
-                          Dates:{" "}
+                    <div className="grid gap-2">
+                      <div className="text-sm font-medium text-white">
+                        Hunt Booking
+                      </div>
+                      <ul className="ml-4 list-disc space-y-1 text-[13px] text-neutral-300">
+                        <li>
+                          <span className="text-neutral-400">Dates:</span>{" "}
                           {successOrder.booking.dates
                             .map(formatFriendlyDateSafe)
                             .join(", ")}
-                        </p>
-                        <p>Hunters: {successOrder.booking.numberOfHunters}</p>
-                        {successOrder.booking.partyDeckDates?.length ? (
-                          <p>
-                            Party Deck:{" "}
+                        </li>
+                        <li>
+                          <span className="text-neutral-400">Hunters:</span>{" "}
+                          {successOrder.booking.numberOfHunters}
+                        </li>
+                        {!!successOrder.booking.partyDeckDates?.length && (
+                          <li>
+                            <span className="text-neutral-400">
+                              Party Deck:
+                            </span>{" "}
                             {successOrder.booking.partyDeckDates
                               .map(formatFriendlyDateSafe)
                               .join(", ")}
-                          </p>
-                        ) : null}
+                          </li>
+                        )}
                         {typeof (successOrder as any)?.booking?.price ===
                           "number" && (
-                          <p>
-                            Booking Total: $
-                            {fmtMoney((successOrder as any).booking.price)}
-                          </p>
+                          <li>
+                            <span className="text-neutral-400">
+                              Booking Subtotal:
+                            </span>{" "}
+                            ${fmtMoney((successOrder as any).booking.price)}
+                          </li>
                         )}
-                      </div>
+                      </ul>
                     </div>
                   )}
 
+                  {/* Merch */}
                   {!!successOrder.merchItems &&
                     (Array.isArray(successOrder.merchItems) ||
                       Object.keys(successOrder.merchItems).length > 0) && (
-                      <div className="space-y-1 text-neutral-800">
-                        <p className="font-semibold">Merch Items</p>
-                        <ul className="ml-4 list-disc space-y-0.5">
-                          {normalizeMerchItems(successOrder.merchItems).map(
-                            (li) => (
-                              <li key={li.id}>
-                                {li.name} × {li.quantity} = $
-                                {fmtMoney(li.price * li.quantity)}
-                              </li>
-                            )
-                          )}
-                        </ul>
-                      </div>
+                      <>
+                        <hr className="my-4 border-white/10" />
+                        <div className="grid gap-2">
+                          <div className="text-sm font-medium text-white">
+                            Merch Items
+                          </div>
+                          <ul className="ml-4 list-disc space-y-1 text-[13px] text-neutral-300">
+                            {normalizeMerchItems(successOrder.merchItems).map(
+                              (li) => (
+                                <li key={li.id}>
+                                  {li.name} × {li.quantity} — $
+                                  {fmtMoney(li.price * li.quantity)}
+                                </li>
+                              )
+                            )}
+                          </ul>
+                        </div>
+                      </>
                     )}
 
-                  <div>
-                    <p className="font-semibold text-neutral-800">Total</p>
-                    <p className="ml-4 text-neutral-900">
+                  {/* Total footer */}
+                  <hr className="my-4 border-white/10" />
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs text-neutral-400">
+                      We’ve emailed your receipt.
+                    </div>
+                    <div className="text-base font-semibold text-white">
                       ${fmtMoney(successOrder.total)}
-                    </p>
+                    </div>
                   </div>
                 </div>
               ) : (
-                <p className="mt-6 text-sm text-red-400">
+                <p className="mt-8 text-sm text-red-400">
                   Unable to load order details.
                 </p>
               )}
 
-              <button
-                onClick={handleSuccessDismiss}
-                className="mt-8 px-6 py-2 rounded-md bg-[var(--color-button)] text-white hover:bg-[var(--color-button-hover)]"
-              >
-                View My Orders
-              </button>
+              {/* Actions */}
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+                <button
+                  onClick={handleSuccessDismiss}
+                  className="px-6 py-2 rounded-md bg-[var(--color-button)] text-white hover:bg-[var(--color-button-hover)]"
+                >
+                  View My Orders
+                </button>
+                <button
+                  onClick={() => navigate("/book")}
+                  className="px-6 py-2 rounded-md border border-white/10 text-white/90 hover:bg-white/5"
+                >
+                  Book Another Hunt
+                </button>
+              </div>
             </div>
           ) : loading ? (
             <p className="text-sm text-neutral-400">Loading your data...</p>
