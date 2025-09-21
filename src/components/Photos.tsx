@@ -151,7 +151,7 @@ const Photos = () => {
                 data-aos-delay={100 * i}
                 src={src}
                 alt={`Photo ${i + 1}`}
-                className="h-full p-2 w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                className="h-full  w-full object-cover transition-transform duration-300 group-hover:scale-105"
                 loading="lazy"
               />
             </button>

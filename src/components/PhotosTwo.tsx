@@ -130,7 +130,7 @@ const Photos = () => {
               <img
                 src={src}
                 alt={`Photo ${i + 1}`}
-                className="h-full w-full p-2 object-cover transition-transform duration-300 hover:scale-105"
+                className="h-full w-full  object-cover transition-transform duration-300 hover:scale-105"
                 loading="lazy"
               />
             </button>
@@ -151,7 +151,7 @@ const Photos = () => {
                 data-aos-delay={100 * i}
                 src={src}
                 alt={`Photo ${i + 1}`}
-                className="h-full w-full p-2 object-cover transition-transform duration-300 group-hover:scale-105"
+                className="h-full w-full  object-cover transition-transform duration-300 group-hover:scale-105"
                 loading="lazy"
               />
             </button>
