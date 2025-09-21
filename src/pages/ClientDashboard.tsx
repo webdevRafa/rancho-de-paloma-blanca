@@ -663,7 +663,7 @@ const ClientDashboard: React.FC = () => {
           {order.status === "pending" && (
             <button
               onClick={() => navigate("/checkout")}
-              className="text-xs rounded-md border border-white/15 text-white/90 hover:bg-white/5 px-3 py-1.5"
+              className="text-xs rounded-md  border border-white/15 text-white/90 hover:bg-white/5 px-3 py-1.5"
             >
               Continue Payment
             </button>
