@@ -12,7 +12,7 @@ const HeroSection = () => {
   }, []);
 
   return (
-    <section className="relative text-[var(--color-text)] h-[600px]  flex items-center justify-center overflow-hidden">
+    <section className="relative text-[var(--color-text)] h-[600px]  flex items-end justify-center overflow-hidden">
       {/* Background Videos */}
       <div
         data-aos="fade-in"
@@ -41,7 +41,7 @@ const HeroSection = () => {
           loop
           playsInline
         >
-          Your browser does not support the video tag.
+          Your browser does not support the video tags.
         </video>
 
         {/* Overlay */}
@@ -54,7 +54,7 @@ const HeroSection = () => {
       <div data-aos="zoom-in-up" className="py-10 text-center ">
         <h2
           id="info"
-          className="text-2xl mb-2 text-white pt-10 font-gin uppercase"
+          className="text-2xl lg:text-4xl mb-2 text-white pt-10 font-gin uppercase"
         >
           Brownsville’s Premier Dove Hunting Destination
         </h2>
