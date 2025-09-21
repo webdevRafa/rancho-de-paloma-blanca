@@ -110,6 +110,26 @@ function formatFriendlyDateSafe(iso?: unknown): string {
     return String(iso);
   }
 }
+// Add this helper near your other helpers in ClientDashboard.tsx
+function formatCreatedAt(createdAt: any): string {
+  try {
+    const ms =
+      typeof createdAt === "number"
+        ? createdAt * 1000
+        : createdAt?.seconds
+        ? createdAt.seconds * 1000
+        : null;
+    if (!ms) return "";
+    const d = new Date(ms);
+    return d.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return "";
+  }
+}
 
 /** Normalize merch lines (supports object map or legacy array shapes). */
 function normalizeMerchItems(merch: Order["merchItems"]) {
@@ -510,40 +530,54 @@ const ClientDashboard: React.FC = () => {
     return <span className={`${base} ${by[stage]}`}>{stage}</span>;
   };
   // Single slim order row
+  // Replace the whole OrderRow with this version
   const OrderRow: React.FC<{ order: Order }> = ({ order }) => {
     const merchLines = normalizeMerchItems(order.merchItems);
     const hasMerch = merchLines.length > 0;
     const hasBooking = Boolean(order?.booking?.dates?.length);
 
+    const created = (order as any)?.createdAt
+      ? formatCreatedAt((order as any).createdAt)
+      : "";
+
     return (
       <li
         key={order.id}
-        className=" border border-white/50  px-4 py-3 shadow-sm hover:shadow-md transition-shadow"
+        className="rounded-2xl border border-white/10 bg-[var(--color-card)]/60 backdrop-blur px-5 py-4 shadow-sm hover:shadow-lg hover:border-white/20 transition-all"
       >
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <div className="flex items-start sm:items-center gap-3">
-            <div className="flex items-center gap-2">
-              <StageChip stage={classifyStage(order)} />
-            </div>
+        {/* Header row */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-3">
+            <StageChip stage={classifyStage(order)} />
             <div>
-              <div className="text-[13px] text-white leading-none">Order</div>
-              <div className="text-sm font-medium text-neutral-500 break-all">
+              <div className="text-[13px] text-white/70 leading-none">
+                Order
+              </div>
+              <div className="text-sm font-medium text-white break-all">
                 #{order.id}
               </div>
+              {created && (
+                <div className="mt-0.5 text-[11px] text-white/50">
+                  Placed {created}
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4">
             <div className="text-right">
-              <div className="text-[13px] text-lg! text-white">Total</div>
-              <div className="text-md font-semibold text-white">
+              <div className="text-[12px] uppercase tracking-wide text-white/50">
+                Total
+              </div>
+              <div className="text-lg font-semibold text-white">
                 ${fmtMoney(order.total)}
               </div>
             </div>
+
             {order.status === "paid" && (
               <button
                 onClick={() => openCancelConfirm(order)}
-                className="text-xs rounded-md bg-red-600 hover:bg-red-700 text-white px-3 py-1.5"
+                className="text-xs rounded-lg bg-red-600 hover:bg-red-700 text-white px-3 py-2"
               >
                 Cancel{hasBooking ? " & Refund" : ""}
               </button>
@@ -551,54 +585,88 @@ const ClientDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Compact details row */}
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 md:grid-cols-1">
-          {hasBooking ? (
-            <div className="text-[13px] text-white">
-              <div className="text-lg  rounded-md font-gin  text-white mb-0.5">
-                Hunt booking
-              </div>
-              <div>
-                <span className="text-lg  rounded-md font-gin  text-white mb-0.5">
-                  Hunters:{" "}
-                </span>
-                {order.booking!.numberOfHunters}
-              </div>
-              <div className="mt-3">
-                <span className="text-white">Dates: </span>
-                {order.booking!.dates!.map(formatFriendlyDateSafe).join(", ")}
-              </div>
+        {/* Divider */}
+        <div className="my-4 h-px bg-white/10" />
 
-              {!!order.booking!.partyDeckDates?.length && (
+        {/* Content grid */}
+        <div className="grid gap-4 md:grid-cols-2">
+          {/* Booking panel */}
+          <div className="min-w-0">
+            <div className="text-[12px] uppercase tracking-wide text-white/50">
+              {hasBooking ? "Hunt Booking" : "Booking"}
+            </div>
+
+            {hasBooking ? (
+              <div className="mt-2 space-y-2 text-[13px] text-white/85">
                 <div>
-                  <span className="text-neutral-400">Party Deck: </span>
-                  {order
-                    .booking!.partyDeckDates.map(formatFriendlyDateSafe)
-                    .join(", ")}
+                  <span className="text-white/60">Hunters:</span>{" "}
+                  <span className="font-medium">
+                    {order.booking!.numberOfHunters}
+                  </span>
                 </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-[13px] text-neutral-700">
-              <div className="font-medium text-neutral-900 mb-0.5">
-                No booking in this order
-              </div>
-              <div className="text-neutral-500">Merch-only purchase</div>
-            </div>
-          )}
 
-          {hasMerch && (
-            <div className="text-[13px] text-neutral-700">
-              <div className="font-medium text-neutral-900 mb-0.5">Merch</div>
-              <ul className="list-disc ml-5 space-y-0.5">
+                <div className="leading-snug">
+                  <span className="text-white/60">Dates:</span>{" "}
+                  {order.booking!.dates!.map(formatFriendlyDateSafe).join(", ")}
+                </div>
+
+                {!!order.booking!.partyDeckDates?.length && (
+                  <div className="leading-snug">
+                    <span className="text-white/60">Party Deck:</span>{" "}
+                    {order
+                      .booking!.partyDeckDates.map(formatFriendlyDateSafe)
+                      .join(", ")}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="mt-2 text-[13px] text-white/60">
+                No hunt booking in this order (merch-only).
+              </div>
+            )}
+          </div>
+
+          {/* Merch panel */}
+          <div className="min-w-0">
+            <div className="text-[12px] uppercase tracking-wide text-white/50">
+              Merchandise
+            </div>
+
+            {hasMerch ? (
+              <ul className="mt-2 space-y-1 text-[13px] text-white/85">
                 {merchLines.map((li) => (
-                  <li key={li.id}>
-                    {li.name} × {li.quantity} — $
-                    {fmtMoney(li.price * li.quantity)}
+                  <li key={li.id} className="flex items-center justify-between">
+                    <div className="truncate">
+                      {li.name} <span className="text-white/55">×</span>{" "}
+                      {li.quantity}
+                    </div>
+                    <div className="ml-4 shrink-0 font-medium">
+                      ${fmtMoney(li.price * li.quantity)}
+                    </div>
                   </li>
                 ))}
               </ul>
-            </div>
+            ) : (
+              <div className="mt-2 text-[13px] text-white/60">
+                No merchandise on this order.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer hint (optional) */}
+        <div className="mt-4 flex items-center justify-between">
+          <div className="text-[11px] text-white/40">
+            Need help? Contact us and reference{" "}
+            <span className="font-mono">#{order.id}</span>.
+          </div>
+          {order.status === "pending" && (
+            <button
+              onClick={() => navigate("/checkout")}
+              className="text-xs rounded-md border border-white/15 text-white/90 hover:bg-white/5 px-3 py-1.5"
+            >
+              Continue Payment
+            </button>
           )}
         </div>
       </li>
