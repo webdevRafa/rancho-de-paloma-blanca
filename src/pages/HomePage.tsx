@@ -1,23 +1,16 @@
 // src/pages/HomePage.tsx
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef } from "react";
 import HeroSection from "../components/HeroSection";
-import InfoCards from "../components/InfoCards";
-import birds from "../assets/images/palomas.webp";
 import heroImg from "../assets/images/four.webp";
 import logo from "../assets/logo-official.webp";
 import { FaFlagUsa } from "react-icons/fa";
 import { Link } from "react-router-dom";
 import Photos from "../components/Photos";
 import PhotosTwo from "../components/PhotosTwo";
+import PartyDeck from "../components/PartyDeck";
 
 const HomePage = () => {
   // Keep iOS detection for the birds section behavior below
-  const [isIOS, setIsIOS] = useState(false);
-
-  useEffect(() => {
-    const ua = window.navigator.userAgent || navigator.vendor;
-    setIsIOS(/iPad|iPhone|iPod/.test(ua));
-  }, []);
 
   // Parallax + Fade: apply to the hero image on ALL devices
   const heroRef = useRef<HTMLDivElement>(null); // NEW
@@ -148,34 +141,9 @@ const HomePage = () => {
       <div className="flex flex-col min-h-screen text-[var(--color-text)]">
         {/* Hero Section */}
         <HeroSection />
+
+        <PartyDeck />
         <PhotosTwo />
-        {/* Section with birds background */}
-        <section
-          className="relative py-20 mt-40 px-6 w-[90%] mx-auto text-center  shadow-lg shadow-amber-50/10"
-          style={{
-            backgroundImage: `url(${birds})`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            backgroundRepeat: "no-repeat",
-            backgroundAttachment: isIOS ? "scroll" : "fixed",
-          }}
-        >
-          {/* 1) global tint to reduce background brightness */}
-          <div className="absolute inset-0 z-0 pointer-events-none bg-[var(--color-dark)]/40" />
-
-          {/* 2) your existing precise side gradient on top of the tint */}
-          <div
-            className="absolute inset-0 z-0 pointer-events-none"
-            style={{
-              backgroundImage: `linear-gradient(to right, var(--color-dark) 0%, transparent 1%, transparent 99%, var(--color-dark) 100%)`,
-            }}
-          />
-
-          {/* Content stays above overlays */}
-          <div className="relative z-10 py-10">
-            <InfoCards />
-          </div>
-        </section>
       </div>
     </>
   );

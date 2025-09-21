@@ -124,7 +124,7 @@ const Photos = () => {
             <button
               key={i}
               onClick={() => open(i)}
-              className="flex-none w-[80vw] max-w-[520px] aspect-[16/10] snap-start overflow-hidden border border-white/10"
+              className="flex-none w-[80vw] max-w-[520px] aspect-[16/10] snap-start overflow-hidden"
               aria-label={`Open photo ${i + 1}`}
             >
               <img
@@ -151,7 +151,7 @@ const Photos = () => {
                 data-aos-delay={100 * i}
                 src={src}
                 alt={`Photo ${i + 1}`}
-                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                className="h-full p-2 w-full object-cover transition-transform duration-300 group-hover:scale-105"
                 loading="lazy"
               />
             </button>

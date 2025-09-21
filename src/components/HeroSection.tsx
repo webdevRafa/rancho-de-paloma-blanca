@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { ChevronDown } from "lucide-react"; // <-- Import icon
 
 const HeroSection = () => {
   const [offset, setOffset] = useState(0);
@@ -11,42 +10,15 @@ const HeroSection = () => {
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
-  // Scroll function
-  const scrollToInfo = () => {
-    const target = document.getElementById("info");
-    if (!target) return;
 
-    const targetPosition = target.getBoundingClientRect().top + window.scrollY;
-    const startPosition = window.scrollY;
-    const distance = targetPosition - startPosition;
-    const duration = 1000; // time in ms (1 second for slower scroll)
-    let startTime: number | null = null;
-
-    const animation = (currentTime: number) => {
-      if (!startTime) startTime = currentTime;
-      const timeElapsed = currentTime - startTime;
-      const run = easeInOutQuad(timeElapsed, startPosition, distance, duration);
-      window.scrollTo(0, run);
-      if (timeElapsed < duration) requestAnimationFrame(animation);
-    };
-
-    const easeInOutQuad = (t: number, b: number, c: number, d: number) => {
-      t /= d / 2;
-      if (t < 1) return (c / 2) * t * t + b;
-      t--;
-      return (-c / 2) * (t * (t - 2) - 1) + b;
-    };
-
-    requestAnimationFrame(animation);
-  };
   return (
-    <section className="relative text-[var(--color-text)] min-h-[100vh] flex items-center justify-center overflow-hidden">
+    <section className="relative text-[var(--color-text)] h-[600px]  flex items-center justify-center overflow-hidden">
       {/* Background Videos */}
       <div
         data-aos="fade-in"
         data-aos-delay="1500"
         data-aos-duration="1000"
-        className="absolute inset-0 overflow-hidden"
+        className="absolute w-[90%] mx-auto inset-0 overflow-hidden"
       >
         {/* Desktop Horizontal Video */}
         <video
@@ -91,14 +63,6 @@ const HeroSection = () => {
           hunters to Brownsville for unmatched dove hunting and authentic ranch
           hospitality.
         </p>
-      </div>
-
-      {/* Scroll Down Icon */}
-      <div
-        onClick={scrollToInfo}
-        className="absolute bottom-5 flex justify-center w-full animate-bounce cursor-pointer"
-      >
-        <ChevronDown size={40} className="text-white opacity-80" />
       </div>
     </section>
   );
