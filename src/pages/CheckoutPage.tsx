@@ -617,7 +617,7 @@ export default function CheckoutPage() {
 
   const hasStockErrors = Object.keys(stockErrors).length > 0;
 
-  const [customer, setCustomer] = useState(() => {
+  const [customer, setCustomer] = useState<CustomerInfo>(() => {
     const displayName = user?.displayName || "";
     const parts = displayName.split(" ");
     const firstName = parts[0] || "";
@@ -630,8 +630,42 @@ export default function CheckoutPage() {
       billingAddress: {},
     };
     return initial;
-  }) as unknown as [CustomerInfo, any];
+  });
+  useEffect(() => {
+    if (!user) return;
 
+    let cancelled = false;
+    (async () => {
+      try {
+        const ref = doc(db, "users", user.uid);
+        const snap = await getDoc(ref);
+
+        // Fallbacks from Firebase Auth displayName
+        const display = (user.displayName || "").trim();
+        const [fallbackFirst, ...rest] = display.split(/\s+/);
+        const fallbackLast = rest.join(" ");
+
+        const profile = snap.exists() ? (snap.data() as any) : null;
+
+        if (cancelled) return;
+        setCustomer((prev) => ({
+          ...prev,
+          firstName:
+            profile?.firstName || fallbackFirst || prev.firstName || "",
+          lastName: profile?.lastName || fallbackLast || prev.lastName || "",
+          email: user.email || prev.email || "",
+          phone:
+            (profile?.phone ? String(profile.phone) : prev.phone) ?? prev.phone,
+        }));
+      } catch {
+        // Non-blocking: keep whatever is already in state
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.uid]); // reruns if a different user logs in
   /**
    * Determine if the customer info form is sufficiently filled out to allow
    * continuing to the review step.  Require at minimum a first name,

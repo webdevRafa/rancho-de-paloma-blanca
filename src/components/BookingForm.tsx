@@ -37,6 +37,41 @@ const BookingForm = () => {
     partyDeckDates: [] as string[],
     phone: "",
   });
+
+  // 1) Helper – format 10 digits as 555-555-1234 (same style you use while typing)
+  const formatDashedPhone = (digits: string) => {
+    const d = digits.replace(/\D/g, "").slice(0, 10);
+    if (d.length > 6)
+      return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6, 10)}`;
+    if (d.length > 3) return `${d.slice(0, 3)}-${d.slice(3)}`;
+    return d;
+  };
+
+  // 2) Prefill once from Firestore if we have a saved phone and the form is empty
+  useEffect(() => {
+    if (!user || form.phone) return; // don’t overwrite what the user already typed
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, "users", user.uid));
+        if (!snap.exists() || cancelled) return;
+
+        const u = snap.data() as any;
+        const digits = String(u?.phone || "").replace(/\D/g, "");
+        if (digits) {
+          setForm((prev) => ({ ...prev, phone: formatDashedPhone(digits) }));
+        }
+      } catch {
+        // non-blocking
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.uid, form.phone]);
+
   const [huntersInput, setHuntersInput] = useState<string>("1");
 
   // Party deck availability per date

@@ -64,11 +64,20 @@ export default function SetupProfile() {
     try {
       setSaving(true);
       setError("");
+
+      // Normalize and split full name once here
+      const full = name.trim().replace(/\s+/g, " ");
+      const [firstName, ...rest] = full.split(" ");
+      const lastName = rest.join(" ");
+
       await updateDoc(doc(db, "users", user.uid), {
-        name: name.trim(),
-        phone: phoneDigits, // store digits only
+        name: full,
+        firstName, // NEW: stored for reliable split
+        lastName, // NEW: stored for reliable split
+        phone: phoneDigits, // digits only
         updatedAt: new Date().toISOString(),
       });
+
       navigate("/dashboard");
     } catch (err) {
       console.error(err);
