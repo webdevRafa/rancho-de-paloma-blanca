@@ -63,8 +63,8 @@ const clamp = (v: number, min: number, max: number) =>
 
 /**
  * New, polished Merchandise Page
- * - Clean product grid
- * - Size pill selector (no inventory shown) with deselect support
+ * - Clean product cards that match Party Deck / Rules styling
+ * - Size pill selector (no inventory counts) with deselect support
  * - Quantity stepper that allows 0 (0 = remove)
  * - "Add to cart" CTA with toast feedback
  * - Real-time product updates via Firestore
@@ -117,7 +117,7 @@ export default function MerchandisePage() {
     return () => unsub();
   }, []);
 
-  /** cart quantity helper */
+  /** cart quantity helper (supports object or array merchItems shapes) */
   const cartQtyFor = (productId: string) => {
     try {
       const rec = (merchItems as any)?.[productId];
@@ -195,7 +195,7 @@ export default function MerchandisePage() {
       return;
     }
 
-    // Cap by stock if stock is tracked (UI does not show it)
+    // Cap by stock if stock is tracked (UI does not show counts)
     const stockCap =
       typeof variant.stock === "number" ? variant.stock : current + desiredQty;
     const nextQty = clamp(
@@ -285,19 +285,19 @@ export default function MerchandisePage() {
           return (
             <div
               key={baseId}
-              className="group border border-white/10 bg-[var(--color-card)]/40 shadow-sm hover:shadow-md hover:border-white/20 transition-all w-full max-w-[800px] mx-auto"
+              className="group border border-white/10 bg-[var(--color-card)]/40 shadow-sm hover:shadow-md hover:border-white/20 transition-all w-full max-w-[800px] mx-auto rounded-2xl overflow-hidden"
             >
               <div className="flex flex-col md:flex-row">
-                <div className="relative">
+                <div className="relative md:w-1/2">
                   {cover ? (
                     <img
                       src={cover}
                       alt={baseName || baseId}
-                      className="w-full h-full object-cover  bg-black/10"
+                      className="w-full h-full object-cover bg-black/10"
                       loading="lazy"
                     />
                   ) : (
-                    <div className="w-full h-44 rounded-xl bg-black/10" />
+                    <div className="w-full h-44 bg-black/10" />
                   )}
                   {selectedVariantId && (
                     <div className="absolute top-3 right-3 bg-emerald-600/90 text-white text-xs px-2 py-1 rounded-lg flex items-center gap-1">
@@ -306,8 +306,8 @@ export default function MerchandisePage() {
                   )}
                 </div>
 
-                <div>
-                  <div className="flex items-center justify-between gap-3 p-3">
+                <div className="md:w-1/2">
+                  <div className="flex items-center justify-between gap-3 p-4">
                     <div>
                       <h2 className="text-lg text-white font-gin font-semibold leading-tight">
                         {baseName || baseId}
@@ -325,7 +325,7 @@ export default function MerchandisePage() {
                   </div>
 
                   {/* Size selector */}
-                  <div className="mt-4 p-3">
+                  <div className="mt-2 px-4 pb-2">
                     <div className="flex items-center justify-between mb-2">
                       <p className="text-white/70 text-xs">Size</p>
                       <button
@@ -372,7 +372,7 @@ export default function MerchandisePage() {
                   </div>
 
                   {/* Quantity + Add to cart */}
-                  <div className="mt-5 flex items-center gap-3 p-4">
+                  <div className="mt-4 flex items-center gap-3 p-4">
                     <div className="flex items-center rounded-xl border border-white/10 overflow-hidden">
                       <button
                         type="button"
@@ -430,7 +430,7 @@ export default function MerchandisePage() {
         <Link
           to="/checkout"
           className={[
-            "inline-flex items-center gap-2 px-6 py-3  font-semibold",
+            "inline-flex items-center gap-2 px-6 py-3  font-semibold rounded-xl",
             hasOneSelected
               ? "bg-[var(--color-accent-gold)] animate-pulse hover:brightness-95 text-black"
               : "bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white",

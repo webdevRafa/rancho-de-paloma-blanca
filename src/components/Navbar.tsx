@@ -1,94 +1,141 @@
-import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
-import { Menu, X, LogOut } from "lucide-react";
+import { useEffect, useState, useMemo } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { LogOut, Menu, X } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import logo from "../assets/logo-official.webp";
 import { useAuth } from "../context/AuthContext";
 import AuthModal from "./AuthModal";
 
-const Navbar = () => {
+const ease = [0.16, 1, 0.3, 1] as const;
+
+const drawerVariants = {
+  hidden: { x: "100%" },
+  visible: { x: 0, transition: { duration: 0.38, ease } },
+  exit: { x: "100%", transition: { duration: 0.28, ease } },
+};
+
+const overlayVariants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 0.5, transition: { duration: 0.25, ease } },
+  exit: { opacity: 0, transition: { duration: 0.2, ease } },
+};
+
+const listVariants = {
+  hidden: {},
+  visible: {
+    transition: { staggerChildren: 0.055, delayChildren: 0.08 },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 8 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.28, ease } },
+};
+
+export default function Navbar() {
   const { user, logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
+
   const [showNav, setShowNav] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
   const [scrolled, setScrolled] = useState(false);
 
-  const toggleMenu = () => setIsOpen(!isOpen);
-  const [authOpen, setAuthOpen] = useState(false);
+  const location = useLocation();
 
+  const navLinks = useMemo(
+    () => [
+      { to: "/", label: "Home" },
+      { to: "/book", label: "Book a Hunt" },
+      { to: "/rules", label: "Property Rules" },
+      { to: "/merch", label: "Merchandise" },
+      { to: "/gallery", label: "Gallery" },
+      { to: "/videos", label: "Videos" },
+      { to: "/contact", label: "Contact" },
+      { to: "/about", label: "About Us" },
+      { to: "/sponsor", label: "Our Sponsor" },
+    ],
+    []
+  );
+
+  // Hide-on-scroll & scrolled background
   useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      if (!isOpen && currentScrollY > lastScrollY && currentScrollY > 80) {
-        setShowNav(false);
-      } else {
-        setShowNav(true);
-      }
-      setScrolled(currentScrollY > 50);
-      setLastScrollY(currentScrollY);
+    const onScroll = () => {
+      const y = window.scrollY;
+      if (!isOpen && y > lastScrollY && y > 80) setShowNav(false);
+      else setShowNav(true);
+      setScrolled(y > 50);
+      setLastScrollY(y);
     };
-
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, [lastScrollY, isOpen]);
 
-  const navLinks = [
-    { to: "/", label: "Home" },
-    { to: "/book", label: "Book a Hunt" },
-    { to: "/rules", label: "Property Rules" },
-    { to: "/merch", label: "Merchandise" },
-    { to: "/gallery", label: "Gallery" },
-    { to: "/videos", label: "Videos" },
-    { to: "/contact", label: "Contact" },
-    { to: "/about", label: "About Us" },
-    { to: "/sponsor", label: "Our Sponsor" },
-  ];
+  // Close drawer on route change
+  useEffect(() => {
+    setIsOpen(false);
+  }, [location.pathname]);
+
+  // Body scroll lock while drawer open
+  useEffect(() => {
+    const body = document.body;
+    if (isOpen) {
+      const prev = body.style.overflow;
+      body.style.overflow = "hidden";
+      return () => {
+        body.style.overflow = prev;
+      };
+    }
+  }, [isOpen]);
+
+  // ESC to close
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setIsOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isOpen]);
 
   return (
     <>
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
-          onClick={() => setIsOpen(false)}
-        />
-      )}
-
+      {/* Top bar */}
       <nav
-        className={`fixed top-0 left-0 w-full text-[var(--color-text)] z-30 transform transition-all duration-300 ${
-          showNav ? "translate-y-0" : "-translate-y-full"
-        } ${
-          scrolled ? "bg-[var(--color-footer)] shadow-md" : "bg-transparent"
-        }`}
+        className={[
+          "fixed top-0 left-0 z-30 w-full transition-all duration-300",
+          showNav ? "translate-y-0" : "-translate-y-full",
+          scrolled ? "bg-[var(--color-footer)] shadow-md" : "bg-transparent",
+        ].join(" ")}
       >
-        <div className="max-w-[1600px] mx-auto px-6 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center space-x-3">
+        <div className="mx-auto flex max-w-[1600px] items-center justify-between px-6 py-4 text-[var(--color-text)]">
+          <Link to="/" className="flex items-center gap-3">
             <img
               src={logo}
-              alt="Rancho Logo"
+              alt="Rancho logo"
               className="h-10 w-10 rounded-full"
             />
-            <span className=" text-md text-white font-gin">
-              Rancho de Paloma Blanca
-            </span>
+            <span className="font-gin text-white">Rancho de Paloma Blanca</span>
           </Link>
 
-          {/* Desktop Nav */}
-          <div className="hidden lg:flex md:space-x-2 lg:space-x-4 md:text-xs text-sm items-center">
-            {navLinks.map((link) => (
+          {/* Desktop nav */}
+          <div className="hidden items-center md:space-x-2 lg:flex lg:space-x-4">
+            {navLinks.map((l) => (
               <Link
-                key={link.to}
-                to={link.to}
-                className={`hover:bg-[var(--color-background)]/40 rounded-sm p-2 transition text-white ${
-                  link.label === "Book a Hunt" && "font-bold"
-                }`}
+                key={l.to}
+                to={l.to}
+                className={[
+                  "rounded-sm p-2 text-white transition",
+                  "hover:bg-[var(--color-background)]/40",
+                  l.label === "Book a Hunt" ? "font-bold" : "",
+                ].join(" ")}
               >
-                {link.label}
+                {l.label}
               </Link>
             ))}
 
             {!user ? (
               <button
                 onClick={() => setAuthOpen(true)}
-                className="text-white hover:text-[var(--color-accent-gold)] font-semibold text-sm"
+                className="text-sm font-semibold text-white hover:text-[var(--color-accent-gold)]"
               >
                 Login / Signup
               </button>
@@ -96,138 +143,176 @@ const Navbar = () => {
               <>
                 <Link
                   to="/dashboard"
-                  className="ml-2 rounded-full overflow-hidden w-10 h-10 border border-white hover:opacity-80 transition"
                   title="Dashboard"
+                  className="ml-2 h-10 w-10 overflow-hidden rounded-full border border-white transition hover:opacity-80"
                 >
                   {user.photoURL ? (
                     <img
                       src={user.photoURL}
                       alt="User avatar"
-                      className="object-cover w-full h-full rounded-full"
+                      className="h-full w-full rounded-full object-cover"
                     />
                   ) : (
-                    <span className="text-white text-sm font-bold flex items-center justify-center h-full w-full">
+                    <span className="flex h-full w-full items-center justify-center text-sm font-bold text-white">
                       DB
                     </span>
                   )}
                 </Link>
 
-                {/* Desktop-only Sign Out */}
+                {/* Desktop sign out */}
                 <button
                   onClick={logout}
-                  className="ml-3 hidden lg:inline-flex items-center gap-2 text-xs text-white/90 hover:text-red-400 border border-white/20 hover:border-red-400 rounded-full px-3 py-1 transition"
+                  className="ml-3 hidden items-center gap-2 rounded-full border border-white/20 px-3 py-1 text-xs text-white/90 transition hover:border-red-400 hover:text-red-400 lg:inline-flex"
                   aria-label="Sign out"
                   title="Sign out"
                 >
                   <LogOut className="h-4 w-4" />
-                  <span className="text-md font-acumin text-white">
-                    Sign Out
-                  </span>
+                  <span className="font-acumin text-white">Sign Out</span>
                 </button>
               </>
             )}
           </div>
 
-          {/* Mobile Hamburger */}
+          {/* Mobile hamburger */}
           <button
-            className="lg:hidden focus:outline-none text-white"
-            onClick={toggleMenu}
-            aria-label="Toggle Menu"
+            className="text-white lg:hidden"
+            onClick={() => setIsOpen((v) => !v)}
+            aria-label="Toggle menu"
           >
             {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
           </button>
         </div>
       </nav>
 
-      {/* Mobile Drawer */}
-      <div
-        className={`fixed top-0 right-0 h-screen w-full bg-gradient-to-r  from-[var(--color-background)]/70 to-[var(--color-footer)] shadow-xl z-50 flex flex-col transform transition-transform duration-300 ease-in-out ${
-          isOpen ? "translate-x-0" : "translate-x-full"
-        }`}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[var(--color-background)]">
-          <div className="flex items-center gap-2 text-white">
-            <img className="w-10" src={logo} alt="Rancho logo" />
-            <p className="text-md font-gin text-white">
-              Rancho de Paloma Blanca
-            </p>
-          </div>
-          <button
-            onClick={() => setIsOpen(false)}
-            className="p-1 text-[var(--color-text)] hover:text-[var(--color-button-hover)]"
-            aria-label="Close Menu"
-          >
-            <X className="h-6 w-6" />
-          </button>
-        </div>
-
-        {/* User Info → now wrapped in Link to Dashboard */}
-        <Link
-          to="/dashboard"
-          onClick={() => setIsOpen(false)}
-          className="flex items-center gap-3 px-6 py-4 ] bg-[var(--color-card)]/70 transition"
-        >
-          {user?.photoURL ? (
-            <img
-              src={user.photoURL}
-              alt="User avatar"
-              className="w-10 h-10 rounded-full object-cover border border-white"
-            />
-          ) : (
-            <div className="w-10 h-10 rounded-full bg-[var(--color-card)] border border-white flex items-center justify-center text-white font-bold">
-              ?
-            </div>
-          )}
-          <div className="text-white leading-tight font-gin">
-            {user?.displayName || user?.email || "Guest"}
-            <div className="text-xs text-[var(--color-accent-sage)] font-gin">
-              Dashboard
-            </div>
-          </div>
-        </Link>
-
-        {/* Nav Links */}
-        <div className="grid grid-cols-3 px-6 py-6 space-y-4 text-md text-[var(--color-text)]">
-          {navLinks.map((link) => (
-            <Link
-              key={link.to}
-              to={link.to}
+      {/* Mobile drawer + overlay */}
+      <AnimatePresence>
+        {isOpen && (
+          <>
+            <motion.button
+              className="fixed inset-0 z-40 bg-black"
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              variants={overlayVariants}
               onClick={() => setIsOpen(false)}
-              className="hover:text-[var(--color-button-hover)] transition font-gin text-md"
+              aria-label="Close menu overlay"
+            />
+            <motion.aside
+              className="fixed right-0 top-0 z-50 h-screen w-full overflow-y-auto border-l border-white/10 bg-gradient-to-b from-[var(--color-background)]/90 to-transparent backdrop-blur-md"
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              variants={drawerVariants}
             >
-              {link.label}
-            </Link>
-          ))}
+              {/* Drawer header */}
+              <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+                <div className="flex items-center gap-2 text-white">
+                  <img src={logo} alt="" className="h-9 w-9" />
+                  <p className="font-gin text-white">Rancho de Paloma Blanca</p>
+                </div>
+                <button
+                  onClick={() => setIsOpen(false)}
+                  className="rounded-md p-1 text-white/90 hover:text-white"
+                  aria-label="Close menu"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
 
-          <div className="mt-6  pt-4 flex flex-col space-y-2 text-sm">
-            {user ? (
-              <button
-                onClick={() => {
-                  logout();
-                  setIsOpen(false);
+              {/* User block */}
+              <motion.div
+                className="flex items-center gap-3 px-5 py-4"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{
+                  opacity: 1,
+                  y: 0,
+                  transition: { duration: 0.25, ease, delay: 0.05 },
                 }}
-                className="text-left text-red-400 hover:text-red-500 font-gin text-md mt-10"
               >
-                Sign Out
-              </button>
-            ) : (
-              <button
-                onClick={() => {
-                  setAuthOpen(true);
-                  setIsOpen(false);
-                }}
-                className="text-left text-[var(--color-accent-gold)] hover:underline"
+                <Link
+                  to="/dashboard"
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center gap-3 rounded-xl border border-white/10 bg-[var(--color-card)]/70 px-3 py-2"
+                >
+                  {user?.photoURL ? (
+                    <img
+                      src={user.photoURL}
+                      alt="User avatar"
+                      className="h-10 w-10 rounded-full border border-white object-cover"
+                    />
+                  ) : (
+                    <div className="grid h-10 w-10 place-items-center rounded-full border border-white bg-[var(--color-card)] text-white">
+                      ?
+                    </div>
+                  )}
+                  <div className="leading-tight text-white">
+                    <div className="font-gin">
+                      {user?.displayName || user?.email || "Guest"}
+                    </div>
+                    <div className="text-xs text-[var(--color-accent-sage)]">
+                      Dashboard
+                    </div>
+                  </div>
+                </Link>
+              </motion.div>
+
+              {/* Links (staggered) */}
+              <motion.ul
+                className="grid grid-cols-2 gap-x-4 gap-y-3 px-5 py-4 text-white"
+                initial="hidden"
+                animate="visible"
+                variants={listVariants}
               >
-                Login / Signup
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+                {navLinks.map((l) => (
+                  <motion.li key={l.to} variants={itemVariants}>
+                    <Link
+                      to={l.to}
+                      onClick={() => setIsOpen(false)}
+                      className="block rounded-lg border border-white/10 bg-white/5 px-4 py-3 font-gin text-sm transition hover:border-white/30"
+                    >
+                      {l.label}
+                    </Link>
+                  </motion.li>
+                ))}
+              </motion.ul>
+
+              {/* Actions */}
+              <div className="px-5 py-6">
+                {user ? (
+                  <motion.button
+                    variants={itemVariants}
+                    initial="hidden"
+                    animate="visible"
+                    onClick={() => {
+                      logout();
+                      setIsOpen(false);
+                    }}
+                    className="w-full rounded-lg border border-red-400/30 bg-red-400/10 px-4 py-2.5 text-left font-gin text-red-300 transition hover:bg-red-400/15"
+                  >
+                    Sign Out
+                  </motion.button>
+                ) : (
+                  <motion.button
+                    variants={itemVariants}
+                    initial="hidden"
+                    animate="visible"
+                    onClick={() => {
+                      setAuthOpen(true);
+                      setIsOpen(false);
+                    }}
+                    className="w-full rounded-lg border border-[var(--color-accent-gold)]/40 bg-[var(--color-accent-gold)]/10 px-4 py-2.5 text-left font-gin text-[var(--color-accent-gold)] transition hover:bg-[var(--color-accent-gold)]/15"
+                  >
+                    Login / Signup
+                  </motion.button>
+                )}
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Auth modal */}
       <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} />
     </>
   );
-};
-
-export default Navbar;
+}
