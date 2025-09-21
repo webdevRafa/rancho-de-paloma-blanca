@@ -1,3 +1,4 @@
+// src/pages/DayDetail.tsx
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
@@ -11,9 +12,10 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import CountUp from "react-countup";
+import { toast } from "react-toastify";
 import { db } from "../firebase/firebaseConfig";
 
-// -------- Types (aligns with your posted shapes) --------
+/* ---------- Types (compatible with your shapes) ---------- */
 type AvailabilityDoc = {
   id: string; // "YYYY-MM-DD"
   huntersBooked: number;
@@ -21,6 +23,7 @@ type AvailabilityDoc = {
   isOffSeason?: boolean;
   timestamp?: any;
 };
+
 type Attendee = { fullName: string; email?: string; waiverSigned?: boolean };
 
 type LineItem = {
@@ -35,9 +38,18 @@ type Booking = {
   numberOfHunters?: number;
   partyDeckDates?: string[];
   lineItems?: LineItem[];
-  // Optional attendee-like fields (support multiple shapes gracefully)
+
+  // permissive attendee inputs we’ve seen
   attendees?: Array<
-    | { name?: string; firstName?: string; lastName?: string; email?: string }
+    | {
+        name?: string;
+        fullName?: string;
+        firstName?: string;
+        lastName?: string;
+        email?: string;
+        waiverSigned?: boolean;
+        waiverIsSigned?: boolean;
+      }
     | string
   >;
   partyMembers?: Array<{ name?: string } | string>;
@@ -58,11 +70,11 @@ type OrderDoc = {
   >;
 };
 
-// -------- Helpers --------
+/* ---------- Helpers ---------- */
 
 // ISO "YYYY-MM-DD" → "Sept 6"
 function friendlyDay(iso: string) {
-  const [, m, d] = iso.split("-").map(Number); // skip year
+  const [, m, d] = iso.split("-").map(Number);
   const MONTHS = [
     "Jan",
     "Feb",
@@ -79,14 +91,28 @@ function friendlyDay(iso: string) {
   ];
   return `${MONTHS[(m ?? 1) - 1]} ${d ?? 1}`;
 }
+
+function currency(n = 0) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(n);
+}
+
+// Normalize attendees[] into {fullName,email,waiverSigned}
 function toAttendeeObjects(order: OrderDoc): Attendee[] | null {
   const arr = (order.booking as any)?.attendees;
   if (Array.isArray(arr) && arr.length) {
     return arr
       .map((a: any) => ({
-        fullName: String(a?.fullName ?? a?.name ?? "").trim(),
+        fullName: String(
+          a?.fullName ??
+            a?.name ??
+            `${[a?.firstName, a?.lastName].filter(Boolean).join(" ")}` ??
+            ""
+        ).trim(),
         email: a?.email || undefined,
-        waiverSigned: !!a?.waiverSigned || !!a?.waiverIsSigned, // tolerate alias
+        waiverSigned: !!a?.waiverSigned || !!a?.waiverIsSigned,
       }))
       .filter((a) => a.fullName);
   }
@@ -98,8 +124,10 @@ async function initializeAttendees(order: OrderDoc, names: string[]) {
     fullName: n,
     waiverSigned: false,
   }));
-  const ref = doc(db, "orders", order.id);
-  await updateDoc(ref, { "booking.attendees": attendees });
+  await updateDoc(doc(db, "orders", order.id), {
+    "booking.attendees": attendees,
+  });
+  toast.success("Attendees initialized for waiver tracking.");
 }
 
 async function toggleWaiver(orderId: string, index: number, next: boolean) {
@@ -137,11 +165,10 @@ function extractPartyNames(order: OrderDoc): string[] {
       if (typeof itm === "string") {
         push(itm);
       } else if (typeof itm === "object") {
-        // common keys
         const n =
+          itm.fullName ??
           itm.name ??
           [itm.firstName, itm.lastName].filter(Boolean).join(" ") ??
-          itm.fullName ??
           itm.email;
         push(n);
       }
@@ -157,7 +184,7 @@ function extractPartyNames(order: OrderDoc): string[] {
   if (Array.isArray((b as any).hunterNames))
     addFromUnknownArray((b as any).hunterNames);
 
-  // Ensure primary customer is represented
+  // Ensure primary customer is present
   const customerName = `${order.customer?.firstName ?? ""} ${
     order.customer?.lastName ?? ""
   }`.trim();
@@ -168,14 +195,10 @@ function extractPartyNames(order: OrderDoc): string[] {
     names.unshift(customerName);
   }
 
-  // If we still don't have enough names, fill with placeholders up to numberOfHunters
   const partySize = b?.numberOfHunters ?? names.length;
+  while (names.length < partySize) names.push(`Guest ${names.length + 1}`);
 
-  while (names.length < partySize) {
-    names.push(`Guest ${names.length + 1}`);
-  }
-
-  // Deduplicate while preserving order
+  // de-dupe
   const seen = new Set<string>();
   return names.filter((n) => {
     const key = n.toLowerCase();
@@ -185,10 +208,227 @@ function extractPartyNames(order: OrderDoc): string[] {
   });
 }
 
+/* ---------- Small inline modal component ---------- */
+
+function OrderDetailsModal({
+  order,
+  dayId,
+  onClose,
+}: {
+  order: OrderDoc;
+  dayId: string;
+  onClose: () => void;
+}) {
+  const names = extractPartyNames(order);
+  const structured = toAttendeeObjects(order) ?? [];
+  const [rows, setRows] = useState<Attendee[]>(structured);
+  const [savingIdx, setSavingIdx] = useState<number | null>(null);
+
+  // keep in sync if Firestore pushes an update
+  useEffect(() => {
+    setRows(structured);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order?.id, structured.length, JSON.stringify(structured)]);
+
+  const deckAny = (order.booking?.partyDeckDates ?? []).length > 0;
+  const deckToday = (order.booking?.partyDeckDates ?? []).includes(dayId);
+
+  const customerName =
+    `${order.customer?.firstName ?? ""} ${
+      order.customer?.lastName ?? ""
+    }`.trim() || "Customer";
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-start md:items-center justify-center p-4 md:p-8">
+      {/* backdrop */}
+      <div className="absolute inset-0 bg-black/60" />
+
+      <div className="relative z-10 w-full max-w-5xl rounded-2xl bg-white text-[var(--color-background)] shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-black/10">
+          <div>
+            <div className="text-xl font-bourbon">Order Details</div>
+            <div className="text-xs opacity-70 font-mono mt-1">
+              {order.id}
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(order.id);
+                  toast.info("Order ID copied.");
+                }}
+                className="ml-2 px-2 py-0.5 border rounded-md text-[10px]"
+              >
+                Copy ID
+              </button>
+            </div>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 rounded-lg bg-black/5 hover:bg-black/10"
+          >
+            Close
+          </button>
+        </div>
+
+        {/* Top summary cards */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3 p-4">
+          <div className="rounded-xl border border-black/10 p-3">
+            <div className="text-xs opacity-60 mb-1">Customer</div>
+            <div className="font-semibold">{customerName}</div>
+            {order.customer?.email && (
+              <div className="text-sm opacity-80">{order.customer.email}</div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-black/10 p-3">
+            <div className="text-xs opacity-60 mb-1">Totals</div>
+            <div className="font-semibold">{currency(order.total ?? 0)}</div>
+            <div className="text-xs mt-1">
+              STATUS:&nbsp;
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800">
+                {order.status?.toUpperCase() ?? "PAID"}
+              </span>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-black/10 p-3">
+            <div className="text-xs opacity-60 mb-1">All Dates</div>
+            <div className="font-semibold">
+              {(order.booking?.dates ?? []).map(friendlyDay).join(", ") || "—"}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-black/10 p-3">
+            <div className="text-xs opacity-60 mb-1">Party Deck</div>
+            <div className="font-semibold">
+              {deckAny ? (deckToday ? "Yes (today)" : "Yes") : "No"}
+            </div>
+          </div>
+        </div>
+
+        {/* Attendees & Waivers */}
+        <div className="p-4 border-t border-black/10">
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-bourbon text-lg">Attendees & Waivers</div>
+
+            {rows.length === 0 && names.length > 0 && (
+              <button
+                onClick={() => initializeAttendees(order, names)}
+                className="text-xs px-3 py-1.5 rounded-lg border hover:bg-black/5"
+              >
+                Initialize for waivers
+              </button>
+            )}
+          </div>
+
+          {rows.length === 0 ? (
+            <div className="text-sm opacity-70">
+              No structured attendee records yet. Click “Initialize for waivers”
+              to create them from the party list.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left border-b border-black/10">
+                    <th className="py-2 pr-3 w-10">#</th>
+                    <th className="py-2 pr-3">Name</th>
+                    <th className="py-2 pr-3">Email</th>
+                    <th className="py-2 pr-3 w-40">Waiver</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((a, idx) => (
+                    <tr
+                      key={`${order.id}-att-${idx}`}
+                      className="border-b border-black/5"
+                    >
+                      <td className="py-2 pr-3">{idx + 1}</td>
+                      <td className="py-2 pr-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{a.fullName}</span>
+                          <span
+                            className={`text-[10px] px-2 py-0.5 rounded-full ${
+                              a.waiverSigned
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-neutral-200 text-neutral-700"
+                            }`}
+                          >
+                            {a.waiverSigned ? "Signed" : "Pending"}
+                          </span>
+                          {idx === 0 && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/5">
+                              Lead
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-2 pr-3">{a.email ?? "—"}</td>
+                      <td className="py-2 pr-3">
+                        <label className="inline-flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            className="accent-[var(--color-accent-gold)]"
+                            disabled={savingIdx === idx}
+                            checked={!!a.waiverSigned}
+                            onChange={async (e) => {
+                              const next = e.currentTarget.checked;
+                              try {
+                                setSavingIdx(idx);
+                                // optimistic UI
+                                setRows((prev) =>
+                                  prev.map((r, i) =>
+                                    i === idx ? { ...r, waiverSigned: next } : r
+                                  )
+                                );
+                                await toggleWaiver(order.id, idx, next);
+                                toast[next ? "success" : "info"](
+                                  next
+                                    ? `Waiver marked signed for ${a.fullName}.`
+                                    : `Waiver marked NOT signed for ${a.fullName}.`
+                                );
+                              } catch (err) {
+                                // revert on failure
+                                setRows((prev) =>
+                                  prev.map((r, i) =>
+                                    i === idx
+                                      ? { ...r, waiverSigned: !next }
+                                      : r
+                                  )
+                                );
+                                toast.error(
+                                  "Could not update waiver. Try again."
+                                );
+                              } finally {
+                                setSavingIdx(null);
+                              }
+                            }}
+                          />
+                          <span>
+                            {a.waiverSigned ? "Signed" : "Mark signed"}
+                          </span>
+                        </label>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+ *                           PAGE
+ * =======================================================*/
 export default function DayDetail() {
   const { id } = useParams<{ id: string }>(); // YYYY-MM-DD
   const [avail, setAvail] = useState<AvailabilityDoc | null>(null);
   const [orders, setOrders] = useState<OrderDoc[]>([]);
+  const [selected, setSelected] = useState<OrderDoc | null>(null);
 
   const nice = useMemo(() => (id ? friendlyDay(id) : ""), [id]);
 
@@ -227,11 +467,7 @@ export default function DayDetail() {
 
   const allNames = useMemo(() => {
     const bag: string[] = [];
-    for (const o of orders) {
-      const ns = extractPartyNames(o);
-      for (const n of ns) bag.push(n);
-    }
-    // dedupe
+    for (const o of orders) extractPartyNames(o).forEach((n) => bag.push(n));
     const seen = new Set<string>();
     return bag.filter((n) => {
       const key = n.toLowerCase();
@@ -257,49 +493,45 @@ export default function DayDetail() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div className="rounded-2xl  bg-gradient-to-t from-white to-neutral-100 hover:bg-white transition duration-300 ease-in-out shadow-lg group">
-          <div className="mb-5 rounded-t-2xl shadow-lg text-xl p-1 text-center lowercase tracking-wide font-acumin   text-[var(--color-background)] bg-white group-hover:bg-emerald-400/50 transition duration-800 ease-in-out">
-            current hunters Booked
+        <div className="rounded-2xl bg-gradient-to-t from-white to-neutral-100 shadow-lg">
+          <div className="mb-5 rounded-t-2xl text-xl p-1 text-center lowercase tracking-wide font-acumin text-[var(--color-background)] bg-white">
+            current hunters booked
           </div>
-          <div className="flex items-center justify-start px-4">
-            <div>
-              <div className=" px-2 text-3xl font-semibold  lowercase tracking-wide text-[var(--color-background)]">
-                <CountUp end={avail?.huntersBooked ?? 0} duration={0.6} />
-              </div>
-              <div
-                className={`mt-2 text-sm text-[var(--color-background)] max-w-[200px] p-1 rounded-md ${
-                  avail?.partyDeckBooked ? "text-red-400" : "bg-emerald-400/50"
-                }`}
-              >
-                Party Deck: {avail?.partyDeckBooked ? "Reserved" : "Available"}
-              </div>
-              <div className="mt-1 text-sm text-[var(--color-background)]/60 mb-3">
-                {avail?.isOffSeason ? "Regular Season" : "In-season"}
-              </div>
+          <div className="px-4">
+            <div className="px-2 text-3xl font-semibold text-[var(--color-background)]">
+              <CountUp end={avail?.huntersBooked ?? 0} duration={0.6} />
+            </div>
+            <div
+              className={`mt-2 text-sm text-[var(--color-background)] max-w-[220px] p-1 rounded-md ${
+                avail?.partyDeckBooked ? "text-red-400" : "bg-emerald-400/50"
+              }`}
+            >
+              Party Deck: {avail?.partyDeckBooked ? "Reserved" : "Available"}
+            </div>
+            <div className="mt-1 text-sm text-[var(--color-background)]/60 mb-3">
+              {avail?.isOffSeason ? "Regular Season" : "In-season"}
             </div>
           </div>
         </div>
 
-        <div className="rounded-2xl  bg-gradient-to-t from-white to-white hover:bg-white transition duration-300 ease-in-out shadow-lg group">
-          <div className="mb-5 rounded-t-2xl shadow-md text-xl p-1 text-center lowercase tracking-wide font-acumin   text-[var(--color-background)] bg-white group-hover:bg-emerald-400/50 transition duration-800 ease-in-out">
-            From paid orders
+        <div className="rounded-2xl bg-gradient-to-t from-white to-white shadow-lg">
+          <div className="mb-5 rounded-t-2xl text-xl p-1 text-center lowercase tracking-wide font-acumin text-[var(--color-background)] bg-white">
+            from paid orders
           </div>
-          <div className="flex items-center justify-start px-4">
-            <div>
-              <div className="text-lg text-[var(--color-background)]">
-                Hunters
-              </div>
-              <div className="text-3xl font-semibold  lowercase tracking-wide text-[var(--color-background)]">
-                <CountUp end={totalHuntersFromOrders} duration={0.6} />
-              </div>
-              <div className="mt-2 text-lg text-[var(--color-background)]">
-                Orders: <CountUp end={orders.length} duration={0.6} />
-              </div>
+          <div className="px-4">
+            <div className="text-lg text-[var(--color-background)]">
+              Hunters
+            </div>
+            <div className="text-3xl font-semibold text-[var(--color-background)]">
+              <CountUp end={totalHuntersFromOrders} duration={0.6} />
+            </div>
+            <div className="mt-2 text-lg text-[var(--color-background)]">
+              Orders: <CountUp end={orders.length} duration={0.6} />
             </div>
           </div>
         </div>
 
-        <div className="rounded-2xl border-white border-2 bg-white/85 hover:bg-white transition duration-300 ease-in-out shadow-lg p-5">
+        <div className="rounded-2xl border-white border-2 bg-white/85 shadow-lg p-5">
           <div className="text-lg text-[var(--color-background)]">
             Attendees (All)
           </div>
@@ -307,16 +539,16 @@ export default function DayDetail() {
             <div className="text-lg text-[var(--color-background)]">
               Unique Names
             </div>
-            <div className="text-3xl font-semibold  lowercase tracking-wide text-[var(--color-background)]">
+            <div className="text-3xl font-semibold text-[var(--color-background)]">
               <CountUp end={allNames.length} duration={0.6} />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Paid orders — redesigned */}
-      <div className="rounded-2xl border mb-8 border-white/10 bg-white/90 hover:bg-white transition duration-300 ease-in-out shadow-lg">
-        <h2 className="text-xl p-2 text-center lowercase tracking-wide font-acumin text-[var(--color-background)] bg-white/95 rounded-t-2xl">
+      {/* Paid orders — now in a table */}
+      <div className="rounded-2xl border mb-8 border-white/10 bg-white shadow-lg">
+        <h2 className="text-xl p-2 text-center lowercase tracking-wide font-acumin text-[var(--color-background)] bg-white rounded-t-2xl">
           Paid orders for {nice}
         </h2>
 
@@ -325,164 +557,70 @@ export default function DayDetail() {
             No paid orders for this day.
           </div>
         ) : (
-          <ul className="divide-y divide-white/10">
-            {orders.map((o) => {
-              const b = o.booking;
-              const party = extractPartyNames(o);
-              const partySize = b?.numberOfHunters ?? party.length;
-              const deckToday = (b?.partyDeckDates ?? []).includes(id!);
-              const customerName =
-                `${o.customer?.firstName ?? ""} ${
-                  o.customer?.lastName ?? ""
-                }`.trim() || "Customer";
-              const shortId = o.id.slice(0, 8);
-              const total = new Intl.NumberFormat("en-US", {
-                style: "currency",
-                currency: "USD",
-              }).format(o.total ?? 0);
-
-              return (
-                <li key={o.id} className="p-4">
-                  {/* Header row */}
-                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="inline-flex items-center gap-2 px-2 py-1 rounded-lg bg-black/10 border border-white/10 font-mono text-xs text-[var(--color-background)]">
-                        #{shortId}
-                        <button
-                          title="Copy full ID"
-                          onClick={() => navigator.clipboard.writeText(o.id)}
-                          className="ml-1 px-1.5 py-0.5 rounded bg-white/60 hover:bg-white text-[var(--color-background)]"
-                        >
-                          copy
-                        </button>
-                      </span>
-                      <div className="font-medium text-[var(--color-background)]">
-                        {customerName}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
-                        Paid
-                      </span>
-                      <span className="text-lg font-semibold text-[var(--color-background)]">
-                        {total}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Meta chips */}
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <span className="inline-flex items-center px-2 py-1 rounded-md text-xs bg-black/10 text-[var(--color-background)]">
-                      Party size: <strong className="ml-1">{partySize}</strong>
-                    </span>
-                    <span
-                      className={`inline-flex items-center px-2 py-1 rounded-md text-xs ${
-                        deckToday
-                          ? "bg-emerald-100 text-emerald-800"
-                          : "bg-red-100 text-red-800"
-                      }`}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-[var(--color-background)]">
+              <thead>
+                <tr className="text-left opacity-70 border-b border-black/10">
+                  <th className="py-2 pr-4">Order</th>
+                  <th className="py-2 pr-4">Customer</th>
+                  <th className="py-2 pr-4">Hunters</th>
+                  <th className="py-2 pr-4">Party Deck Today</th>
+                  <th className="py-2 pr-4">All Dates</th>
+                  <th className="py-2 pr-4">Total</th>
+                  <th className="py-2 pr-2 w-28"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {orders.map((o) => {
+                  const fullName =
+                    `${o.customer?.firstName ?? ""} ${
+                      o.customer?.lastName ?? ""
+                    }`.trim() || "—";
+                  const b = o.booking;
+                  const hunters = b?.numberOfHunters ?? 0;
+                  const deckToday = (b?.partyDeckDates ?? []).includes(id!)
+                    ? "Yes"
+                    : "No";
+                  const dates = b?.dates?.map(friendlyDay).join(", ") ?? "—";
+                  return (
+                    <tr
+                      key={o.id}
+                      className="border-b border-black/5 hover:bg-neutral-100"
                     >
-                      Party Deck: {deckToday ? "Yes" : "No"}
-                    </span>
-                    <span className="inline-flex items-center px-2 py-1 rounded-md text-xs bg-black/10 text-[var(--color-background)]">
-                      Orders today: 1
-                    </span>
-                    <span className="inline-flex items-center px-2 py-1 rounded-md text-xs bg-black/10 text-[var(--color-background)]">
-                      All dates:&nbsp;
-                      {(b?.dates ?? []).length
-                        ? b!.dates!.map((d) => friendlyDay(d)).join(", ")
-                        : "—"}
-                    </span>
-                  </div>
-
-                  {/* Attendees */}
-                  {/* inside the order card */}
-                  {/* Attendees */}
-                  {(() => {
-                    // compute once per order
-                    const structured = toAttendeeObjects(o);
-                    const hasStructured = !!structured?.length;
-
-                    return (
-                      <div className="mt-4 border-t border-white/10 pt-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="text-xs uppercase opacity-60">
-                            Attendees
-                          </div>
-
-                          {/* Initialize button appears only when no structured attendees yet */}
-                          {!hasStructured && party.length > 0 && (
-                            <button
-                              onClick={() => initializeAttendees(o, party)}
-                              className="text-xs px-2 py-1 rounded-md border border-white/10 hover:bg-white/10"
-                              title="Create attendee records so you can track waiver signatures"
-                            >
-                              Initialize for waivers
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Prefer structured attendees (checkbox UI); fallback to names only */}
-                        {hasStructured ? (
-                          <ol className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                            {structured!.map((a, idx) => (
-                              <li
-                                key={`${o.id}-attendee-${idx}`}
-                                className="rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-[var(--color-background)] flex items-center gap-2"
-                              >
-                                {idx === 0 ? (
-                                  <span className="opacity-70 mr-1">Lead:</span>
-                                ) : null}
-                                <input
-                                  type="checkbox"
-                                  className="accent-[var(--color-accent-gold)]"
-                                  checked={!!a.waiverSigned}
-                                  onChange={(e) =>
-                                    toggleWaiver(
-                                      o.id,
-                                      idx,
-                                      e.currentTarget.checked
-                                    )
-                                  }
-                                  aria-label={`Waiver signed for ${a.fullName}`}
-                                />
-                                <span
-                                  className={`font-medium ${
-                                    a.waiverSigned
-                                      ? "line-through opacity-70"
-                                      : ""
-                                  }`}
-                                >
-                                  {a.fullName}
-                                </span>
-                              </li>
-                            ))}
-                          </ol>
-                        ) : (
-                          <ol className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                            {party.map((name, idx) => (
-                              <li
-                                key={`${o.id}-member-${idx}`}
-                                className="rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-[var(--color-background)]"
-                              >
-                                {idx === 0 ? (
-                                  <span className="opacity-70 mr-1">Lead:</span>
-                                ) : null}
-                                <span className="font-medium">{name}</span>
-                              </li>
-                            ))}
-                          </ol>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </li>
-              );
-            })}
-          </ul>
+                      <td className="py-2 pr-4 font-mono">
+                        {o.id.slice(0, 10)}…
+                      </td>
+                      <td className="py-2 pr-4">{fullName}</td>
+                      <td className="py-2 pr-4">
+                        <CountUp end={Number(hunters) || 0} duration={0.5} />
+                      </td>
+                      <td className="py-2 pr-4">{deckToday}</td>
+                      <td className="py-2 pr-4">{dates}</td>
+                      <td className="py-2 pr-4">{currency(o.total ?? 0)}</td>
+                      <td className="py-2 pr-2 text-right">
+                        <button
+                          onClick={() => setSelected(o)}
+                          className="inline-block px-3 py-1 rounded-lg border border-black/10 bg-white"
+                        >
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
+
+      {selected && id && (
+        <OrderDetailsModal
+          order={selected}
+          dayId={id}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </div>
   );
 }
