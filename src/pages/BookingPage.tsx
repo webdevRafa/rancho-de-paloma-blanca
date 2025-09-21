@@ -108,7 +108,7 @@ const BookingPage = () => {
             variants={container}
             initial="hidden"
             animate="show"
-            className="grid gap-6 md:grid-cols-[minmax(0,520px)_1fr]"
+            className="grid gap-6 lg:grid-cols-[minmax(0,520px)_1fr]"
           >
             {/* Sign-in card */}
             <motion.aside
