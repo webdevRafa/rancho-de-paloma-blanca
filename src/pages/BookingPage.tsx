@@ -28,7 +28,7 @@ import BookingForm from "../components/BookingForm";
 import EditBookingDatesModal from "../components/EditBookingDatesModal";
 import { formatLongDate } from "../utils/formatDate";
 import { useCart } from "../context/CartContext";
-import dove from "../assets/dove.webp";
+import dove from "../assets/images/IMG_20250920_191824.webp";
 import { PackagesBrochure } from "../components/PackagesBrochure";
 import partyDeck from "../assets/images/1000024260.webp";
 const BookingPage = () => {
@@ -67,42 +67,74 @@ const BookingPage = () => {
   }, []);
   // ---------- 1) AUTH GATE (friendly) ----------
   if (!user) {
+    // simple framer-motion variants for a smooth stagger
+    const ease: [number, number, number, number] = [0.16, 1, 0.3, 1];
+    const container = {
+      hidden: { opacity: 0, y: 8 },
+      show: {
+        opacity: 1,
+        y: 0,
+        transition: {
+          duration: 0.45,
+          ease,
+          when: "beforeChildren",
+          staggerChildren: 0.06,
+        },
+      },
+    };
+    const item = {
+      hidden: { opacity: 0, y: 10 },
+      show: { opacity: 1, y: 0, transition: { duration: 0.35, ease } },
+    };
+
     return (
-      <div className="relative min-h-[70vh] pt-30">
-        {/* Background / hero */}
+      <section className="relative min-h-screen overflow-hidden pt-30">
+        {/* Hero background */}
         <div
-          className="absolute inset-0 bg-center bg-cover"
+          data-aos="zoom-out"
+          className="fixed inset-0 bg-center bg-cover"
           style={{ backgroundImage: `url(${dove})` }}
           aria-hidden="true"
         />
-        <div className="absolute inset-0 bg-black/60" aria-hidden="true" />
+        {/* Subtle vignette + readability overlay */}
+        <div
+          className="fixed top-0 left-0 w-full h-[100vh] inset-0 bg-gradient-to-b from-black/70 via-black/60 to-black/75"
+          aria-hidden="true"
+        />
 
-        <div className="flex flex-col md:flex-row gap-5 max-w-[1400px] mx-auto">
-          <div className="relative max-w-3xl= mx-auto px-4 py-24">
-            <motion.div
-              initial={{ opacity: 0, y: 16, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{ duration: 0.45 }}
-              className="bg-white/95 backdrop-blur rounded-2xl shadow-2xl p-8 border border-white/20"
+        {/* Content */}
+        <div className="relative z-10 max-w-[1400px] mx-auto px-4 lg:px-6 pt-28 pb-16">
+          <motion.div
+            variants={container}
+            initial="hidden"
+            animate="show"
+            className="grid gap-6 md:grid-cols-[minmax(0,520px)_1fr]"
+          >
+            {/* Sign-in card */}
+            <motion.aside
+              variants={item}
+              className="rounded-2xl border border-white/15 bg-white/95 backdrop-blur p-6 sm:p-8 shadow-2xl"
             >
-              <div className="flex items-center justify-between mb-4">
+              <div className="mb-5">
                 <h1 className="text-2xl md:text-3xl font-acumin text-[var(--color-background)]">
                   Sign in to book your hunt
                 </h1>
+                <p className="mt-2 text-sm md:text-base text-[var(--color-background)]/80">
+                  Create an account or sign in to choose your hunt dates, party
+                  size, and optional Party Deck. You can also add merch and
+                  check out in a single order.
+                </p>
               </div>
-              <p className="text-sm md:text-base text-[var(--color-background)]/80">
-                Create an account or sign in to choose your hunt dates, party
-                size, and optional Party Deck. You can also add merch and check
-                out in a single order.
-              </p>
 
-              <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* CTAs */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <button
                   onClick={() => setAuthOpen(true)}
-                  className="w-full rounded-lg bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white font-semibold py-3 transition-colors"
+                  className="w-full rounded-xl bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white font-semibold py-3 transition-colors"
                 >
                   Sign in / Create account
                 </button>
+
                 <button
                   onClick={async () => {
                     try {
@@ -111,7 +143,7 @@ const BookingPage = () => {
                       console.warn(e);
                     }
                   }}
-                  className="w-full rounded-lg border border-[var(--color-footer)]/30 bg-white hover:bg-neutral-50 text-[var(--color-background)] font-semibold py-3 transition-colors"
+                  className="w-full rounded-xl border border-[var(--color-footer)]/30 bg-white hover:bg-neutral-50 text-[var(--color-background)] font-semibold py-3 transition-colors"
                   aria-label="Continue with Google"
                   title="Continue with Google"
                 >
@@ -119,6 +151,7 @@ const BookingPage = () => {
                 </button>
               </div>
 
+              {/* Trust bullets */}
               <ul className="mt-6 space-y-2 text-sm text-[var(--color-background)]/80">
                 <li>
                   • No spam — we use your account to keep bookings and receipts
@@ -126,19 +159,30 @@ const BookingPage = () => {
                 </li>
                 <li>
                   • You’ll see availability in real time and package pricing for
-                  in‑season weekends.
+                  in-season weekends.
                 </li>
                 <li>
                   • Pay securely online; your spots are confirmed after payment.
                 </li>
               </ul>
+
+              {/* Tiny reassurance footer */}
+              <div className="mt-5 rounded-xl border border-[var(--color-footer)]/30 bg-white/70 text-[var(--color-background)]/80 p-3 text-xs">
+                Having trouble? Try the Google sign-in option or contact us and
+                we’ll get you squared away.
+              </div>
+            </motion.aside>
+
+            {/* Packages / pricing brochure (kept as your existing component) */}
+            <motion.div variants={item}>
+              <PackagesBrochure />
             </motion.div>
-          </div>
-          <PackagesBrochure />
+          </motion.div>
         </div>
-        {/* Reuse our global AuthModal */}
+
+        {/* Global auth modal (unchanged) */}
         <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} />
-      </div>
+      </section>
     );
   }
 
