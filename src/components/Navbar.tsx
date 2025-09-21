@@ -198,7 +198,7 @@ export default function Navbar() {
               aria-label="Close menu overlay"
             />
             <motion.aside
-              className="fixed right-0 top-0 z-50 h-screen w-full overflow-y-auto border-l border-white/10 bg-gradient-to-b from-[var(--color-background)]/90 to-transparent backdrop-blur-md"
+              className="fixed right-0 top-0 z-50 h-screen w-full overflow-y-auto border-l border-white/10 bg-gradient-to-b from-[var(--color-background)] to-transparent backdrop-blur-md"
               initial="hidden"
               animate="visible"
               exit="exit"
