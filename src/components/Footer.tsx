@@ -14,13 +14,13 @@ const Footer = () => {
         </p>
         <Link
           data-aos="fade-up"
-          className="text-[var(--color-accent-gold)] text-sm mb-3 md:mb-0 relative z-40"
+          className="text-[var(--color-accent-gold)] text-sm mb-3 md:mb-0"
           to="/refunds"
         >
           Refund Policy
         </Link>
         {/* Social Links */}
-        <div className="flex space-x-6 text-white z-40">
+        <div className="flex space-x-6 text-white">
           {/* Facebook */}
           <a
             data-aos="fade-up"

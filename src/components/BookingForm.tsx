@@ -14,6 +14,8 @@ import DateSelector from "./DateSelector";
 import { getSeasonConfig } from "../utils/getSeasonConfig";
 import { useCart } from "../context/CartContext";
 import type { Attendee } from "../types/Types";
+import { motion, AnimatePresence } from "framer-motion";
+import PartyDeck from "./PartyDeck";
 
 const BookingForm = () => {
   const { user, login } = useAuth();
@@ -23,6 +25,17 @@ const BookingForm = () => {
 
   const [step, setStep] = useState(1);
   const [seasonConfig, setSeasonConfig] = useState<SeasonConfig | null>(null);
+  const [showPartyDeck, setShowPartyDeck] = useState(false);
+
+  useEffect(() => {
+    if (showPartyDeck) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = prev;
+      };
+    }
+  }, [showPartyDeck]);
 
   // --- Attendees state ---
   const [attendees, setAttendees] = useState<Attendee[]>(() => [
@@ -507,9 +520,19 @@ const BookingForm = () => {
 
             {form.dates.length > 0 && (
               <div className="mt-6 border-t border-[var(--color-footer)] pt-4">
-                <p className="mb-2 text-[var(--color-footer)] text-sm font-semibold">
-                  Add Party Deck ($500/day):
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="mb-2 text-[var(--color-footer)] text-sm font-semibold">
+                    Add Party Deck ($500/day):
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowPartyDeck(true)}
+                    className="text-xs px-2 py-1 rounded-md border border-[var(--color-footer)]/30 text-[var(--color-footer)] hover:bg-[var(--color-footer)]/10 transition"
+                    aria-label="Preview Party Deck details and photos"
+                  >
+                    Preview
+                  </button>
+                </div>
                 <div className="space-y-2">
                   {form.dates.map((date) => {
                     const available = deckAvailability[date];
@@ -609,6 +632,47 @@ const BookingForm = () => {
           )}
         </div>
       </div>
+      <AnimatePresence>
+        {showPartyDeck && (
+          <motion.div
+            className="fixed  inset-0 z-[100] bg-black/70 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowPartyDeck(false)}
+          >
+            <div
+              className="absolute  inset-0  flex items-center justify-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <motion.div
+                className="h-[90vh] mt-[70px] relative w-full overflow-y-auto bg-gradient-to-b from-[var(--color-background)]/60 to-[var(--color-footer)]  border border-white/10 shadow-2xl"
+                initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 12, scale: 0.98 }}
+                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              >
+                {/* Header */}
+                <div className="sticky top-0 z-10 flex items-center justify-between px-4 md:px-6 py-3 bg-[var(--color-card)]/90 backdrop-blur border-b border-white/10">
+                  <h3 className="text-white font-gin text-lg">Party Deck</h3>
+                  <button
+                    onClick={() => setShowPartyDeck(false)}
+                    className="text-[var(--color-card)] font-bold bg-white  rounded-lg px-3 py-1 border border-white/10 "
+                    aria-label="Close"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Body: reuse your existing component exactly as-is */}
+                <div className="px-2 md:px-4 pb-4  relative">
+                  <PartyDeck />
+                </div>
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
