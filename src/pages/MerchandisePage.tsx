@@ -1,3 +1,4 @@
+// pages/MerchandisePage.tsx
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -13,31 +14,23 @@ import type { Product as ProductType } from "../types/MerchTypes";
 import { toast } from "react-toastify";
 import { Minus, Plus, Check } from "lucide-react";
 
-/**
- * Product document shape we expect in Firestore.
- * Each size variant is its own document (variant-as-SKU).
- * Example ID: "TEE-PALOMA-XL"
- */
-type Size = "XS" | "S" | "M" | "L" | "XL" | "XXL" | "XXXL" | string;
+/** Product shape from Firestore (variant-as-SKU) */
+type Size = "XS" | "S" | "M" | "L" | "XL" | "XXL" | "XXXL" | "OS" | string;
 
 type Product = ProductType & {
   baseProductId?: string;
   size?: Size;
   stock?: number;
-  imageUrl?: string; // prefer this key, but we also map 'image' below
-  image?: string;
+  imageUrl?: string; // prefer this key
+  image?: string; // fallback key
   skuCode?: string;
   unitOfMeasure?: string;
   active?: boolean;
+  color?: string; // NEW: color attribute (e.g., "Dark"|"Light")
 };
 
-/** Friendly size order used in the UI */
-const SIZE_ORDER = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"] as const;
+const SIZE_ORDER = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "OS"] as const;
 
-/**
- * Group variants by baseProductId so the UI can render a single card per product
- * with a size selector. Falls back to product.id when baseProductId is missing.
- */
 function groupByBaseProduct(products: Product[]) {
   const map = new Map<string, Product[]>();
   for (const p of products) {
@@ -45,11 +38,16 @@ function groupByBaseProduct(products: Product[]) {
     if (!map.has(key)) map.set(key, []);
     map.get(key)!.push(p);
   }
+  // sort by size then name for stable, nice ordering
   for (const [k, arr] of map) {
     arr.sort((a, b) => {
       const ai = SIZE_ORDER.indexOf((a.size || "").toUpperCase() as any);
       const bi = SIZE_ORDER.indexOf((b.size || "").toUpperCase() as any);
-      if (ai !== -1 && bi !== -1) return ai - bi;
+      if (ai !== -1 && bi !== -1 && ai !== bi) return ai - bi;
+      // secondary: by color then name
+      const ac = (a.color || "").toLowerCase();
+      const bc = (b.color || "").toLowerCase();
+      if (ac !== bc) return ac.localeCompare(bc);
       return (a.name || "").localeCompare(b.name || "");
     });
     map.set(k, arr);
@@ -57,18 +55,9 @@ function groupByBaseProduct(products: Product[]) {
   return map;
 }
 
-/** Utility to clamp a number between min and max */
 const clamp = (v: number, min: number, max: number) =>
   Math.max(min, Math.min(max, v));
 
-/**
- * New, polished Merchandise Page
- * - Clean product cards that match Party Deck / Rules styling
- * - Size pill selector (no inventory counts) with deselect support
- * - Quantity stepper that allows 0 (0 = remove)
- * - "Add to cart" CTA with toast feedback
- * - Real-time product updates via Firestore
- */
 export default function MerchandisePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +65,7 @@ export default function MerchandisePage() {
 
   const { merchItems, addOrUpdateMerchItem, isHydrated } = useCart();
 
-  /** Realtime subscription to products */
+  // live products
   useEffect(() => {
     const q = query(
       collection(db, "products"),
@@ -93,7 +82,7 @@ export default function MerchandisePage() {
             id: d.id || doc.id,
             name: d.name,
             price: typeof d.price === "number" ? d.price : Number(d.price) || 0,
-            imageUrl: d.imageUrl || d.image, // support both keys
+            imageUrl: d.imageUrl || d.image,
             baseProductId:
               d.baseProductId ||
               (doc.id as string).split("-").slice(0, 2).join("-"),
@@ -103,6 +92,7 @@ export default function MerchandisePage() {
             unitOfMeasure: d.unitOfMeasure || "Each",
             active: d.active !== false,
             description: d.description,
+            color: d.color,
           });
         });
         setProducts(rows);
@@ -117,7 +107,7 @@ export default function MerchandisePage() {
     return () => unsub();
   }, []);
 
-  /** cart quantity helper (supports object or array merchItems shapes) */
+  // helpers
   const cartQtyFor = (productId: string) => {
     try {
       const rec = (merchItems as any)?.[productId];
@@ -137,42 +127,129 @@ export default function MerchandisePage() {
   const groups = useMemo(() => groupByBaseProduct(products), [products]);
   const isSingle = useMemo(() => groups.size === 1, [groups]);
 
-  // Local UI state: selection (variantId) & quantity per base product
+  // selection & qty state per base product
   const [selectedByBase, setSelectedByBase] = useState<
     Record<string, string | null>
   >({});
   const [qtyByBase, setQtyByBase] = useState<Record<string, number>>({});
+  const [sizeByBase, setSizeByBase] = useState<Record<string, string | null>>(
+    {}
+  );
+  const [colorByBase, setColorByBase] = useState<Record<string, string | null>>(
+    {}
+  );
 
-  // When any base product has a size selected and qty === 1, flip the CTA color
+  // if nothing chosen, consider a card "primed" when it has qty===1 + a valid default selection
   const hasOneSelected = useMemo(() => {
-    let flag = false as unknown as boolean;
-    try {
-      groups.forEach((_vars, baseId) => {
-        const sel = (selectedByBase as any)[baseId];
-        const q = (qtyByBase as any)[baseId] ?? 1;
-        if (sel && q === 1) flag = true as unknown as boolean;
-      });
-    } catch {}
-    return !!flag;
+    for (const [baseId, variants] of groups.entries()) {
+      const selectedId = selectedByBase[baseId];
+      const qty = qtyByBase[baseId] ?? 1;
+      const chosen = variants.find((v) => v.id === selectedId);
+      if (chosen && qty === 1) return true;
+    }
+    return false;
   }, [groups, selectedByBase, qtyByBase]);
 
-  const toggleSelected = (baseId: string, variantId: string) => {
-    setSelectedByBase((prev) => ({
-      ...prev,
-      [baseId]: prev[baseId] === variantId ? null : variantId,
-    }));
-  };
-  const setQty = (baseId: string, next: number) => {
+  const setQty = (baseId: string, next: number) =>
     setQtyByBase((prev) => ({
       ...prev,
       [baseId]: clamp(Math.round(next || 0), 0, 20),
     }));
+
+  const isSoldOut = (v: Product) => typeof v.stock === "number" && v.stock <= 0;
+
+  // find a variant matching requested attributes
+  const pickVariant = (
+    variants: Product[],
+    wantSize?: string | null,
+    wantColor?: string | null
+  ) => {
+    // exact match first
+    let found =
+      variants.find(
+        (v) =>
+          (!wantSize || v.size === wantSize) &&
+          (!wantColor ||
+            (v.color || "").toLowerCase() ===
+              (wantColor || "").toLowerCase()) &&
+          !isSoldOut(v)
+      ) ||
+      // then allow ignoring color if size is set
+      variants.find(
+        (v) => !isSoldOut(v) && (!wantSize || v.size === wantSize)
+      ) ||
+      // else first in-stock
+      variants.find((v) => !isSoldOut(v)) ||
+      // else first
+      variants[0];
+    return found || variants[0];
+  };
+
+  // ensure a default selection per card (first in-stock or best match)
+  useEffect(() => {
+    const nextSelected = { ...selectedByBase };
+    const nextSize = { ...sizeByBase };
+    const nextColor = { ...colorByBase };
+
+    groups.forEach((variants, baseId) => {
+      if (!nextSelected[baseId]) {
+        const sizes = Array.from(
+          new Set(variants.map((v) => (v.size || "").toString()))
+        ).filter(Boolean);
+        const colors = Array.from(
+          new Set(variants.map((v) => (v.color || "").toString()))
+        ).filter(Boolean);
+
+        const pick = pickVariant(
+          variants,
+          sizes.length === 1 ? sizes[0] : null,
+          colors.length === 1 ? colors[0] : null
+        );
+        nextSelected[baseId] = pick?.id ?? null;
+        nextSize[baseId] = pick?.size || null;
+        nextColor[baseId] = pick?.color || null;
+      }
+      if (qtyByBase[baseId] == null) {
+        setQty(baseId, 1);
+      }
+    });
+
+    setSelectedByBase(nextSelected);
+    setSizeByBase(nextSize);
+    setColorByBase(nextColor);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groups]);
+
+  const handleChooseSize = (
+    baseId: string,
+    variants: Product[],
+    size: string
+  ) => {
+    const chosen = pickVariant(variants, size, colorByBase[baseId]);
+    setSizeByBase((p) => ({ ...p, [baseId]: size }));
+    setSelectedByBase((p) => ({ ...p, [baseId]: chosen?.id ?? null }));
+    if (chosen?.color) {
+      setColorByBase((p) => ({ ...p, [baseId]: chosen.color! }));
+    }
+  };
+
+  const handleChooseColor = (
+    baseId: string,
+    variants: Product[],
+    color: string
+  ) => {
+    const chosen = pickVariant(variants, sizeByBase[baseId], color);
+    setColorByBase((p) => ({ ...p, [baseId]: color }));
+    setSelectedByBase((p) => ({ ...p, [baseId]: chosen?.id ?? null }));
+    if (chosen?.size) {
+      setSizeByBase((p) => ({ ...p, [baseId]: chosen.size! }));
+    }
   };
 
   const handleAddToCart = (baseId: string, variants: Product[]) => {
     const selectedVariantId = selectedByBase[baseId];
     if (!selectedVariantId) {
-      toast.error("Please select a size first.");
+      toast.error("Please choose an option first.");
       return;
     }
     const variant = variants.find((v) => v.id === selectedVariantId);
@@ -184,7 +261,6 @@ export default function MerchandisePage() {
     const desiredQty = qtyByBase[baseId] ?? 1;
     const current = cartQtyFor(variant.id);
 
-    // If quantity is 0, treat as removal if in cart
     if (desiredQty <= 0) {
       if (current > 0) {
         addOrUpdateMerchItem(variant as any, 0);
@@ -195,7 +271,6 @@ export default function MerchandisePage() {
       return;
     }
 
-    // Cap by stock if stock is tracked (UI does not show counts)
     const stockCap =
       typeof variant.stock === "number" ? variant.stock : current + desiredQty;
     const nextQty = clamp(
@@ -246,49 +321,57 @@ export default function MerchandisePage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto mt-28 px-6 py-10 text-[var(--color-text)]">
+    <div className="max-w-[1400px] mx-auto mt-28 px-6 py-10 text-[var(--color-text)]">
       <div className="text-center mb-10">
         <h1 className="text-3xl md:text-4xl font-gin text-white">
           Rancho de Paloma Blanca Merch
         </h1>
         <p className="text-white/70 mt-2 font-acumin">
-          Premium tees & ranch gear. Pick your size, set quantity, and add to
+          Premium tees & ranch gear. Pick your options, set quantity, and add to
           cart.
         </p>
         <p>more products coming soon!</p>
       </div>
 
-      {/* Cards per base product */}
       <div
         className={
           isSingle
-            ? "grid grid-cols-1 gap-6 place-items-center"
-            : "grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
+            ? "grid grid-cols-1 gap-8 place-items-center"
+            : "grid gap-8 md:grid-cols-2 justify-items-center place-content-center"
         }
       >
         {Array.from(groups.entries()).map(([baseId, variants]) => {
-          const cover = variants[0]?.imageUrl || variants[0]?.image;
-          const baseName = (variants[0]?.name || "").replace(
-            /\s+—\s*\w+$/i,
-            ""
-          );
-          const price = variants[0]?.price ?? 0;
+          const selectedId = selectedByBase[baseId];
+          const selectedVariant =
+            variants.find((v) => v.id === selectedId) ||
+            pickVariant(variants, sizeByBase[baseId], colorByBase[baseId]);
 
-          // If user hasn't interacted yet, default quantity to 1
+          const baseName = (variants[0]?.name || "")
+            .replace(/\s+—\s*\w+$/i, "")
+            .trim();
+          const price = selectedVariant?.price ?? variants[0]?.price ?? 0;
+          const cover =
+            selectedVariant?.imageUrl ||
+            selectedVariant?.image ||
+            variants[0]?.imageUrl ||
+            variants[0]?.image;
+
+          const sizes = Array.from(
+            new Set(variants.map((v) => (v.size || "").toString()))
+          ).filter(Boolean);
+          const colors = Array.from(
+            new Set(variants.map((v) => (v.color || "").toString()))
+          ).filter(Boolean);
+
           const qty = qtyByBase[baseId] ?? 1;
-          const selectedVariantId = selectedByBase[baseId] ?? null;
-
-          // Determine which sizes are out of stock (we won't show counts)
-          const isSoldOut = (v: Product) =>
-            typeof v.stock === "number" && v.stock <= 0;
 
           return (
             <div
               key={baseId}
-              className="group border border-white/10 bg-[var(--color-card)]/40 shadow-sm hover:shadow-md hover:border-white/20 transition-all w-full max-w-[800px] mx-auto rounded-2xl overflow-hidden"
+              className="group border border-white/10 bg-[var(--color-card)]/40 shadow-sm hover:shadow-md hover:border-white/20 transition-all  w-full max-w-[1000px] mx-auto rounded-2xl overflow-hidden"
             >
               <div className="flex flex-col md:flex-row">
-                <div className="relative md:w-1/2">
+                <div className="relative md:w-1/2 aspect-[4/3]">
                   {cover ? (
                     <img
                       src={cover}
@@ -299,9 +382,9 @@ export default function MerchandisePage() {
                   ) : (
                     <div className="w-full h-44 bg-black/10" />
                   )}
-                  {selectedVariantId && (
+                  {selectedId && (
                     <div className="absolute top-3 right-3 bg-emerald-600/90 text-white text-xs px-2 py-1 rounded-lg flex items-center gap-1">
-                      <Check className="h-3.5 w-3.5" /> Size selected
+                      <Check className="h-3.5 w-3.5" /> Option selected
                     </div>
                   )}
                 </div>
@@ -314,7 +397,7 @@ export default function MerchandisePage() {
                       </h2>
                       <p className="text-white/70 text-sm mt-0.5">
                         {variants[0]?.description ||
-                          "Soft cotton tee with the Paloma crest."}
+                          "Soft tee and comfortable ranch gear with the Paloma crest."}
                       </p>
                     </div>
                     <div className="text-right">
@@ -324,55 +407,138 @@ export default function MerchandisePage() {
                     </div>
                   </div>
 
-                  {/* Size selector */}
-                  <div className="mt-2 px-4 pb-2">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-white/70 text-xs">Size</p>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSelectedByBase((p) => ({ ...p, [baseId]: null }))
-                        }
-                        className="text-[11px] text-white/60 hover:text-white/90 underline decoration-dotted disabled:opacity-30"
-                        disabled={!selectedVariantId}
-                      >
-                        Clear
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {variants.map((v) => {
-                        const selected = selectedVariantId === v.id;
-                        const disabled = isSoldOut(v);
-                        return (
+                  {/* Attribute selectors */}
+                  <div className="px-4 pb-2 space-y-3">
+                    {/* Size */}
+                    {sizes.length > 1 && (
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-white/70 text-xs">Size</p>
                           <button
-                            key={v.id}
                             type="button"
-                            disabled={disabled}
-                            onClick={() => toggleSelected(baseId, v.id)}
-                            className={[
-                              "px-3 py-1.5 rounded-xl border text-sm transition-all",
-                              selected
-                                ? "bg-white text-black border-white shadow"
-                                : "bg-black/20 text-white/90 border-white/10 hover:border-white/30",
-                              disabled
-                                ? "opacity-40 cursor-not-allowed"
-                                : "cursor-pointer",
-                            ].join(" ")}
-                            aria-pressed={selected}
-                            aria-label={`Select size ${v.size || "—"}`}
-                            title={
-                              disabled ? "Sold out" : `Select ${v.size || "—"}`
-                            }
+                            onClick={() => {
+                              setSizeByBase((p) => ({ ...p, [baseId]: null }));
+                              const pick = pickVariant(
+                                variants,
+                                null,
+                                colorByBase[baseId]
+                              );
+                              setSelectedByBase((p) => ({
+                                ...p,
+                                [baseId]: pick?.id ?? null,
+                              }));
+                            }}
+                            className="text-[11px] text-white/60 hover:text-white/90 underline decoration-dotted"
                           >
-                            {v.size || "—"}
+                            Clear
                           </button>
-                        );
-                      })}
-                    </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {sizes.map((sz) => {
+                            const tempPick = pickVariant(
+                              variants,
+                              sz,
+                              colorByBase[baseId]
+                            );
+                            const disabled = isSoldOut(tempPick);
+                            const selected = sizeByBase[baseId] === sz;
+                            return (
+                              <button
+                                key={sz}
+                                type="button"
+                                disabled={disabled}
+                                onClick={() =>
+                                  handleChooseSize(baseId, variants, sz)
+                                }
+                                className={[
+                                  "px-3 py-1.5 rounded-xl border text-sm transition-all",
+                                  selected
+                                    ? "bg-white text-black border-white shadow"
+                                    : "bg-black/20 text-white/90 border-white/10 hover:border-white/30",
+                                  disabled
+                                    ? "opacity-40 cursor-not-allowed"
+                                    : "cursor-pointer",
+                                ].join(" ")}
+                                aria-pressed={selected}
+                                title={disabled ? "Sold out" : `Select ${sz}`}
+                              >
+                                {sz}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Color */}
+                    {colors.length > 1 && (
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-white/70 text-xs">Color</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setColorByBase((p) => ({
+                                ...p,
+                                [baseId]: null,
+                              }));
+                              const pick = pickVariant(
+                                variants,
+                                sizeByBase[baseId],
+                                null
+                              );
+                              setSelectedByBase((p) => ({
+                                ...p,
+                                [baseId]: pick?.id ?? null,
+                              }));
+                            }}
+                            className="text-[11px] text-white/60 hover:text-white/90 underline decoration-dotted"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {colors.map((c) => {
+                            const tempPick = pickVariant(
+                              variants,
+                              sizeByBase[baseId],
+                              c
+                            );
+                            const disabled = isSoldOut(tempPick);
+                            const selected =
+                              (colorByBase[baseId] || "").toLowerCase() ===
+                              c.toLowerCase();
+                            return (
+                              <button
+                                key={c}
+                                type="button"
+                                disabled={disabled}
+                                onClick={() =>
+                                  handleChooseColor(baseId, variants, c)
+                                }
+                                className={[
+                                  "px-3 py-1.5 rounded-xl border text-sm transition-all",
+                                  selected
+                                    ? "bg-white text-black border-white shadow"
+                                    : "bg-black/20 text-white/90 border-white/10 hover:border-white/30",
+                                  disabled
+                                    ? "opacity-40 cursor-not-allowed"
+                                    : "cursor-pointer",
+                                ].join(" ")}
+                                aria-pressed={selected}
+                                title={disabled ? "Sold out" : `Select ${c}`}
+                              >
+                                {c}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Quantity + Add to cart */}
-                  <div className="mt-4 flex items-center gap-3 p-4">
+                  <div className="mt-3 flex items-center gap-3 p-4">
                     <div className="flex items-center rounded-xl border border-white/10 overflow-hidden">
                       <button
                         type="button"
@@ -407,11 +573,11 @@ export default function MerchandisePage() {
                     <button
                       type="button"
                       onClick={() => handleAddToCart(baseId, variants)}
-                      className="flex-1 inline-flex items-center justify-center gap-2 bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] px-4 py-2.5 text-xs  text-white font-semibold transition-colors disabled:opacity-40"
-                      disabled={!selectedVariantId}
+                      className="flex-1 inline-flex items-center justify-center gap-2 bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] px-4 py-2.5 text-xs text-white font-semibold transition-colors disabled:opacity-40"
+                      disabled={!selectedByBase[baseId]}
                       title={
-                        !selectedVariantId
-                          ? "Select a size to continue"
+                        !selectedByBase[baseId]
+                          ? "Choose an option to continue"
                           : "Add to cart"
                       }
                     >
@@ -430,7 +596,7 @@ export default function MerchandisePage() {
         <Link
           to="/checkout"
           className={[
-            "inline-flex items-center gap-2 px-6 py-3  font-semibold rounded-xl",
+            "inline-flex items-center gap-2 px-6 py-3 font-semibold rounded-xl",
             hasOneSelected
               ? "bg-[var(--color-accent-gold)] animate-pulse hover:brightness-95 text-black"
               : "bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white",

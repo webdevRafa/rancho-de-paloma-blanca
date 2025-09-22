@@ -1,4 +1,4 @@
-export type Size = "S" | "M" | "L" | "XL" | "XXL";
+export type Size = "S" | "M" | "L" | "XL" | "XXL" | "OS";
 
 export interface Product {
   id: string;
@@ -6,6 +6,7 @@ export interface Product {
   price: number;
   imageUrl?: string;
   active?: boolean;
+  color?: string;
   description?: string;
   skuCode?: string; 
   unitOfMeasure?: string; 
