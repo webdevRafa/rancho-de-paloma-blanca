@@ -520,7 +520,7 @@ const BookingForm = () => {
             </div>
 
             {form.dates.length > 0 && (
-              <div className="mt-6 border-t border-[var(--color-footer)] pt-4">
+              <div className="mt-4 border-t border-[var(--color-footer)] pt-4">
                 <div className="flex items-center gap-2">
                   <p className="mb-2 text-[var(--color-footer)] text-sm font-semibold">
                     Add Party Deck ($500/day):
@@ -528,10 +528,10 @@ const BookingForm = () => {
                   <button
                     type="button"
                     onClick={() => setShowPartyDeck(true)}
-                    className="text-md flex items-center px-2 py-1 text-[var(--color-background)] rounded-md   border-[var(--color-footer)]/30 font-acumin hover:bg-[var(--color-footer)]/10 transition"
+                    className="text-md flex items-center px-2 py-1 text-white border-2  bg-[var(--color-background)] hover:bg-[var(--color-accent-sage)] rounded-md  font-acumin transition"
                     aria-label="Preview Party Deck details and photos"
                   >
-                    Preview <MdOutlinePreview />
+                    Preview <MdOutlinePreview className="size-5" />
                   </button>
                 </div>
                 <div className="space-y-2">
