@@ -582,7 +582,7 @@ export default function MerchandisePage() {
           aria-disabled={checkoutDisabled}
           tabIndex={checkoutDisabled ? -1 : 0}
           className={[
-            "inline-flex items-center gap-2 px-2 py-1.5 font-semibold text-sm transition",
+            "inline-flex items-center gap-2 px-2 py-1.5 font-semibold text-sm transition rounded-md font-acumin",
             checkoutDisabled ? "opacity-50 cursor-not-allowed" : "",
             // keep your “selected” styling logic exactly as before
             hasOneSelected
