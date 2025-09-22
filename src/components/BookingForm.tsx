@@ -16,6 +16,7 @@ import { useCart } from "../context/CartContext";
 import type { Attendee } from "../types/Types";
 import { motion, AnimatePresence } from "framer-motion";
 import PartyDeck from "./PartyDeck";
+import { MdOutlinePreview } from "react-icons/md";
 
 const BookingForm = () => {
   const { user, login } = useAuth();
@@ -527,10 +528,10 @@ const BookingForm = () => {
                   <button
                     type="button"
                     onClick={() => setShowPartyDeck(true)}
-                    className="text-xs px-2 py-1 rounded-md border border-[var(--color-footer)]/30 text-[var(--color-footer)] hover:bg-[var(--color-footer)]/10 transition"
+                    className="text-md flex items-center px-2 py-1 text-[var(--color-background)] rounded-md   border-[var(--color-footer)]/30 font-acumin hover:bg-[var(--color-footer)]/10 transition"
                     aria-label="Preview Party Deck details and photos"
                   >
-                    Preview
+                    Preview <MdOutlinePreview />
                   </button>
                 </div>
                 <div className="space-y-2">
