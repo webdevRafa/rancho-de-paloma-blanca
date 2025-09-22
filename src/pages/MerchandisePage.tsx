@@ -13,6 +13,7 @@ import { useCart } from "../context/CartContext";
 import type { Product as ProductType } from "../types/MerchTypes";
 import { toast } from "react-toastify";
 import { Minus, Plus, Check } from "lucide-react";
+import { MdShoppingCartCheckout } from "react-icons/md";
 
 /** Product shape from Firestore (variant-as-SKU) */
 type Size = "XS" | "S" | "M" | "L" | "XL" | "XXL" | "XXXL" | "OS" | string;
@@ -26,7 +27,7 @@ type Product = ProductType & {
   skuCode?: string;
   unitOfMeasure?: string;
   active?: boolean;
-  color?: string; // NEW: color attribute (e.g., "Dark"|"Light")
+  color?: string; // color attribute (e.g., "Dark"|"Light")
 };
 
 const SIZE_ORDER = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "OS"] as const;
@@ -38,13 +39,12 @@ function groupByBaseProduct(products: Product[]) {
     if (!map.has(key)) map.set(key, []);
     map.get(key)!.push(p);
   }
-  // sort by size then name for stable, nice ordering
+  // sort by size then color then name for stable ordering
   for (const [k, arr] of map) {
     arr.sort((a, b) => {
       const ai = SIZE_ORDER.indexOf((a.size || "").toUpperCase() as any);
       const bi = SIZE_ORDER.indexOf((b.size || "").toUpperCase() as any);
       if (ai !== -1 && bi !== -1 && ai !== bi) return ai - bi;
-      // secondary: by color then name
       const ac = (a.color || "").toLowerCase();
       const bc = (b.color || "").toLowerCase();
       if (ac !== bc) return ac.localeCompare(bc);
@@ -126,8 +126,23 @@ export default function MerchandisePage() {
 
   const groups = useMemo(() => groupByBaseProduct(products), [products]);
   const isSingle = useMemo(() => groups.size === 1, [groups]);
+  const cartHasItems = useMemo(() => {
+    try {
+      if (Array.isArray(merchItems)) {
+        return merchItems.some((mi: any) => (mi?.quantity || 0) > 0);
+      }
+      // object/dictionary shape
+      return Object.values(merchItems || {}).some(
+        (x: any) => (x?.quantity || 0) > 0
+      );
+    } catch {
+      return false;
+    }
+  }, [merchItems]);
 
-  // selection & qty state per base product
+  const checkoutDisabled = !cartHasItems;
+
+  // --- Selection should be user-driven (no auto-pick on load) ---
   const [selectedByBase, setSelectedByBase] = useState<
     Record<string, string | null>
   >({});
@@ -138,17 +153,24 @@ export default function MerchandisePage() {
   const [colorByBase, setColorByBase] = useState<Record<string, string | null>>(
     {}
   );
+  const [touched, setTouched] = useState(false); // flips true only after a click
 
-  // if nothing chosen, consider a card "primed" when it has qty===1 + a valid default selection
-  const hasOneSelected = useMemo(() => {
-    for (const [baseId, variants] of groups.entries()) {
-      const selectedId = selectedByBase[baseId];
-      const qty = qtyByBase[baseId] ?? 1;
-      const chosen = variants.find((v) => v.id === selectedId);
-      if (chosen && qty === 1) return true;
+  // Default qty -> 1 for each base product; DO NOT set default selections
+  useEffect(() => {
+    const next: Record<string, number> = { ...qtyByBase };
+    groups.forEach((_variants, baseId) => {
+      if (next[baseId] == null) next[baseId] = 1;
+    });
+    if (JSON.stringify(next) !== JSON.stringify(qtyByBase)) {
+      setQtyByBase(next);
     }
-    return false;
-  }, [groups, selectedByBase, qtyByBase]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groups]);
+
+  const hasOneSelected = useMemo(
+    () => touched && Object.values(selectedByBase).some(Boolean),
+    [touched, selectedByBase]
+  );
 
   const setQty = (baseId: string, next: number) =>
     setQtyByBase((prev) => ({
@@ -164,7 +186,6 @@ export default function MerchandisePage() {
     wantSize?: string | null,
     wantColor?: string | null
   ) => {
-    // exact match first
     let found =
       variants.find(
         (v) =>
@@ -174,51 +195,13 @@ export default function MerchandisePage() {
               (wantColor || "").toLowerCase()) &&
           !isSoldOut(v)
       ) ||
-      // then allow ignoring color if size is set
       variants.find(
         (v) => !isSoldOut(v) && (!wantSize || v.size === wantSize)
       ) ||
-      // else first in-stock
       variants.find((v) => !isSoldOut(v)) ||
-      // else first
       variants[0];
     return found || variants[0];
   };
-
-  // ensure a default selection per card (first in-stock or best match)
-  useEffect(() => {
-    const nextSelected = { ...selectedByBase };
-    const nextSize = { ...sizeByBase };
-    const nextColor = { ...colorByBase };
-
-    groups.forEach((variants, baseId) => {
-      if (!nextSelected[baseId]) {
-        const sizes = Array.from(
-          new Set(variants.map((v) => (v.size || "").toString()))
-        ).filter(Boolean);
-        const colors = Array.from(
-          new Set(variants.map((v) => (v.color || "").toString()))
-        ).filter(Boolean);
-
-        const pick = pickVariant(
-          variants,
-          sizes.length === 1 ? sizes[0] : null,
-          colors.length === 1 ? colors[0] : null
-        );
-        nextSelected[baseId] = pick?.id ?? null;
-        nextSize[baseId] = pick?.size || null;
-        nextColor[baseId] = pick?.color || null;
-      }
-      if (qtyByBase[baseId] == null) {
-        setQty(baseId, 1);
-      }
-    });
-
-    setSelectedByBase(nextSelected);
-    setSizeByBase(nextSize);
-    setColorByBase(nextColor);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groups]);
 
   const handleChooseSize = (
     baseId: string,
@@ -226,6 +209,7 @@ export default function MerchandisePage() {
     size: string
   ) => {
     const chosen = pickVariant(variants, size, colorByBase[baseId]);
+    setTouched(true);
     setSizeByBase((p) => ({ ...p, [baseId]: size }));
     setSelectedByBase((p) => ({ ...p, [baseId]: chosen?.id ?? null }));
     if (chosen?.color) {
@@ -239,6 +223,7 @@ export default function MerchandisePage() {
     color: string
   ) => {
     const chosen = pickVariant(variants, sizeByBase[baseId], color);
+    setTouched(true);
     setColorByBase((p) => ({ ...p, [baseId]: color }));
     setSelectedByBase((p) => ({ ...p, [baseId]: chosen?.id ?? null }));
     if (chosen?.size) {
@@ -342,17 +327,18 @@ export default function MerchandisePage() {
       >
         {Array.from(groups.entries()).map(([baseId, variants]) => {
           const selectedId = selectedByBase[baseId];
-          const selectedVariant =
-            variants.find((v) => v.id === selectedId) ||
-            pickVariant(variants, sizeByBase[baseId], colorByBase[baseId]);
+          const selectedVariant = variants.find((v) => v.id === selectedId);
+          const displayVariant = selectedVariant ?? variants[0];
 
-          const baseName = (variants[0]?.name || "")
+          const baseName = (displayVariant?.name || "")
             .replace(/\s+—\s*\w+$/i, "")
             .trim();
-          const price = selectedVariant?.price ?? variants[0]?.price ?? 0;
+
+          const price = displayVariant?.price ?? variants[0]?.price ?? 0;
+
           const cover =
-            selectedVariant?.imageUrl ||
-            selectedVariant?.image ||
+            displayVariant?.imageUrl ||
+            displayVariant?.image ||
             variants[0]?.imageUrl ||
             variants[0]?.image;
 
@@ -417,15 +403,11 @@ export default function MerchandisePage() {
                           <button
                             type="button"
                             onClick={() => {
+                              setTouched(true);
                               setSizeByBase((p) => ({ ...p, [baseId]: null }));
-                              const pick = pickVariant(
-                                variants,
-                                null,
-                                colorByBase[baseId]
-                              );
                               setSelectedByBase((p) => ({
                                 ...p,
-                                [baseId]: pick?.id ?? null,
+                                [baseId]: null,
                               }));
                             }}
                             className="text-[11px] text-white/60 hover:text-white/90 underline decoration-dotted"
@@ -478,18 +460,14 @@ export default function MerchandisePage() {
                           <button
                             type="button"
                             onClick={() => {
+                              setTouched(true);
                               setColorByBase((p) => ({
                                 ...p,
                                 [baseId]: null,
                               }));
-                              const pick = pickVariant(
-                                variants,
-                                sizeByBase[baseId],
-                                null
-                              );
                               setSelectedByBase((p) => ({
                                 ...p,
-                                [baseId]: pick?.id ?? null,
+                                [baseId]: null,
                               }));
                             }}
                             className="text-[11px] text-white/60 hover:text-white/90 underline decoration-dotted"
@@ -595,14 +573,27 @@ export default function MerchandisePage() {
       <div className="mt-10 text-center">
         <Link
           to="/checkout"
+          onClick={(e) => {
+            if (checkoutDisabled) {
+              e.preventDefault();
+              toast.error("Add at least one item to your cart to continue.");
+            }
+          }}
+          aria-disabled={checkoutDisabled}
+          tabIndex={checkoutDisabled ? -1 : 0}
           className={[
-            "inline-flex items-center gap-2 px-6 py-3 font-semibold rounded-xl",
+            "inline-flex items-center gap-2 px-2 py-1.5 font-semibold text-sm transition",
+            checkoutDisabled ? "opacity-50 cursor-not-allowed" : "",
+            // keep your “selected” styling logic exactly as before
             hasOneSelected
               ? "bg-[var(--color-accent-gold)] animate-pulse hover:brightness-95 text-black"
               : "bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white",
           ].join(" ")}
+          title={
+            checkoutDisabled ? "Your cart is empty" : "Continue to Checkout"
+          }
         >
-          Continue to Checkout
+          Continue to Checkout <MdShoppingCartCheckout className="size-8" />
         </Link>
       </div>
     </div>
