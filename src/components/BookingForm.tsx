@@ -654,7 +654,7 @@ const BookingForm = () => {
                 transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
               >
                 {/* Header */}
-                <div className="sticky top-0 z-10 flex items-center justify-between px-4 md:px-6 py-3 bg-[var(--color-card)]/90 backdrop-blur border-b border-white/10">
+                <div className="sticky top-0 z-[90] flex items-center justify-between px-4 md:px-6 py-3 bg-[var(--color-card)]/90 backdrop-blur border-b border-white/10">
                   <h3 className="text-white font-gin text-lg">Party Deck</h3>
                   <button
                     onClick={() => setShowPartyDeck(false)}
@@ -666,7 +666,7 @@ const BookingForm = () => {
                 </div>
 
                 {/* Body: reuse your existing component exactly as-is */}
-                <div className="px-2 md:px-4 pb-4  relative">
+                <div className="px-2 md:px-4 pb-4">
                   <PartyDeck />
                 </div>
               </motion.div>
