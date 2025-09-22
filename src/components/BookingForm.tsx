@@ -539,11 +539,11 @@ const BookingForm = () => {
 
             {seasonConfig && (
               <div className="text-center text-[var(--color-text)] space-y-1 text-sm mt-4">
-                <p className="text-lg font-semibold text-[var(--color-footer)]">
+                <p className="text-lg font-semibold text-[var(--color-footer)] bg-[var(--color-accent-gold)]/30 py-1 rounded-md">
                   Total Price: ${calculateTotalPrice()}
                 </p>
                 {form.partyDeckDates.length > 0 && (
-                  <p>
+                  <p className="text-black">
                     Party Deck: ${seasonConfig.partyDeckRatePerDay} ×{" "}
                     {form.partyDeckDates.length} = $
                     {seasonConfig.partyDeckRatePerDay *
@@ -576,27 +576,35 @@ const BookingForm = () => {
               >
                 Continue →
               </button>
-              <button
-                className="bg-[var(--color-accent-gold)] text-[var(--color-footer)] font-bold shadow-md p-2 text-xs ml-3"
-                onClick={handleContinueToMerch}
-              >
-                Shop Merch
-              </button>
             </>
           ) : (
             <>
-              <button
-                onClick={handlePrevStep}
-                className="text-sm text-[var(--color-button)] font-bold hover:underline"
-              >
-                ← Back
-              </button>
-              <button
-                onClick={handleSubmit}
-                className="ml-auto bg-[var(--color-footer)] hover:bg-[var(--color-button-hover)] border border-[var(--color-button-hover)] font-bold text-white px-6 py-3 rounded-md text-sm tracking-wide transition-all"
-              >
-                Add to Cart & Proceed
-              </button>
+              <div className="flex  w-full items-center justify-center">
+                <div className="w-full">
+                  <button
+                    onClick={handlePrevStep}
+                    className="text-xs mx-auto px-6 p-2 block text-[var(--color-button)] font-bold hover:underline"
+                  >
+                    ← Back
+                  </button>
+                </div>
+                <div className="w-full">
+                  <button
+                    className="bg-[var(--color-accent-gold)] mx-auto block hover:bg-[var(--color-accent-gold)]/80 text-[var(--color-footer)] transition duration-300 ease-in-out font-bold shadow-md px-6 p-2 text-xs"
+                    onClick={handleContinueToMerch}
+                  >
+                    Shop Merch
+                  </button>
+                </div>
+                <div className="w-full">
+                  <button
+                    onClick={handleSubmit}
+                    className="bg-[var(--color-button-hover)] md:bg-[var(--color-footer)] mx-auto block hover:bg-[var(--color-button-hover)] border border-[var(--color-button-hover)] font-bold text-white px-6 py-2  text-xs tracking-wide transition-all"
+                  >
+                    Checkout
+                  </button>
+                </div>
+              </div>
             </>
           )}
         </div>
