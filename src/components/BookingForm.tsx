@@ -647,7 +647,7 @@ const BookingForm = () => {
               onClick={(e) => e.stopPropagation()}
             >
               <motion.div
-                className="h-[80vh] mt-[20vh] relative w-full overflow-y-auto bg-gradient-to-b from-[var(--color-background)]/60 to-[var(--color-footer)]  border border-white/10 shadow-2xl"
+                className="h-[80vh] mt-[58px] relative w-full overflow-y-auto bg-gradient-to-b from-[var(--color-background)]/60 to-[var(--color-footer)]  border border-white/10 shadow-2xl"
                 initial={{ opacity: 0, y: 12, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 12, scale: 0.98 }}

@@ -302,7 +302,7 @@ const PartyDeck = () => {
             onClick={close}
           >
             <div
-              className="absolute inset-0 flex items-center justify-center p-4"
+              className="absolute top-[58px] inset-0 flex items-center justify-center p-4"
               onClick={(e) => e.stopPropagation()}
             >
               <motion.img
