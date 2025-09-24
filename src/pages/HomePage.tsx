@@ -122,13 +122,13 @@ const HomePage = () => {
           >
             <a
               href="/book"
-              className="inline-block p-2 text-white font-acumin bg-[var(--color-card)]/40 border-[var(--color-accent-gold)]/50 border-2 hover:bg-[var(--color-card)]/80 hover:scale-105 text-sm transition duration-300 ease-in-out"
+              className="inline-block p-2 font-gin text-white font-acumin bg-[var(--color-card)] border-[var(--color-accent-gold)]/50 border-2 hover:bg-[var(--color-card)]/80 hover:scale-105 text-sm transition duration-300 ease-in-out"
             >
               Book Your Hunt
             </a>
             <Link
               to="/backtheblue"
-              className="text-white bg-gradient-to-b font-gin hover:scale-105 cursor-pointer from-[var(--color-blue)] to-[var(--color-bluedarker)] flex gap-2 items-center justify-center p-1.5"
+              className="text-white text-sm bg-gradient-to-b font-gin hover:scale-105 cursor-pointer from-[var(--color-blue)] to-[var(--color-bluedarker)] flex gap-2 items-center justify-center p-1.5"
             >
               Back the Blue
               <FaFlagUsa />

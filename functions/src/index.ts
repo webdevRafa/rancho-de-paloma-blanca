@@ -57,6 +57,8 @@ setGlobalOptions({
   region: "us-central1",
   memory: "512MiB",
   timeoutSeconds: 60,
+  vpcConnector: "projects/rancho-de-paloma-blanca/locations/us-central1/connectors/srvless-usc1",
+vpcConnectorEgressSettings: "ALL_TRAFFIC",
 });
 
 // ---- Secrets ----
