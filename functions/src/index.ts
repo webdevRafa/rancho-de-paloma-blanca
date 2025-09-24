@@ -38,6 +38,9 @@ import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
 // resolution issues in TypeScript.  All necessary CORS headers are set
 // manually in the handler below.
 import crypto from "crypto";
+import { Resend } from "resend";
+import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import { renderOrderPlacedEmail, renderOrderPaidEmail, renderRefundEmail } from "./email/templates.js";
 
 import { setGlobalOptions, logger } from "firebase-functions/v2";
 import { onRequest } from "firebase-functions/v2/https";
@@ -67,6 +70,31 @@ const DELUXE_CLIENT_SECRET = defineSecret("DELUXE_CLIENT_SECRET");
 const DELUXE_ACCESS_TOKEN = defineSecret("DELUXE_ACCESS_TOKEN"); // PartnerToken
 const DELUXE_MID = defineSecret("DELUXE_MID"); // informational
 const DELUXE_EMBEDDED_SECRET = defineSecret("DELUXE_EMBEDDED_SECRET"); // HS256 for embedded JWT
+
+const RESEND_API_KEY = defineSecret("RESEND_API_KEY");
+const RESEND_FROM_EMAIL = defineSecret("RESEND_FROM_EMAIL");
+const NOTIFY_ADMIN_EMAIL = defineSecret("NOTIFY_ADMIN_EMAIL");
+
+async function sendEmail(args: {
+  to: string | string[];
+  subject: string;
+  html: string;
+  cc?: string | string[];
+  bcc?: string | string[];
+}) {
+  const client = new Resend(RESEND_API_KEY.value());
+  const payload: any = {
+    from: RESEND_FROM_EMAIL.value(),
+    to: Array.isArray(args.to) ? args.to : [args.to],
+    subject: args.subject,
+    html: args.html,
+  };
+  if (args.cc) payload.cc = args.cc;
+  if (args.bcc) payload.bcc = args.bcc;
+  const r = await client.emails.send(payload);
+  if ((r as any)?.error) throw (r as any).error;
+}
+
 
 // ---- Hosts ----
 function useSandbox(): boolean {
@@ -236,6 +264,39 @@ async function incrementCapacityFromOrder(order: OrderDoc) {
 // manually route based on the incoming URL and HTTP method.  This keeps the
 // surface area small and avoids the need for additional middleware.  We also
 // perform basic CORS handling for all endpoints.
+export const emailOnOrderCreated = onDocumentCreated(
+  {
+    document: "orders/{orderId}",
+    secrets: [RESEND_API_KEY, RESEND_FROM_EMAIL, NOTIFY_ADMIN_EMAIL],
+  },
+  async (event) => {
+    const data = event.data?.data() as any | undefined;
+    if (!data) return;
+
+    const orderId = event.params.orderId;
+    const to = data.customer?.email || NOTIFY_ADMIN_EMAIL.value();
+    const subject = `Order received — ${orderId}`;
+    const html = renderOrderPlacedEmail({
+      firstName: data.customer?.firstName,
+      orderId,
+      total: Number(data.total || 0),
+      dates: data.booking?.dates,
+      hunters: data.booking?.numberOfHunters,
+    });
+
+    try {
+      await sendEmail({
+        to,
+        subject,
+        html,
+        bcc: NOTIFY_ADMIN_EMAIL.value() || undefined,
+      });
+    } catch (e) {
+      logger.error("emailOnOrderCreated failed", String(e));
+    }
+  }
+);
+
 
 export const api = onRequest(
   {
@@ -245,6 +306,9 @@ export const api = onRequest(
       DELUXE_ACCESS_TOKEN,
       DELUXE_MID,
       DELUXE_EMBEDDED_SECRET,
+      RESEND_API_KEY,
+      RESEND_FROM_EMAIL,
+      NOTIFY_ADMIN_EMAIL,
     ],
   },
   async (req: any, res: any) => {
@@ -697,6 +761,42 @@ logger.info("refunds response raw", { status: resp.status, deluxeRequestId, text
       });
       return;
     }
+    // 💌 refund issued (customer + admin)
+try {
+  let orderDoc: any | undefined;
+
+  if (orderId) {
+    const s = await db.collection("orders").doc(orderId).get();
+    if (s.exists) orderDoc = { id: s.id, ...s.data() };
+  } else if (paymentId) {
+    const qs = await db
+      .collection("orders")
+      .where("deluxe.paymentId", "==", paymentId)
+      .limit(1)
+      .get();
+    if (!qs.empty) {
+      const d = qs.docs[0];
+      orderDoc = { id: d.id, ...d.data() };
+    }
+  }
+
+  const to = orderDoc?.customer?.email || NOTIFY_ADMIN_EMAIL.value();
+  const subject = `Refund issued — Order ${orderDoc?.id ?? orderId ?? paymentId}`;
+  const html = renderRefundEmail({
+    firstName: orderDoc?.customer?.firstName,
+    orderId: String(orderDoc?.id ?? orderId ?? paymentId ?? "N/A"),
+    amount: Number(refundAmount),
+  });
+
+  await sendEmail({
+    to,
+    subject,
+    html,
+    bcc: NOTIFY_ADMIN_EMAIL.value() || undefined,
+  });
+} catch (e) {
+  logger.error("email refund-issued failed", String(e));
+}
 
     // ----- Success -----
     res.status(200).json({ ...json, resolvedPaymentId: paymentId, deluxeRequestId });
@@ -733,6 +833,21 @@ logger.info("refunds response raw", { status: resp.status, deluxeRequestId, text
                 { merge: true }
               );
               await incrementCapacityFromOrder(order);
+              // 💌 payment approved (customer + admin)
+try {
+  const to = order.customer?.email || NOTIFY_ADMIN_EMAIL.value();
+  const subject = `Payment received — Order ${order.id}`;
+  const html = renderOrderPaidEmail({
+    firstName: order.customer?.firstName,
+    orderId: order.id!,
+    total: Number(order.total || 0),
+    dates: order.booking?.dates,
+    hunters: order.booking?.numberOfHunters,
+  });
+  await sendEmail({ to, subject, html, bcc: NOTIFY_ADMIN_EMAIL.value() || undefined });
+} catch (e) {
+  logger.error("email payment-approved failed", String(e));
+}
             }
           } else {
             logger.warn("Webhook received without resolvable orderId or unpaid status", { orderId, status });
@@ -758,3 +873,4 @@ logger.info("refunds response raw", { status: resp.status, deluxeRequestId, text
 
   
 );
+
