@@ -951,7 +951,7 @@ export default function CheckoutPage() {
 
       const isSandbox = (embeddedBase || "").includes("payments2.");
       const config = {
-        countryCode: "US",
+        countryCode: "USA",
         currencyCode: "USD",
         paymentMethods,
         supportedNetworks: ["visa", "masterCard", "amex", "discover"],
