@@ -67,7 +67,7 @@ export interface PendingOrder {
   createdAt?: any; // Can be Firebase Timestamp or FieldValue
 }
 
-export type OrderStatus = "pending" | "paid" | "cancelled";
+export type OrderStatus = "pending" | "paid" | "cancelled" | "refunded";
 export interface PaymentLinkMeta {
   provider: "Deluxe";
   paymentLinkId?: string;  // from Deluxe response

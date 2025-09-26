@@ -761,45 +761,100 @@ logger.info("refunds response raw", { status: resp.status, deluxeRequestId, text
       });
       return;
     }
-    // 💌 refund issued (customer + admin)
-try {
-  let orderDoc: any | undefined;
 
-  if (orderId) {
-    const s = await db.collection("orders").doc(orderId).get();
-    if (s.exists) orderDoc = { id: s.id, ...s.data() };
-  } else if (paymentId) {
-    const qs = await db
-      .collection("orders")
-      .where("deluxe.paymentId", "==", paymentId)
-      .limit(1)
-      .get();
-    if (!qs.empty) {
-      const d = qs.docs[0];
-      orderDoc = { id: d.id, ...d.data() };
+    const approved =
+  String(json?.responseCode ?? json?.code ?? "").toLowerCase() === "0" ||
+  /approved|success/i.test(String(json?.status ?? json?.responseMessage ?? ""));
+
+  
+// NEW: persist refunded status on the order before responding
+try {
+  if (!approved) {
+    logger.warn("refund not approved in body; not marking refunded", { json });
+  } else {
+    // Resolve the Firestore order doc ...
+    let orderDoc: any | undefined;
+
+    if (orderId) {
+      const s = await db.collection("orders").doc(orderId).get();
+      if (s.exists) orderDoc = { id: s.id, ...s.data() };
+    } else if (paymentId) {
+      const qs = await db
+        .collection("orders")
+        .where("deluxe.paymentId", "==", paymentId)
+        .limit(1)
+        .get();
+      if (!qs.empty) {
+        const d = qs.docs[0];
+        orderDoc = { id: d.id, ...d.data() };
+      }
+    }
+
+    const targetId = String(orderDoc?.id ?? orderId ?? "");
+    if (targetId) {
+      const ref = db.collection("orders").doc(targetId);
+      await ref.set(
+        {
+          status: "refunded",
+          updatedAt: FieldValue.serverTimestamp(),
+          refund: {
+            amount: Number(refundAmount),
+            currency: String(currency || "USD").toUpperCase(),
+            approvedAt: FieldValue.serverTimestamp(),
+            paymentId: json?.paymentId ?? paymentId ?? null,
+            parentPaymentId: json?.parentPaymentId ?? json?.resolvedPaymentId ?? null,
+            requestId: deluxeRequestId ?? json?.requestId ?? null,
+            responseCode: json?.responseCode ?? null,
+            authResponse: json?.authResponse ?? null,
+            deluxe: json,
+          },
+          deluxe: { ...(orderDoc?.deluxe || {}), lastRefund: json },
+        },
+        { merge: true }
+      );
     }
   }
+} catch (e) {
+  logger.warn("order-refund-status-write failed", String(e));
+}
 
-  const to = orderDoc?.customer?.email || NOTIFY_ADMIN_EMAIL.value();
-  const subject = `Refund issued — Order ${orderDoc?.id ?? orderId ?? paymentId}`;
-  const html = renderRefundEmail({
-    firstName: orderDoc?.customer?.firstName,
-    orderId: String(orderDoc?.id ?? orderId ?? paymentId ?? "N/A"),
-    amount: Number(refundAmount),
-  });
+// 💌 refund issued (customer + admin)
+try {
+  if (approved) {                              // ← add this line
+    let orderDoc: any | undefined;
+    if (orderId) {
+      const s = await db.collection("orders").doc(orderId).get();
+      if (s.exists) orderDoc = { id: s.id, ...s.data() };
+    } else if (paymentId) {
+      const qs = await db
+        .collection("orders")
+        .where("deluxe.paymentId", "==", paymentId)
+        .limit(1)
+        .get();
+      if (!qs.empty) {
+        const d = qs.docs[0];
+        orderDoc = { id: d.id, ...d.data() };
+      }
+    }
 
-  await sendEmail({
-    to,
-    subject,
-    html,
-    bcc: NOTIFY_ADMIN_EMAIL.value() || undefined,
-  });
+    const to = orderDoc?.customer?.email || NOTIFY_ADMIN_EMAIL.value();
+    const subject = `Refund issued — Order ${orderDoc?.id ?? orderId ?? paymentId}`;
+    const html = renderRefundEmail({
+      firstName: orderDoc?.customer?.firstName,
+      orderId: String(orderDoc?.id ?? orderId ?? paymentId ?? "N/A"),
+      amount: Number(refundAmount),
+    });
+
+    await sendEmail({ to, subject, html, bcc: NOTIFY_ADMIN_EMAIL.value() || undefined });
+  } else {
+    logger.warn("refund not approved; skipping refund email", { json });
+  }                                          // ← and this closing brace
 } catch (e) {
   logger.error("email refund-issued failed", String(e));
 }
 
     // ----- Success -----
-    res.status(200).json({ ...json, resolvedPaymentId: paymentId, deluxeRequestId });
+    res.status(200).json({ ...json, approved, resolvedPaymentId: paymentId, deluxeRequestId });
     return;
   } catch (err: any) {
     logger.error("refundDeluxePayment error", { message: err?.message ?? String(err) });

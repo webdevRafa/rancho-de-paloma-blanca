@@ -74,15 +74,14 @@ function isPast(iso?: string) {
 }
 
 // UX stage for the pill beside status (purely visual)
-type Stage = "active" | "completed" | "pending" | "cancelled";
-function classifyStage(
-  order: Order
-): "active" | "completed" | "pending" | "cancelled" {
+type Stage = "active" | "completed" | "pending" | "cancelled" | "refunded";
+function classifyStage(order: Order): Stage {
+  if (order.status === "refunded") return "refunded";
   if (order.status === "cancelled") return "cancelled";
   if (order.status === "pending") return "pending";
   const first = firstHuntDate(order);
-  if (!first) return "completed"; // paid merch-only
-  return isPast(first) ? "completed" : "active"; // <— now uses isPast
+  if (!first) return "completed";
+  return isPast(first) ? "completed" : "active";
 }
 
 /** "Friday, October 4th, 2025" (safe) */
@@ -349,11 +348,13 @@ const ClientDashboard: React.FC = () => {
     return hasBooking || merchCount > 0;
   }, [isHydrated, booking, merchItems]);
   const validOrders = useMemo(
-    () => orders.filter((o) => o.status !== "cancelled"),
+    () =>
+      orders.filter((o) => o.status !== "cancelled" && o.status !== "refunded"),
     [orders]
   );
   const cancelledOrders = useMemo(
-    () => orders.filter((o) => o.status === "cancelled"),
+    () =>
+      orders.filter((o) => o.status === "cancelled" || o.status === "refunded"),
     [orders]
   );
 
@@ -429,6 +430,22 @@ const ClientDashboard: React.FC = () => {
           );
         }
       }
+      // Decide status based on server response
+      const approved =
+        !!refundPayload &&
+        (refundPayload.approved === true ||
+          String(
+            refundPayload?.responseCode ?? refundPayload?.code ?? ""
+          ).toLowerCase() === "0" ||
+          /approved|success/i.test(
+            String(
+              refundPayload?.status ?? refundPayload?.responseMessage ?? ""
+            )
+          ));
+      const refundSucceeded = refundAmount > 0 && approved;
+      const nextStatus: Order["status"] = refundSucceeded
+        ? "refunded"
+        : "cancelled";
 
       // 2) Firestore updates (cancel order, free capacity)
       const batch = writeBatch(db);
@@ -436,7 +453,7 @@ const ClientDashboard: React.FC = () => {
       batch.set(
         orderRef,
         {
-          status: "cancelled",
+          status: nextStatus,
           refundAmount,
           cancelledAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
@@ -469,7 +486,7 @@ const ClientDashboard: React.FC = () => {
       setOrders((prev) =>
         prev.map((o) =>
           o.id === order.id
-            ? ({ ...o, status: "cancelled", refundAmount } as any)
+            ? ({ ...o, status: nextStatus, refundAmount } as any)
             : o
         )
       );
@@ -526,6 +543,7 @@ const ClientDashboard: React.FC = () => {
       completed: "border-neutral-300 text-neutral-600 bg-neutral-50",
       pending: "border-amber-300 text-amber-700 bg-amber-50",
       cancelled: "border-rose-300 text-rose-700 bg-rose-50",
+      refunded: "border-sky-300 text-sky-700 bg-sky-50",
     } as const;
     return <span className={`${base} ${by[stage]}`}>{stage}</span>;
   };
@@ -891,7 +909,7 @@ const ClientDashboard: React.FC = () => {
                         : "border-white/20")
                     }
                   >
-                    Cancelled{" "}
+                    Cancelled / Refunded{" "}
                     <span className="opacity-60">
                       ({cancelledOrders.length})
                     </span>
@@ -904,7 +922,7 @@ const ClientDashboard: React.FC = () => {
               ) : (
                 <ul className="grid gap-4 grid-cols-1">
                   {filteredOrders.map((order) => (
-                    <OrderRow key={order.id || Math.random()} order={order} />
+                    <OrderRow key={order.id} order={order} />
                   ))}
                 </ul>
               )}
