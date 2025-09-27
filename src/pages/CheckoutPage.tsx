@@ -16,7 +16,7 @@ import { getSeasonConfig } from "../utils/getSeasonConfig";
 import toIsoAlpha3 from "../utils/toIsoAlpha3";
 import { formatLongDate } from "../utils/formatDate";
 import type { Attendee } from "../types/Types";
-import grass from "../assets/images/image000001.jpeg";
+import grass from "../assets/images/group.webp";
 type EPApi = {
   init: (jwt: string, config: Record<string, any>) => any;
   setEventHandlers?: (map: Record<string, (gw: any, data: any) => void>) => any;
@@ -1217,10 +1217,10 @@ export default function CheckoutPage() {
 
   return (
     <>
-      <div className="absolute top-0 left-0 w-[100vw] h-full z-[-1] opacity-10">
+      <div className="absolute top-0 left-0 w-[100vw] h-[100vh] z-[-1] opacity-30">
         <img className="w-full h-full object-cover" src={grass} alt="" />
       </div>
-      <div className="max-w-4xl mt-30 mx-auto px-4 py-10 relative">
+      <div className="max-w-4xl mt-30 mx-auto px-4 py-10 relative min-h-screen">
         {/* Display any error messages */}
         {(errorMsg || (cfgError as any)) && (
           <div className="mb-6 rounded-lg border border-red-500/30 bg-red-500/10 text-red-700 p-3">
@@ -1281,7 +1281,7 @@ export default function CheckoutPage() {
               <button
                 disabled={!customerInfoComplete}
                 onClick={() => setStep(2)}
-                className="px-4 py-2 rounded-lg bg-[var(--color-accent-sage)] text-white disabled:opacity-50"
+                className="px-4 py-2 rounded-lg bg-[var(--color-footer)] text-white disabled:opacity-50"
               >
                 Next: Review Order
               </button>
