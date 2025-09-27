@@ -48,7 +48,7 @@ export default function Navbar() {
       { to: "/", label: "Home" },
       { to: "/book", label: "Book a Hunt" },
       { to: "/rules", label: "Property Rules" },
-      { to: "/merch", label: "Merchandise" },
+      { to: "/merch", label: "Merch" },
       { to: "/gallery", label: "Gallery" },
       { to: "/videos", label: "Videos" },
       { to: "/contact", label: "Contact" },

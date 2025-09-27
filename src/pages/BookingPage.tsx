@@ -309,7 +309,7 @@ const BookingPage = () => {
             backgroundPosition: "center",
             backgroundRepeat: "no-repeat",
             backgroundAttachment: isIOS ? "scroll" : "fixed",
-            opacity: 0.5,
+            opacity: 0.4,
           }}
           aria-hidden="true"
         />
