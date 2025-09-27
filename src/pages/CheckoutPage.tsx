@@ -16,7 +16,7 @@ import { getSeasonConfig } from "../utils/getSeasonConfig";
 import toIsoAlpha3 from "../utils/toIsoAlpha3";
 import { formatLongDate } from "../utils/formatDate";
 import type { Attendee } from "../types/Types";
-
+import grass from "../assets/images/image000001.jpeg";
 type EPApi = {
   init: (jwt: string, config: Record<string, any>) => any;
   setEventHandlers?: (map: Record<string, (gw: any, data: any) => void>) => any;
@@ -1216,285 +1216,285 @@ export default function CheckoutPage() {
     return <div className="text-center py-20">Loading cart…</div>;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-10">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-semibold">Checkout</h1>
-        <p className="text-sm opacity-70">
-          Order ID: <span className="font-mono">{orderId}</span>
-        </p>
+    <>
+      <div className="absolute top-0 left-0 w-[100vw] h-full z-[-1] opacity-10">
+        <img className="w-full h-full object-cover" src={grass} alt="" />
       </div>
-
-      {/* Display any error messages */}
-      {(errorMsg || (cfgError as any)) && (
-        <div className="mb-6 rounded-lg border border-red-500/30 bg-red-500/10 text-red-700 p-3">
-          {errorMsg || (cfgError as any)}
-        </div>
-      )}
-
-      {/* Step indicator */}
-      <div className="flex items-center justify-center gap-4 mb-8">
-        <div className="flex items-center gap-1">
-          <div
-            className={[
-              "w-8 h-8 rounded-full flex items-center justify-center font-semibold",
-              step === 1
-                ? "bg-[var(--color-accent-sage)] text-white"
-                : "bg-gray-200 text-gray-600",
-            ].join(" ")}
-          >
-            1
+      <div className="max-w-4xl mt-30 mx-auto px-4 py-10 relative">
+        {/* Display any error messages */}
+        {(errorMsg || (cfgError as any)) && (
+          <div className="mb-6 rounded-lg border border-red-500/30 bg-red-500/10 text-red-700 p-3">
+            {errorMsg || (cfgError as any)}
           </div>
-          <span className="hidden sm:inline text-sm">Customer</span>
-        </div>
-        <div className="w-4 h-px bg-gray-300" />
-        <div className="flex items-center gap-1">
-          <div
-            className={[
-              "w-8 h-8 rounded-full flex items-center justify-center font-semibold",
-              step === 2
-                ? "bg-[var(--color-accent-sage)] text-white"
-                : "bg-gray-200 text-gray-600",
-            ].join(" ")}
-          >
-            2
-          </div>
-          <span className="hidden sm:inline text-sm">Review</span>
-        </div>
-        <div className="w-4 h-px bg-gray-300" />
-        <div className="flex items-center gap-1">
-          <div
-            className={[
-              "w-8 h-8 rounded-full flex items-center justify-center font-semibold",
-              step === 3
-                ? "bg-[var(--color-accent-sage)] text-white"
-                : "bg-gray-200 text-gray-600",
-            ].join(" ")}
-          >
-            3
-          </div>
-          <span className="hidden sm:inline text-sm">Pay</span>
-        </div>
-      </div>
+        )}
 
-      {/* Step 1: Customer Info */}
-      {step === 1 && (
-        <section className="mb-8 p-4 rounded-xl border bg-neutral-100">
-          <h2 className="text-xl mb-4 font-acumin">Customer Info</h2>
-          <CustomerInfoForm value={customer} onChange={setCustomer} />
-          <div className="mt-6 flex justify-end">
-            <button
-              disabled={!customerInfoComplete}
-              onClick={() => setStep(2)}
-              className="px-4 py-2 rounded-lg bg-[var(--color-accent-sage)] text-white disabled:opacity-50"
+        {/* Step indicator */}
+        <div className="flex items-center justify-center gap-4 mb-8">
+          <div className="flex items-center gap-1">
+            <div
+              className={[
+                "w-8 h-8 rounded-full flex items-center justify-center font-semibold",
+                step === 1
+                  ? "bg-[var(--color-accent-sage)] text-white"
+                  : "bg-gray-200 text-gray-600",
+              ].join(" ")}
             >
-              Next: Review Order
-            </button>
-          </div>
-        </section>
-      )}
-
-      {/* Step 2: Review Order */}
-      {step === 2 && (
-        <section className="mb-8 p-4 rounded-xl border bg-neutral-100">
-          <h2 className="text-xl mb-4 font-acumin">Review Your Order</h2>
-          {/* Summary details */}
-          <div className="mb-4 p-3 rounded-lg border bg-white/70">
-            <div className="grid sm:grid-cols-3 gap-3">
-              <div>
-                <div className="text-[11px] uppercase tracking-wide opacity-60">
-                  Hunters
-                </div>
-                <div className="font-semibold">
-                  {booking?.numberOfHunters ?? 0}
-                </div>
-              </div>
-              <div>
-                <div className="text-[11px] uppercase tracking-wide opacity-60">
-                  Days
-                </div>
-                <div className="font-semibold">
-                  {booking?.dates?.length ?? 0}
-                </div>
-              </div>
-              <div>
-                <div className="text-[11px] uppercase tracking-wide opacity-60">
-                  Dates
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {dateRangeLabels.map((label, i) => (
-                    <span
-                      key={i}
-                      className="inline-block px-2 py-1 rounded-full bg-neutral-100 border text-xs"
-                      title={label}
-                    >
-                      {label}
-                    </span>
-                  ))}
-                  {dateRangeLabels.length === 0 && (
-                    <span className="text-xs opacity-70">—</span>
-                  )}
-                </div>
-              </div>
+              1
             </div>
-            {booking?.partyDeckDates?.length ? (
-              <div className="mt-3 text-xs">
-                <span className="opacity-60 mr-1">Party Deck:</span>
-                <span className="font-medium">
-                  {partyDeckRangeLabels.join(", ")}
-                </span>
-              </div>
-            ) : null}
+            <span className="hidden sm:inline text-sm text-white">Info</span>
           </div>
-          {/* Line items */}
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className="py-2 text-left">Item</th>
-                  <th className="py-2 text-right">Qty</th>
-                  <th className="py-2 text-right">Unit</th>
-                  <th className="py-2 text-right">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reviewProducts.map((item, idx) => (
-                  <tr key={idx} className="border-b last:border-0">
-                    <td className="py-2 pr-2 font-medium">{item.name}</td>
-                    <td className="py-2 text-right">{item.quantity}</td>
-                    <td className="py-2 text-right">${item.unit.toFixed(2)}</td>
-                    <td className="py-2 text-right">
-                      ${item.extended.toFixed(2)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {/* Total */}
-          <div className="mt-4 flex justify-end">
-            <div className="text-lg mr-2">Total</div>
-            <div className="text-2xl font-bold">${amount.toFixed(2)}</div>
-          </div>
-          {/* Buttons */}
-          <div className="mt-6 flex flex-wrap gap-3 justify-between">
-            <button
-              onClick={() => setStep(1)}
-              className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50"
+          <div className="w-4 h-px bg-gray-300" />
+          <div className="flex items-center gap-1">
+            <div
+              className={[
+                "w-8 h-8 rounded-full flex items-center justify-center font-semibold",
+                step === 2
+                  ? "bg-[var(--color-accent-sage)] text-white"
+                  : "bg-gray-200 text-gray-600",
+              ].join(" ")}
             >
-              Back
-            </button>
-            <div className="flex gap-3">
+              2
+            </div>
+            <span className="hidden sm:inline text-sm text-white">Review</span>
+          </div>
+          <div className="w-4 h-px bg-gray-300" />
+          <div className="flex items-center gap-1">
+            <div
+              className={[
+                "w-8 h-8 rounded-full flex items-center justify-center font-semibold",
+                step === 3
+                  ? "bg-[var(--color-accent-sage)] text-white"
+                  : "bg-gray-200 text-gray-600",
+              ].join(" ")}
+            >
+              3
+            </div>
+            <span className="hidden sm:inline text-sm text-white">Pay</span>
+          </div>
+        </div>
+
+        {/* Step 1: Customer Info */}
+        {step === 1 && (
+          <section className="mb-8 p-4 rounded-xl border bg-neutral-100">
+            <CustomerInfoForm value={customer} onChange={setCustomer} />
+            <div className="mt-6 flex justify-end">
               <button
-                disabled={!canStart || isSubmitting}
-                onClick={handleStartSecurePayment}
+                disabled={!customerInfoComplete}
+                onClick={() => setStep(2)}
                 className="px-4 py-2 rounded-lg bg-[var(--color-accent-sage)] text-white disabled:opacity-50"
               >
-                {isSubmitting ? "Starting…" : "Start secure payment"}
-              </button>
-              <button
-                onClick={fallbackHostedCheckout}
-                className="hidden px-4 py-2 rounded-lg bg-gray-700 text-white"
-              >
-                Use hosted checkout
+                Next: Review Order
               </button>
             </div>
-          </div>
-        </section>
-      )}
+          </section>
+        )}
 
-      {/* Step 3: Pay Securely */}
-      {step === 3 && (
-        <section className="mb-8 p-4 rounded-xl border bg-neutral-100">
-          <h2 className="text-xl mb-4 font-acumin">Pay Securely (Embedded)</h2>
-          {/* Quick summary */}
-          <div className="mb-4 p-3 rounded-lg border bg-white/70">
-            <div className="grid sm:grid-cols-3 gap-3">
-              <div>
-                <div className="text-[11px] uppercase tracking-wide opacity-60">
-                  Hunters
+        {/* Step 2: Review Order */}
+        {step === 2 && (
+          <section className="mb-8 p-4 rounded-xl border bg-neutral-100">
+            <h2 className="text-xl mb-4 font-acumin">Review Your Order</h2>
+            {/* Summary details */}
+            <div className="mb-4 p-3 rounded-lg border bg-white/70">
+              <div className="grid sm:grid-cols-3 gap-3">
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide opacity-60">
+                    Hunters
+                  </div>
+                  <div className="font-semibold">
+                    {booking?.numberOfHunters ?? 0}
+                  </div>
                 </div>
-                <div className="font-semibold">
-                  {booking?.numberOfHunters ?? 0}
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide opacity-60">
+                    Days
+                  </div>
+                  <div className="font-semibold">
+                    {booking?.dates?.length ?? 0}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide opacity-60">
+                    Dates
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {dateRangeLabels.map((label, i) => (
+                      <span
+                        key={i}
+                        className="inline-block px-2 py-1 rounded-full bg-neutral-100 border text-xs"
+                        title={label}
+                      >
+                        {label}
+                      </span>
+                    ))}
+                    {dateRangeLabels.length === 0 && (
+                      <span className="text-xs opacity-70">—</span>
+                    )}
+                  </div>
                 </div>
               </div>
-              <div>
-                <div className="text-[11px] uppercase tracking-wide opacity-60">
-                  Days
+              {booking?.partyDeckDates?.length ? (
+                <div className="mt-3 text-xs">
+                  <span className="opacity-60 mr-1">Party Deck:</span>
+                  <span className="font-medium">
+                    {partyDeckRangeLabels.join(", ")}
+                  </span>
                 </div>
-                <div className="font-semibold">
-                  {booking?.dates?.length ?? 0}
-                </div>
-              </div>
-              <div>
-                <div className="text-[11px] uppercase tracking-wide opacity-60">
-                  Dates
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {dateRangeLabels.map((label, i) => (
-                    <span
-                      key={i}
-                      className="inline-block px-2 py-1 rounded-full bg-neutral-100 border text-xs"
-                      title={label}
-                    >
-                      {label}
-                    </span>
+              ) : null}
+            </div>
+            {/* Line items */}
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="py-2 text-left">Item</th>
+                    <th className="py-2 text-right">Qty</th>
+                    <th className="py-2 text-right">Unit</th>
+                    <th className="py-2 text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reviewProducts.map((item, idx) => (
+                    <tr key={idx} className="border-b last:border-0">
+                      <td className="py-2 pr-2 font-medium">{item.name}</td>
+                      <td className="py-2 text-right">{item.quantity}</td>
+                      <td className="py-2 text-right">
+                        ${item.unit.toFixed(2)}
+                      </td>
+                      <td className="py-2 text-right">
+                        ${item.extended.toFixed(2)}
+                      </td>
+                    </tr>
                   ))}
-                  {dateRangeLabels.length === 0 && (
-                    <span className="text-xs opacity-70">—</span>
-                  )}
-                </div>
+                </tbody>
+              </table>
+            </div>
+            {/* Total */}
+            <div className="mt-4 flex justify-end">
+              <div className="text-lg mr-2">Total</div>
+              <div className="text-2xl font-bold">${amount.toFixed(2)}</div>
+            </div>
+            {/* Buttons */}
+            <div className="mt-6 flex flex-wrap gap-3 justify-between">
+              <button
+                onClick={() => setStep(1)}
+                className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50"
+              >
+                Back
+              </button>
+              <div className="flex gap-3">
+                <button
+                  disabled={!canStart || isSubmitting}
+                  onClick={handleStartSecurePayment}
+                  className="px-4 py-2 rounded-lg bg-[var(--color-accent-sage)] text-white disabled:opacity-50"
+                >
+                  {isSubmitting ? "Starting…" : "Start secure payment"}
+                </button>
+                <button
+                  onClick={fallbackHostedCheckout}
+                  className="hidden px-4 py-2 rounded-lg bg-gray-700 text-white"
+                >
+                  Use hosted checkout
+                </button>
               </div>
             </div>
-            {booking?.partyDeckDates?.length ? (
-              <div className="mt-3 text-xs">
-                <span className="opacity-60 mr-1">Party Deck:</span>
-                <span className="font-medium">
-                  {partyDeckRangeLabels.join(", ")}
-                </span>
-              </div>
-            ) : null}
-          </div>
-          {/* Total */}
-          <div className="mb-4 flex justify-between items-baseline">
-            <div className="text-lg">Total</div>
-            <div className="text-2xl font-bold">${amount.toFixed(2)}</div>
-          </div>
-          {/* Embedded payments panel */}
-          <div
-            id={EMBEDDED_CONTAINER_ID}
-            className={[
-              "min-h-[260px] rounded-xl shadow-lg bg-white", // bigger min height to reveal card form
-              sdkReady ? "opacity-100" : "opacity-60",
-              "transition-opacity",
-            ].join(" ")}
-          />
-          {!sdkReady && (
-            <p className="mt-2 text-sm opacity-70">
-              The payment panel will appear here after you click “Start secure
-              payment.”
-            </p>
-          )}
-          {sdkReady && !instanceReady && (
-            <p className="mt-2 text-sm opacity-70">Loading payment panel…</p>
-          )}
-          {/* Back button */}
-          <div class-time="mt-6 flex justify-start">
-            <button
-              onClick={handleBackToReview}
-              className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50"
-            >
-              Back to review
-            </button>
-          </div>
-        </section>
-      )}
+          </section>
+        )}
 
-      {/* Footer note */}
-      <p className="text-xs text-white opacity-80">
-        By paying, you agree to the ranch’s property rules and cancellation
-        policy.
-      </p>
-    </div>
+        {/* Step 3: Pay Securely */}
+        {step === 3 && (
+          <section className="mb-8 p-4 rounded-xl border bg-neutral-100">
+            <h2 className="text-xl mb-4 font-acumin">
+              Pay Securely (Embedded)
+            </h2>
+            {/* Quick summary */}
+            <div className="mb-4 p-3 rounded-lg border bg-white/70">
+              <div className="grid sm:grid-cols-3 gap-3">
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide opacity-60">
+                    Hunters
+                  </div>
+                  <div className="font-semibold">
+                    {booking?.numberOfHunters ?? 0}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide opacity-60">
+                    Days
+                  </div>
+                  <div className="font-semibold">
+                    {booking?.dates?.length ?? 0}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide opacity-60">
+                    Dates
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {dateRangeLabels.map((label, i) => (
+                      <span
+                        key={i}
+                        className="inline-block px-2 py-1 rounded-full bg-neutral-100 border text-xs"
+                        title={label}
+                      >
+                        {label}
+                      </span>
+                    ))}
+                    {dateRangeLabels.length === 0 && (
+                      <span className="text-xs opacity-70">—</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              {booking?.partyDeckDates?.length ? (
+                <div className="mt-3 text-xs">
+                  <span className="opacity-60 mr-1">Party Deck:</span>
+                  <span className="font-medium">
+                    {partyDeckRangeLabels.join(", ")}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+            {/* Total */}
+            <div className="mb-4 flex justify-between items-baseline">
+              <div className="text-lg">Total</div>
+              <div className="text-2xl font-bold">${amount.toFixed(2)}</div>
+            </div>
+            {/* Embedded payments panel */}
+            <div
+              id={EMBEDDED_CONTAINER_ID}
+              className={[
+                "min-h-[260px] rounded-xl shadow-lg bg-white", // bigger min height to reveal card form
+                sdkReady ? "opacity-100" : "opacity-60",
+                "transition-opacity",
+              ].join(" ")}
+            />
+            {!sdkReady && (
+              <p className="mt-2 text-sm opacity-70">
+                The payment panel will appear here after you click “Start secure
+                payment.”
+              </p>
+            )}
+            {sdkReady && !instanceReady && (
+              <p className="mt-2 text-sm opacity-70">Loading payment panel…</p>
+            )}
+            {/* Back button */}
+            <div class-time="mt-6 flex justify-start">
+              <button
+                onClick={handleBackToReview}
+                className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50"
+              >
+                Back to review
+              </button>
+            </div>
+          </section>
+        )}
+
+        {/* Footer note */}
+        <p className="text-xs text-white opacity-80">
+          By paying, you agree to the ranch’s property rules and cancellation
+          policy.
+        </p>
+      </div>
+    </>
   );
 }

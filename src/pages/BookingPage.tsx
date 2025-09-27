@@ -190,29 +190,8 @@ const BookingPage = () => {
   return (
     <div className="relative">
       {/* Hero banner (subtle) */}
-      <div className="relative h-[180px] md:h-[320px] overflow-hidden rounded-b-[24px]">
-        <div
-          className="absolute inset-0 bg-center bg-cover scale-105 opacity-30"
-          style={{ backgroundImage: `url(${dove})` }}
-          aria-hidden="true"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-black/60" />
-        <div className="relative z-10 max-w-5xl mx-auto h-full flex items-end px-4 pb-6">
-          <div>
-            <h1 className="text-white text-3xl md:text-4xl font-gin">
-              Book your hunt
-            </h1>
-            <p className="text-white/80 text-sm md:text-base">
-              Signed in as{" "}
-              <span className="font-semibold">
-                {user?.displayName || user?.email}
-              </span>
-            </p>
-          </div>
-        </div>
-      </div>
 
-      <div className="w-full h-[600px] mx-auto px-4 relative">
+      <div className="w-full  min-h-screen mx-auto px-4 relative flex items-center justify-center">
         <AnimatePresence mode="wait">
           {!hasBooking && cartTotalItems === 0 ? (
             // No cart yet — show the booking form
