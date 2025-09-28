@@ -1,14 +1,13 @@
 // src/pages/HomePage.tsx
 import { useEffect, useRef } from "react";
 import HeroSection from "../components/HeroSection";
-import heroImg from "../assets/images/four.webp";
-import logo from "../assets/logo-official.webp";
+import heroImg from "../assets/images/three.webp";
 import { FaFlagUsa } from "react-icons/fa";
 import { Link } from "react-router-dom";
 import Photos from "../components/Photos";
 import PhotosTwo from "../components/PhotosTwo";
 import PartyDeck from "../components/PartyDeck";
-
+import doves from "../assets/images/dove-w-logo-bw.webp";
 const HomePage = () => {
   // Keep iOS detection for the birds section behavior below
 
@@ -77,35 +76,34 @@ const HomePage = () => {
           src={heroImg}
           alt=""
           className="absolute inset-0 w-full h-[120vh] object-cover will-change-transform blur-xs" // CHANGED: removed opacity-60 class
-          style={{ top: "-10vh", opacity: 0.29 }} // CHANGED: set base opacity inline so JS can override it
+          style={{ top: "-10vh", opacity: 0.27 }} // CHANGED: set base opacity inline so JS can override it
         />
 
         {/* Content */}
-        <div className="relative z-10 text-center px-6">
+        <div className="text-white relative z-40 flex flex-col md:flex-row items-center justify-center gap-0">
           <div
+            className="w-full max-w-[400px]"
+            data-aos-delay="3000"
             data-aos="zoom-in"
-            data-aos-duration="1000"
-            className="flex flex-row items-center max-w-[300px] md:max-w-[400px] mx-auto"
           >
             <img
-              className="h-[130px] md:h-[150px] max-h-[200px] max-w-[300px] mx-auto"
-              src={logo}
+              className="max-h-[300px] translate-y-[50px] md:transalte-y-0 md:max-h-[500px] mx-auto"
+              src={doves}
               alt=""
             />
           </div>
-
-          <div className=" p-1 mb-2">
+          <div className=" p-1 mb-2 md:translate-x-[-40px] lg:translate-x-[-80px]">
             <h1
               data-aos="fade-in"
               data-aos-delay="1000"
-              className="text-white font-gin mt-6 mb-3 max-w-[800px] mx-auto text-2xl"
+              className="text-white font-gin mt-6 mb-3 max-w-[800px] mx-auto text-2xl md:text-3xl lg:text-5xl text-center md:text-left"
             >
               Best Dove Hunting in Brownsville, Texas — Rancho de Paloma Blanca
             </h1>
             <p
               data-aos="fade-in"
               data-aos-delay="1500"
-              className="text-sm md:text-base text-neutral-100/90 max-w-[760px] mx-auto mb-5 font-acumin"
+              className="text-sm md:text-base text-neutral-100/90 max-w-[560px] mx-auto mb-5 font-acumin px-4"
             >
               Dove Hunting at <strong>Rancho de Paloma Blanca</strong> in{" "}
               <strong>Brownsville</strong> is perfect for families, friends, and
@@ -113,29 +111,31 @@ const HomePage = () => {
               packages, add the exclusive Party Deck, and enjoy seamless online
               booking—everything you need for a memorable South Texas hunt.
             </p>
-          </div>
-
-          <div
-            data-aos="fade-up"
-            data-aos-delay="2000"
-            className="flex items-center justify-center gap-2"
-          >
-            <a
-              href="/book"
-              className="inline-block p-2 font-gin text-white font-acumin bg-[var(--color-card)] border-[var(--color-accent-gold)]/50 border-2 hover:bg-[var(--color-card)]/80 hover:scale-105 text-sm transition duration-300 ease-in-out"
-            >
-              Book Your Hunt
-            </a>
-            <Link
-              to="/backtheblue"
-              className="text-white text-sm bg-gradient-to-b font-gin hover:scale-105 cursor-pointer from-[var(--color-blue)] to-[var(--color-bluedarker)] flex gap-2 items-center justify-center p-1.5"
-            >
-              Back the Blue
-              <FaFlagUsa />
-            </Link>
+            <div className="flex items-center justify-center gap-2">
+              <a
+                data-aos="zoom-in"
+                data-aos-duration="500"
+                data-aos-delay="1500"
+                href="/book"
+                className="inline-block p-2 font-gin text-[var(--color-background)] font-acumin bg-white border-[var(--color-background)] border-2  hover:scale-105 text-sm transition duration-300 ease-in-out"
+              >
+                Book Your Hunt
+              </a>
+              <Link
+                data-aos="zoom-in"
+                data-aos-duration="500"
+                data-aos-delay="2000"
+                to="/backtheblue"
+                className="text-white text-sm bg-gradient-to-b font-gin hover:scale-105 cursor-pointer from-[var(--color-blue)] to-[var(--color-bluedarker)] flex gap-2 items-center justify-center p-2"
+              >
+                Back the Blue
+                <FaFlagUsa />
+              </Link>
+            </div>
           </div>
         </div>
       </div>
+
       <Photos />
       {/* Rest of page */}
       <div className="flex flex-col min-h-screen text-[var(--color-text)]">

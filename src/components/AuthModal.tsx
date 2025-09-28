@@ -94,7 +94,7 @@ const AuthModal = ({ isOpen, onClose }: Props) => {
           >
             {/* Close Button */}
             <button
-              className="absolute top-2 right-3 text-[var(--color-accent-sage)] hover:text-[var(--color-accent-gold)] text-lg"
+              className="absolute top-2 right-3 text-[var(--color-accent-sage)] hover:text-[var(--color-accent-gold)] text-4xl"
               onClick={handleClose}
               aria-label="Close"
               type="button"
