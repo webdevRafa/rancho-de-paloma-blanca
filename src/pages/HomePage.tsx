@@ -126,7 +126,7 @@ const HomePage = () => {
                 data-aos-duration="500"
                 data-aos-delay="2000"
                 to="/backtheblue"
-                className="text-white text-sm bg-gradient-to-b font-gin hover:scale-105 cursor-pointer from-[var(--color-blue)] to-[var(--color-bluedarker)] flex gap-2 items-center justify-center p-2"
+                className="text-white text-sm bg-gradient-to-b border-[var(--color-background)] border-2 font-gin hover:scale-105 cursor-pointer from-[var(--color-blue)] to-[var(--color-bluedarker)] flex gap-2 items-center justify-center p-2"
               >
                 Back the Blue
                 <FaFlagUsa />
