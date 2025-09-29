@@ -83,11 +83,11 @@ const HomePage = () => {
         <div className="text-white relative z-40 flex flex-col md:flex-row items-center justify-center gap-0">
           <div
             className="w-full max-w-[400px]"
-            data-aos-delay="3000"
+            data-aos-delay="200"
             data-aos="zoom-in"
           >
             <img
-              className="max-h-[300px] translate-y-[50px] md:transalte-y-0 md:max-h-[500px] mx-auto"
+              className="max-h-[300px] translate-y-[50px] md:transalte-y-0 md:max-h-[500px] mx-auto border-2 border-white/20"
               src={doves}
               alt=""
             />
@@ -95,14 +95,14 @@ const HomePage = () => {
           <div className=" p-1 mb-2 md:translate-x-[-40px] lg:translate-x-[-80px]">
             <h1
               data-aos="fade-in"
-              data-aos-delay="1000"
+              data-aos-delay="100"
               className="text-white font-gin mt-6 mb-3 max-w-[800px] mx-auto text-2xl md:text-3xl lg:text-5xl text-center md:text-left"
             >
               Best Dove Hunting in Brownsville, Texas — Rancho de Paloma Blanca
             </h1>
             <p
               data-aos="fade-in"
-              data-aos-delay="1500"
+              data-aos-delay="125"
               className="text-sm md:text-base text-neutral-100/90 max-w-[560px] mx-auto mb-5 font-acumin px-4"
             >
               Dove Hunting at <strong>Rancho de Paloma Blanca</strong> in{" "}
@@ -114,8 +114,7 @@ const HomePage = () => {
             <div className="flex items-center justify-center gap-2">
               <a
                 data-aos="zoom-in"
-                data-aos-duration="500"
-                data-aos-delay="1500"
+                data-aos-delay="300"
                 href="/book"
                 className="inline-block p-2 font-gin text-[var(--color-background)] font-acumin bg-white border-[var(--color-background)] border-2  hover:scale-105 text-sm transition duration-300 ease-in-out"
               >
@@ -123,10 +122,9 @@ const HomePage = () => {
               </a>
               <Link
                 data-aos="zoom-in"
-                data-aos-duration="500"
-                data-aos-delay="2000"
+                data-aos-delay="325"
                 to="/backtheblue"
-                className="text-white text-sm bg-gradient-to-b border-[var(--color-background)] border-2 font-gin hover:scale-105 cursor-pointer from-[var(--color-blue)] to-[var(--color-bluedarker)] flex gap-2 items-center justify-center p-2"
+                className="text-white text-sm bg-gradient-to-b border-white/60 border-1 font-gin hover:scale-105 cursor-pointer from-[var(--color-blue)] to-[var(--color-bluedarker)] flex gap-2 items-center justify-center p-2"
               >
                 Back the Blue
                 <FaFlagUsa />
