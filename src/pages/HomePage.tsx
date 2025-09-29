@@ -7,7 +7,6 @@ import { Link } from "react-router-dom";
 import Photos from "../components/Photos";
 import PhotosTwo from "../components/PhotosTwo";
 import PartyDeck from "../components/PartyDeck";
-import doves from "../assets/images/dove-w-logo-bw.webp";
 const HomePage = () => {
   // Keep iOS detection for the birds section behavior below
 
@@ -81,22 +80,11 @@ const HomePage = () => {
 
         {/* Content */}
         <div className="text-white relative z-40 flex flex-col md:flex-row items-center justify-center gap-0">
-          <div
-            className="w-full max-w-[400px]"
-            data-aos-delay="200"
-            data-aos="zoom-in"
-          >
-            <img
-              className="max-h-[300px] translate-y-[50px] md:transalte-y-0 md:max-h-[500px] mx-auto border-2 border-white/20"
-              src={doves}
-              alt=""
-            />
-          </div>
-          <div className=" p-1 mb-2 md:translate-x-[-40px] lg:translate-x-[-80px]">
+          <div className=" p-1 mb-2">
             <h1
               data-aos="fade-in"
               data-aos-delay="100"
-              className="text-white font-gin mt-6 mb-3 max-w-[800px] mx-auto text-2xl md:text-3xl lg:text-5xl text-center md:text-left"
+              className="text-white font-gin mt-6 mb-3 max-w-[800px] mx-auto text-2xl md:text-3xl lg:text-5xl text-center"
             >
               Best Dove Hunting in Brownsville, Texas — Rancho de Paloma Blanca
             </h1>
