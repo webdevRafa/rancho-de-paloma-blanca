@@ -116,7 +116,7 @@ const BookingPage = () => {
               className="rounded-2xl border border-white/15 bg-white/95 backdrop-blur p-6 sm:p-8 shadow-2xl"
             >
               <div className="mb-5">
-                <h1 className="text-2xl md:text-3xl font-acumin text-[var(--color-background)]">
+                <h1 className="text-2xl md:text-3xl font-gin text-[var(--color-background)]">
                   Sign in to book your hunt
                 </h1>
                 <p className="mt-2 text-sm md:text-base text-[var(--color-background)]/80">
@@ -130,7 +130,7 @@ const BookingPage = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <button
                   onClick={() => setAuthOpen(true)}
-                  className="w-full rounded-xl bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white font-semibold py-3 transition-colors"
+                  className="w-full text-sm rounded-xl bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white font-semibold py-3 transition-colors"
                 >
                   Sign in / Create account
                 </button>
@@ -143,7 +143,7 @@ const BookingPage = () => {
                       console.warn(e);
                     }
                   }}
-                  className="w-full rounded-xl border border-[var(--color-footer)]/30 bg-white hover:bg-neutral-50 text-[var(--color-background)] font-semibold py-3 transition-colors"
+                  className="w-full text-sm rounded-xl border border-[var(--color-footer)]/30 bg-white hover:bg-neutral-50 text-[var(--color-background)] font-semibold py-3 transition-colors"
                   aria-label="Continue with Google"
                   title="Continue with Google"
                 >

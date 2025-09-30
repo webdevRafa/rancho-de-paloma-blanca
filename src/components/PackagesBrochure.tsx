@@ -24,7 +24,7 @@ export function PackagesBrochure() {
   return (
     <section className="relative max-w-6xl mx-auto px-4 py-10">
       <div className="mb-6">
-        <h2 className="text-2xl md:text-3xl font-acumin text-white">
+        <h2 className="text-2xl md:text-3xl font-gin text-white">
           Packages &amp; Pricing
         </h2>
         <p className="mt-2 text-sm md:text-base text-neutral-200">
