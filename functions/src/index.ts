@@ -98,8 +98,8 @@ async function sendEmail(args: {
 
 // ---- Hosts ----
 function useSandbox(): boolean {
-  const flag = (process.env.DELUXE_USE_SANDBOX ?? "true").toLowerCase();
-  return flag !== "false"; // default true
+  const flag = (process.env.DELUXE_USE_SANDBOX ?? "false").toLowerCase();
+  return flag === "true";
 }
 function gatewayBase(): string {
   return useSandbox() ? "https://sandbox.api.deluxe.com" : "https://api.deluxe.com";
