@@ -239,25 +239,203 @@ function buildPaymentLinkBody(
 
   return body;
 }
+/** Derive the set of party-deck dates from a booking robustly. */
+function resolvePartyDeckDates(booking?: {
+  dates?: string[];
+  partyDeckDates?: string[];
+  // tolerate legacy boolean flag
+  partyDeck?: boolean;
+}): string[] {
+  const base = Array.isArray(booking?.dates) ? booking!.dates.filter(Boolean) : [];
+  if (!base.length) return [];
 
-async function incrementCapacityFromOrder(order: OrderDoc) {
-  const booking = order.booking;
+  // Prefer explicit partyDeckDates
+  const explicit = Array.isArray(booking?.partyDeckDates)
+    ? booking!.partyDeckDates.filter(Boolean)
+    : [];
+
+  if (explicit.length) {
+    // Only keep dates that are actually booked
+    return Array.from(new Set(explicit.filter(d => base.includes(d))));
+  }
+
+  // Legacy: if partyDeck boolean is true, assume deck for *all* booked dates
+  if ((booking as any)?.partyDeck === true) {
+    return Array.from(new Set(base));
+  }
+
+  return [];
+}
+
+async function rollbackCapacityFromOrder(order: OrderDoc) {
+  const booking = order?.booking;
   if (!booking?.dates?.length || !booking.numberOfHunters) return;
-  const n = booking.numberOfHunters;
+
+  const n = Number(booking.numberOfHunters) || 0;
+  if (n <= 0) return;
+
   const batch = db.batch();
+
+  // Decrement hunters for each booked hunt date
   for (const date of booking.dates) {
     const ref = db.collection("availability").doc(date);
     batch.set(
       ref,
-      {
-        huntersBooked: FieldValue.increment(n),
-        updatedAt: FieldValue.serverTimestamp(),
-      },
+      { huntersBooked: FieldValue.increment(-n), updatedAt: FieldValue.serverTimestamp() },
       { merge: true }
     );
   }
+
+  // Reset Party Deck to false for the exact selected dates only
+  const deckDates = resolvePartyDeckDates(booking);
+
+  for (const date of deckDates) {
+    const ref = db.collection("availability").doc(date);
+    batch.set(
+      ref,
+      { partyDeckBooked: false, updatedAt: FieldValue.serverTimestamp() },
+      { merge: true }
+    );
+  }
+
   await batch.commit();
 }
+
+/** In a transaction, assert deck is free for every date, then mark it booked. */
+async function markPartyDeckBookedTx(
+  tx: FirebaseFirestore.Transaction,
+  dates: string[]
+) {
+  const cleanDates = Array.from(new Set((dates || []).filter(Boolean)));
+  if (cleanDates.length === 0) return;
+
+  // 1) Assert none are already booked
+  for (const date of cleanDates) {
+    const ref = db.collection("availability").doc(date);
+    const snap = await tx.get(ref);
+    const already = snap.exists && snap.get("partyDeckBooked") === true;
+    if (already) {
+      // Throw with a per-date tag so callers can parse the conflicts if needed
+      throw new Error(`party-deck-already-booked:${date}`);
+    }
+  }
+
+  // 2) Book them
+  for (const date of cleanDates) {
+    const ref = db.collection("availability").doc(date);
+    tx.set(
+      ref,
+      { partyDeckBooked: true, updatedAt: FieldValue.serverTimestamp() },
+      { merge: true }
+    );
+  }
+}
+
+async function incrementCapacityFromOrder(
+  order: OrderDoc
+): Promise<{ success: boolean; conflicts?: string[] }> {
+  const booking = order?.booking;
+  if (!booking?.dates?.length || !booking.numberOfHunters) {
+    logger.warn("capacity: missing dates or hunters", { orderId: order?.id, booking });
+    return { success: false, conflicts: [] };
+  }
+
+  const n = Number(booking.numberOfHunters) || 0;
+  if (n <= 0) {
+    logger.warn("capacity: non-positive hunters", { orderId: order?.id, n });
+    return { success: false, conflicts: [] };
+  }
+
+  // ✅ Normalize party-deck dates from the booking
+  const deckDates = resolvePartyDeckDates(booking);
+  if (!deckDates.length && (booking as any)?.partyDeck) {
+    logger.warn("capacity: partyDeck true but no dates derived; check booking payload", {
+      orderId: order?.id,
+      booking,
+    });
+  }
+
+  logger.info("capacity: committing (tx)", {
+    orderId: order?.id,
+    hunters: n,
+    huntDates: booking.dates,
+    partyDeckDates: deckDates,
+  });
+
+  try {
+    await db.runTransaction(async (tx) => {
+      // 1) Assert & mark Party Deck (throws if any date is already booked)
+      if (deckDates.length) {
+        await markPartyDeckBookedTx(tx, deckDates);
+      }
+      // 2) Increment hunters for each booked hunt date
+      for (const date of booking.dates) {
+        const ref = db.collection("availability").doc(date);
+        tx.set(
+          ref,
+          { huntersBooked: FieldValue.increment(n), updatedAt: FieldValue.serverTimestamp() },
+          { merge: true }
+        );
+      }
+    });
+
+    logger.info("capacity: committed OK", { orderId: order?.id });
+    return { success: true };
+  } catch (err: any) {
+    // If a party deck date was already taken, the error message will include it
+    const message = String(err?.message || err);
+    const conflicts = Array.from(
+      new Set(
+        message
+          .split(",")
+          .map((s) => s.trim())
+          .filter((s) => s.startsWith("party-deck-already-booked:"))
+          .map((s) => s.split(":")[1])
+      )
+    );
+
+    logger.error("capacity: transaction failed", { orderId: order?.id, message, conflicts });
+
+    // Optional: mark the order with a conflict flag so staff can resolve in UI
+    try {
+      if (order?.id) {
+        await db.collection("orders").doc(order.id).set(
+          {
+            capacityConflict: {
+              type: "partyDeck",
+              dates: conflicts,
+              at: FieldValue.serverTimestamp(),
+            },
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
+    } catch (e) {
+      logger.warn("capacity: failed to write conflict flag", { orderId: order?.id, e: String(e) });
+    }
+
+    // Optional: notify admin by email
+    try {
+      const to = NOTIFY_ADMIN_EMAIL.value();
+      const subject = `⚠️ Party Deck conflict — Order ${order?.id ?? "unknown"}`;
+      const html = `
+        <p><strong>Party Deck booking conflict.</strong></p>
+        <p>Order: ${order?.id ?? "unknown"}</p>
+        <p>Conflicting dates: ${conflicts.length ? conflicts.join(", ") : "(could not parse)"}</p>
+        <p>Please review in Firestore / orders and availability.</p>
+      `;
+      await sendEmail({ to, subject, html });
+    } catch (e) {
+      logger.warn("capacity: failed to send conflict email", { e: String(e) });
+    }
+
+    // Do not throw — return a negative result so caller can decide what to do
+    return { success: false, conflicts };
+  }
+}
+
+
 
 // ---- Unified HTTP handler ----
 // Rather than relying on Express, we register a single onRequest handler and
@@ -812,6 +990,27 @@ try {
         },
         { merge: true }
       );
+      try {
+        let orderForRollback: OrderDoc | undefined = orderDoc as OrderDoc | undefined;
+    
+        if (!orderForRollback?.booking) {
+          const fresh = await ref.get();
+          if (fresh.exists) {
+            orderForRollback = { id: fresh.id, ...(fresh.data() as OrderDoc) };
+          }
+        }
+    
+        if (approved && orderForRollback?.booking) {
+          await rollbackCapacityFromOrder(orderForRollback);
+          // Optional: mark so we don't double-rollback on repeated refund webhooks
+          await ref.set(
+            { capacityRolledBack: true, updatedAt: FieldValue.serverTimestamp() },
+            { merge: true }
+          );
+        }
+      } catch (e) {
+        logger.warn("capacity rollback failed", String(e));
+      }
     }
   }
 } catch (e) {
@@ -863,59 +1062,183 @@ try {
   }
 }
 
-      
+async function forceSetPartyDeckBooked(order: OrderDoc): Promise<{ updated: number; dates: string[] }> {
+  const booking = order?.booking;
+  if (!booking?.dates?.length) return { updated: 0, dates: [] };
+
+  // Prefer explicit dates; fallback to legacy boolean meaning "all dates"
+  const targetDates =
+    (Array.isArray(booking.partyDeckDates) && booking.partyDeckDates.filter(Boolean).length
+      ? booking.partyDeckDates.filter(Boolean)
+      : (booking as any)?.partyDeck === true
+      ? booking.dates.filter(Boolean)
+      : []);
+
+  if (!targetDates.length) {
+    logger.info("forceSetPartyDeckBooked: no deck dates to update", { orderId: order?.id, booking });
+    return { updated: 0, dates: [] };
+  }
+
+  const batch = db.batch();
+  for (const date of targetDates) {
+    const ref = db.collection("availability").doc(date);
+    batch.set(
+      ref,
+      { partyDeckBooked: true, updatedAt: FieldValue.serverTimestamp() },
+      { merge: true }
+    );
+  }
+  await batch.commit();
+
+  logger.info("forceSetPartyDeckBooked: updated", { orderId: order?.id, dates: targetDates });
+  return { updated: targetDates.length, dates: targetDates };
+}
 
       // Deluxe Webhook
-      if (req.method === "POST" && url === "/api/deluxe/webhook") {
-        try {
-          const evt = req.body || {};
-          const orderId: string | undefined =
-            evt?.orderData?.orderId ||
-            evt?.customData?.find?.((x: any) => x?.name === "orderId")?.value;
-          const status: string | undefined = evt?.status || evt?.transactionStatus || evt?.paymentStatus;
-          const approved = typeof status === "string" && /approved|captured|paid/i.test(status);
-          if (orderId && approved) {
-            const ref = db.collection("orders").doc(orderId);
-            const snap = await ref.get();
-            if (snap.exists) {
-              const order = { id: snap.id, ...(snap.data() as OrderDoc) };
-              await ref.set(
-                {
-                  status: "paid",
-                  deluxe: { lastWebhook: evt },
-                  updatedAt: FieldValue.serverTimestamp(),
-                },
-                { merge: true }
-              );
-              await incrementCapacityFromOrder(order);
-              // 💌 payment approved (customer + admin)
-try {
-  const to = order.customer?.email || NOTIFY_ADMIN_EMAIL.value();
-  const subject = `Payment received — Order ${order.id}`;
-  const html = renderOrderPaidEmail({
-    firstName: order.customer?.firstName,
-    orderId: order.id!,
-    total: Number(order.total || 0),
-    dates: order.booking?.dates,
-    hunters: order.booking?.numberOfHunters,
-  });
-  await sendEmail({ to, subject, html, bcc: NOTIFY_ADMIN_EMAIL.value() || undefined });
-} catch (e) {
-  logger.error("email payment-approved failed", String(e));
-}
-            }
-          } else {
-            logger.warn("Webhook received without resolvable orderId or unpaid status", { orderId, status });
-          }
-          res.status(200).json({ ok: true });
-          return;
-        } catch (err: any) {
-          logger.error("webhook error", err);
-          // Always return 200 on webhook errors to prevent retries
-          res.status(200).json({ ok: false });
-          return;
-        }
+if (req.method === "POST" && url === "/api/deluxe/webhook") {
+  try {
+    const evt = req.body || {};
+
+    // Try both shapes: orderData.orderId and customData[] pair
+    const orderId: string | undefined =
+      evt?.orderData?.orderId ||
+      evt?.customData?.find?.((x: any) => x?.name === "orderId")?.value;
+
+    // Normalize status checks from various Deluxe payloads
+    const status: string | undefined =
+      evt?.status || evt?.transactionStatus || evt?.paymentStatus;
+    const approved = typeof status === "string" && /approved|captured|paid/i.test(status);
+
+    if (orderId && approved) {
+      const ref = db.collection("orders").doc(orderId);
+      const snap = await ref.get();
+
+      if (!snap.exists) {
+        logger.warn("Webhook order not found", { orderId, status });
+        res.status(200).json({ ok: true, missing: true });
+        return;
       }
+
+      const order = { id: snap.id, ...(snap.data() as OrderDoc) };
+
+      // ✅ Idempotency guard: only commit capacity & send email once
+      const alreadyCommitted = snap.get("capacityCommitted") === true;
+
+      // Always persist last webhook + status
+      await ref.set(
+        {
+          status: "paid",
+          deluxe: { lastWebhook: evt },
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      if (!alreadyCommitted) {
+        // 1) Normalize and persist deck dates onto the order for audit/consistency
+        try {
+          const normalized = resolvePartyDeckDates(order.booking);
+          if (normalized.length) {
+            // Write only the nested field; avoids constructing a partial booking object
+            await ref.set(
+              {
+                "booking.partyDeckDates": normalized,
+                updatedAt: FieldValue.serverTimestamp(),
+              } as any,
+              { merge: true }
+            );
+      
+            // Update in-memory only if booking already exists (keeps type safety)
+            if (order.booking) {
+              order.booking.partyDeckDates = normalized;
+            }
+          }
+        } catch (e) {
+          logger.warn("webhook: failed to persist normalized partyDeckDates", { orderId, e: String(e) });
+        }
+      
+        // 2) Commit availability exactly once (txn-safe; party deck handled inside)
+        const cap = await incrementCapacityFromOrder(order);
+      
+        if (cap.success) {
+          // Mark as committed only after successful capacity commit
+          await ref.set(
+            {
+              capacityCommitted: true,
+              capacityConflict: FieldValue.delete(), // ← clear old conflicts
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+       // 👇 NEW: belt-and-suspenders — forcibly set partyDeckBooked=true on the target dates
+  try {
+    const forced = await forceSetPartyDeckBooked(order);
+    if (!forced.updated) {
+      logger.warn("forceSetPartyDeckBooked: nothing updated (no deck dates derived)", {
+        orderId: order.id,
+      });
+    }
+  } catch (e) {
+    logger.warn("forceSetPartyDeckBooked failed", { orderId: order.id, error: String(e) });
+  }
+          // 3) 💌 payment approved email (customer + admin) — send once
+          try {
+            const to = order.customer?.email || NOTIFY_ADMIN_EMAIL.value();
+            const subject = `Payment received — Order ${order.id}`;
+            const html = renderOrderPaidEmail({
+              firstName: order.customer?.firstName,
+              orderId: order.id!,
+              total: Number(order.total || 0),
+              dates: order.booking?.dates,
+              hunters: order.booking?.numberOfHunters,
+            });
+            await sendEmail({
+              to,
+              subject,
+              html,
+              bcc: NOTIFY_ADMIN_EMAIL.value() || undefined,
+            });
+          } catch (e) {
+            logger.error("email payment-approved failed", String(e));
+          }
+        } else {
+          // Optional: surface conflicts on the order so staff can resolve in the UI
+          await ref.set(
+            {
+              capacityCommitted: false,
+              capacityConflict: {
+                type: "partyDeck",
+                dates: cap.conflicts ?? [],
+                at: FieldValue.serverTimestamp(),
+              },
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+          logger.warn("capacity not committed (conflict)", { orderId: order.id, conflicts: cap.conflicts });
+        }
+      } // <-- THIS closing brace was missing
+      
+     
+      res.status(200).json({ ok: true });
+      return;
+      
+      
+
+    }
+
+    // Not approved or missing orderId — acknowledge so Deluxe doesn’t retry forever
+    logger.warn("Webhook ignored (no orderId or not approved)", { orderId, status });
+    res.status(200).json({ ok: true, ignored: true });
+    return;
+  } catch (err: any) {
+    logger.error("webhook error", err);
+    // Still 200 to avoid retry storms; error is logged for diagnosis
+    res.status(200).json({ ok: false, error: "logged" });
+    return;
+  }
+}
+
 
       // If no route matched, return 404
       res.status(404).json({ error: "not-found" });

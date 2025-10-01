@@ -986,10 +986,8 @@ export default function CheckoutPage() {
             onTxnSuccess: async (_g: any, data: any) => {
               try {
                 const ref = doc(db, "orders", orderId);
-                // Extract a reasonable payment identifier from various possible fields on the
-                // event.  Some gateways return PaymentId or TransactionId rather than
-                // paymentId (case sensitivity differs), so check a few options.  If
-                // nothing matches, this will remain null.
+
+                // Persist last event + a usable paymentId
                 const paymentId =
                   data?.paymentId ??
                   data?.PaymentId ??
@@ -999,6 +997,7 @@ export default function CheckoutPage() {
                   data?.TransactionRecordId ??
                   data?.id ??
                   null;
+
                 await setDoc(
                   ref,
                   {
@@ -1012,15 +1011,8 @@ export default function CheckoutPage() {
                   { merge: true }
                 );
 
-                // Increment huntersBooked for each booked date.  This mirrors the
-                // behaviour performed in the server-side webhook for hosted
-                // payments.  It ensures availability is updated immediately for
-                // embedded checkout, even if a webhook is not received.
-                if (
-                  booking &&
-                  booking.dates?.length &&
-                  booking.numberOfHunters
-                ) {
+                // 1) Increment huntersBooked for each hunt date (if applicable)
+                if (booking?.dates?.length && booking.numberOfHunters) {
                   const batch = writeBatch(db);
                   for (const date of booking.dates) {
                     const availRef = doc(db, "availability", date);
@@ -1034,6 +1026,24 @@ export default function CheckoutPage() {
                     );
                   }
                   await batch.commit();
+                }
+
+                // 2) ✅ Flip Party Deck ONLY for the selected deck days
+                if (booking?.partyDeckDates?.length) {
+                  const deckBatch = writeBatch(db);
+                  // de-dupe and ignore falsy/empty values
+                  const deckDates = Array.from(
+                    new Set(booking.partyDeckDates)
+                  ).filter(Boolean);
+                  for (const date of deckDates) {
+                    const deckRef = doc(db, "availability", date);
+                    deckBatch.set(
+                      deckRef,
+                      { partyDeckBooked: true, updatedAt: serverTimestamp() },
+                      { merge: true }
+                    );
+                  }
+                  await deckBatch.commit();
                 }
               } catch (err) {
                 console.warn(
@@ -1068,9 +1078,6 @@ export default function CheckoutPage() {
             onTokenFailed: (_g: any, data: any) => {
               console.warn("[Deluxe] Token failed", data);
             },
-            // Some builds of the Deluxe SDK emit an onCancel event (especially for
-            // digital wallets).  Define a no‑op handler to suppress console
-            // warnings like "onCancel is not defined".
             onCancel: (_g: any, data: any) => {
               console.log("[Deluxe] Payment cancelled", data);
               setErrorMsg("Payment cancelled.");
@@ -1478,7 +1485,7 @@ export default function CheckoutPage() {
               <p className="mt-2 text-sm opacity-70">Loading payment panel…</p>
             )}
             {/* Back button */}
-            <div class-time="mt-6 flex justify-start">
+            <div className="mt-6 flex justify-start">
               <button
                 onClick={handleBackToReview}
                 className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50"
