@@ -247,7 +247,7 @@ function OrderDetailsModal({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-black/10">
           <div>
-            <div className="text-xl font-bourbon">Order Details</div>
+            <div className="text-2xl font-gin">Order Details</div>
             <div className="text-xs opacity-70 font-mono mt-1">
               {order.id}
               <button
@@ -547,7 +547,7 @@ export default function DayDetail() {
       </div>
 
       {/* Paid orders — now in a table */}
-      <div className="rounded-2xl border mb-8 border-white/10 bg-white shadow-lg">
+      <div className="rounded-2xl border mb-8 border-white/10 bg-white shadow-lg p-2">
         <h2 className="text-xl p-2 text-center lowercase tracking-wide font-acumin text-[var(--color-background)] bg-white rounded-t-2xl">
           Paid orders for {nice}
         </h2>

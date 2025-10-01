@@ -374,17 +374,33 @@ export default function AdminDashboard() {
       })) as OrderDoc[];
 
       // Revenue KPIs in selected range (paid only)
+      // AFTER — revenue = amountPaid - amountRefunded
       let r = 0;
       let c = 0;
+
       for (const o of docs) {
-        if ((o.status ?? "pending") !== "paid") continue;
         const dt = o.createdAt?.toDate?.() as Date | undefined;
-        if (!dt) continue;
-        if (dt >= from && dt <= to) {
-          c++;
-          r += o.total ?? 0;
+        if (!dt || dt < from || dt > to) continue;
+
+        // Prefer explicit fields if present; otherwise fall back to existing shapes.
+        const amountPaid =
+          typeof (o as any).amountPaid === "number"
+            ? (o as any).amountPaid
+            : ["paid", "refunded", "canceled"].includes(o.status ?? "")
+            ? o.total ?? 0
+            : 0;
+
+        const amountRefunded =
+          typeof (o as any).amountRefunded === "number"
+            ? (o as any).amountRefunded
+            : (o as any).refundedAmount ?? 0;
+
+        if (amountPaid > 0) {
+          c += 1; // count any order that actually brought in money
+          r += Math.max(0, amountPaid - amountRefunded); // never go negative
         }
       }
+
       setPaidCount(c);
       setPaidRevenue(r);
 
