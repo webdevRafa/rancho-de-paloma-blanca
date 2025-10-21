@@ -96,17 +96,14 @@ async function sendEmail(args: {
 }
 
 
-// ---- Hosts ----
-function useSandbox(): boolean {
-  const flag = (process.env.DELUXE_USE_SANDBOX ?? "false").toLowerCase();
-  return flag === "true";
-}
+function useSandbox(): boolean { return false; }
+
 function gatewayBase(): string {
-  return useSandbox() ? "https://sandbox.api.deluxe.com" : "https://api.deluxe.com";
+  return "https://api.deluxe.com";
 }
 function embeddedBase(): string {
   // IMPORTANT: sandbox uses payments2, production uses payments
-  return useSandbox() ? "https://payments2.deluxe.com" : "https://payments.deluxe.com";
+  return "https://payments.deluxe.com";
 }
 
 // ---- Helpers ----

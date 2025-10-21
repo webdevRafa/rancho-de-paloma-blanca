@@ -2,8 +2,6 @@
 import { useEffect, useRef } from "react";
 import HeroSection from "../components/HeroSection";
 import heroImg from "../assets/images/three.webp";
-import { FaFlagUsa } from "react-icons/fa";
-import { Link } from "react-router-dom";
 import Photos from "../components/Photos";
 import PhotosTwo from "../components/PhotosTwo";
 import PartyDeck from "../components/PartyDeck";
@@ -108,15 +106,6 @@ const HomePage = () => {
               >
                 Book Your Hunt
               </a>
-              <Link
-                data-aos="zoom-in"
-                data-aos-delay="325"
-                to="/backtheblue"
-                className="text-white text-sm bg-gradient-to-b border-white/60 border-1 font-gin hover:scale-105 cursor-pointer from-[var(--color-blue)] to-[var(--color-bluedarker)] flex gap-2 items-center justify-center p-2"
-              >
-                Back the Blue
-                <FaFlagUsa />
-              </Link>
             </div>
           </div>
         </div>
