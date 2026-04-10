@@ -8,82 +8,48 @@ import { db } from "../firebase/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import { getSeasonConfig } from "../utils/getSeasonConfig";
 import { formatLongDate } from "../utils/formatDate";
+import type { PricingWindow, SeasonConfig } from "../types/Types";
 import { RiShoppingCartFill } from "react-icons/ri";
 
 type AvailabilityDoc = { huntersBooked?: number; partyDeckBooked?: boolean };
+function sortIsoDates(dates: string[]) {
+  return [...dates].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+}
 
-// Shape helper that tolerates both the nested weekendRates
-// (like BookingForm uses) and any prior flattened fields.
-type RawSeasonConfig = {
-  seasonStart?: string;
-  seasonEnd?: string;
-  maxHuntersPerDay?: number;
+function isConsecutive(d0: string, d1: string): boolean {
+  const a = new Date(`${d0}T00:00:00`);
+  const b = new Date(`${d1}T00:00:00`);
+  return (b.getTime() - a.getTime()) / 86400000 === 1;
+}
 
-  // current canonical fields
-  weekdayRate?: number;
-  offSeasonRate?: number;
-  partyDeckRatePerDay?: number;
-  weekendRates?: {
-    singleDay?: number;
-    twoConsecutiveDays?: number;
-    threeDayCombo?: number;
-  };
+function inRange(iso: string, startIso: string, endIso: string) {
+  const t = new Date(`${iso}T00:00:00`).getTime();
+  const s = new Date(`${startIso}T00:00:00`).getTime();
+  const e = new Date(`${endIso}T00:00:00`).getTime();
+  return t >= s && t <= e;
+}
 
-  // legacy/alt keys we’ll accept as fallback
-  weekendSingleDayRate?: number;
-  twoDayConsecutiveRate?: number;
-  threeDayFriSatSunRate?: number;
-  partyDeckPrice?: number;
-};
+function getPricingWindowForDate(
+  iso: string,
+  cfg: SeasonConfig | null
+): PricingWindow | null {
+  if (!cfg) return null;
+  const windows = cfg.pricingWindows ?? [];
+  return windows.find((w) => inRange(iso, w.start, w.end)) ?? null;
+}
 
-// Normalize any seasonConfig into a single, consistent object.
-const normalizeConfig = (cfg: RawSeasonConfig | null | undefined) => {
-  const single =
-    cfg?.weekendRates?.singleDay ?? cfg?.weekendSingleDayRate ?? 125; // default single day
+function samePricingWindow(
+  a: PricingWindow | null,
+  b: PricingWindow | null
+): boolean {
+  if (!a || !b) return false;
+  return a.start === b.start && a.end === b.end && a.type === b.type;
+}
 
-  const twoDay =
-    cfg?.weekendRates?.twoConsecutiveDays ?? cfg?.twoDayConsecutiveRate ?? 350;
-
-  const threeDay =
-    cfg?.weekendRates?.threeDayCombo ?? cfg?.threeDayFriSatSunRate ?? 450;
-
-  const weekday = cfg?.weekdayRate ?? 125;
-  const offSeason = cfg?.offSeasonRate ?? 125;
-  const partyDeck = cfg?.partyDeckRatePerDay ?? cfg?.partyDeckPrice ?? 500;
-
-  const maxCap = cfg?.maxHuntersPerDay ?? 75;
-
-  return {
-    seasonStart: cfg?.seasonStart,
-    seasonEnd: cfg?.seasonEnd,
-    maxHuntersPerDay: maxCap,
-    weekdayRate: weekday,
-    offSeasonRate: offSeason,
-    partyDeckPerDay: partyDeck,
-    weekend: {
-      singleDay: single,
-      twoConsecutiveDays: twoDay,
-      threeDayCombo: threeDay,
-    },
-  };
-};
-
-const toDate = (iso: string) => {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(y, (m ?? 1) - 1, d ?? 1);
-};
-const isISO = (s?: string) => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
-
-const isInSeason = (
-  d: Date,
-  cfg: { seasonStart?: string; seasonEnd?: string }
-) => {
-  if (!isISO(cfg.seasonStart) || !isISO(cfg.seasonEnd)) return true;
-  const t = new Date(d).setHours(0, 0, 0, 0);
-  const start = toDate(cfg.seasonStart!).setHours(0, 0, 0, 0);
-  const end = toDate(cfg.seasonEnd!).setHours(0, 0, 0, 0);
-  return t >= start && t <= end;
-};
+function isDateInActiveSeason(iso: string, cfg: SeasonConfig | null): boolean {
+  if (!cfg?.seasonStart || !cfg?.seasonEnd) return false;
+  return inRange(iso, cfg.seasonStart, cfg.seasonEnd);
+}
 
 const CartDrawer = () => {
   const { booking, merchItems, setBooking, addOrUpdateMerchItem, clearCart } =
@@ -95,29 +61,15 @@ const CartDrawer = () => {
   const hasBooking = !!booking && booking.dates?.length > 0;
   const hasMerch = Object.keys(merchItems).length > 0;
 
-  // Load live season config and normalize it
-  const [normCfg, setNormCfg] = useState<ReturnType<
-    typeof normalizeConfig
-  > | null>(null);
+  const [seasonConfig, setSeasonConfig] = useState<SeasonConfig | null>(null);
+
   useEffect(() => {
     (async () => {
       try {
-        const raw = (await getSeasonConfig()) as RawSeasonConfig;
-        setNormCfg(normalizeConfig(raw));
+        const cfg = await getSeasonConfig();
+        setSeasonConfig(cfg);
       } catch {
-        setNormCfg(
-          normalizeConfig({
-            weekdayRate: 125,
-            offSeasonRate: 125,
-            partyDeckRatePerDay: 500,
-            weekendRates: {
-              singleDay: 125,
-              twoConsecutiveDays: 350,
-              threeDayCombo: 450,
-            },
-            maxHuntersPerDay: 75,
-          })
-        );
+        setSeasonConfig(null);
       }
     })();
   }, []);
@@ -128,7 +80,7 @@ const CartDrawer = () => {
     setHuntersDraft(String(booking?.numberOfHunters ?? 1));
   }, [booking?.numberOfHunters]);
 
-  const maxCapacity = normCfg?.maxHuntersPerDay ?? 75;
+  const maxCapacity = seasonConfig?.maxHuntersPerDay ?? 75;
 
   // Availability lookups
   const [availByDate, setAvailByDate] = useState<Record<string, number>>({});
@@ -178,75 +130,67 @@ const CartDrawer = () => {
 
   // ---- Pricing driven by seasonConfig (no hardcoded $200 anymore) ----
   const computePerPersonTotal = (isoDates: string[]) => {
-    if (!normCfg || !isoDates.length) return 0;
+    if (!seasonConfig || !isoDates.length) return 0;
 
-    const { seasonStart, seasonEnd, weekdayRate, offSeasonRate, weekend } =
-      normCfg;
-
-    const dates = isoDates
-      .map((d) => {
-        const [y, m, dd] = d.split("-").map(Number);
-        const obj = new Date(y, (m ?? 1) - 1, dd ?? 1);
-        obj.setHours(0, 0, 0, 0);
-        return obj;
-      })
-      .sort((a, b) => a.getTime() - b.getTime());
+    const validDates = sortIsoDates(
+      isoDates.filter((iso) => isDateInActiveSeason(iso, seasonConfig))
+    );
 
     let total = 0;
-    let i = 0;
 
-    while (i < dates.length) {
-      const cur = dates[i];
-      const inSeasonNow = isInSeason(cur, { seasonStart, seasonEnd });
-      const dow = cur.getDay();
+    for (let i = 0; i < validDates.length; ) {
+      const d0 = validDates[i];
+      const d1 = validDates[i + 1];
+      const d2 = validDates[i + 2];
 
-      // Off-season: flat per day
-      if (!inSeasonNow) {
-        total += offSeasonRate;
-        i++;
-        continue;
-      }
+      const w0 = getPricingWindowForDate(d0, seasonConfig);
+      const w1 = d1 ? getPricingWindowForDate(d1, seasonConfig) : null;
+      const w2 = d2 ? getPricingWindowForDate(d2, seasonConfig) : null;
 
-      // 3-day Fri–Sat–Sun combo
-      if (dow === 5 && i + 2 < dates.length) {
-        const d1 = dates[i + 1];
-        const d2 = dates[i + 2];
-        const diff1 = (d1.getTime() - cur.getTime()) / 86400000;
-        const diff2 = (d2.getTime() - d1.getTime()) / 86400000;
-        if (
-          diff1 === 1 &&
-          diff2 === 1 &&
-          d1.getDay() === 6 &&
-          d2.getDay() === 0 &&
-          isInSeason(d1, { seasonStart, seasonEnd }) &&
-          isInSeason(d2, { seasonStart, seasonEnd })
-        ) {
-          total += weekend.threeDayCombo;
+      if (w0?.type === "package") {
+        const canUseThreeDay =
+          !!d0 &&
+          !!d1 &&
+          !!d2 &&
+          !!w1 &&
+          !!w2 &&
+          samePricingWindow(w0, w1) &&
+          samePricingWindow(w1, w2) &&
+          isConsecutive(d0, d1) &&
+          isConsecutive(d1, d2);
+
+        if (canUseThreeDay) {
+          total += w0.threeDayCombo ?? 450;
           i += 3;
           continue;
         }
-      }
 
-      // 2-day Fri–Sat or Sat–Sun
-      if (i + 1 < dates.length) {
-        const next = dates[i + 1];
-        const diff = (next.getTime() - cur.getTime()) / 86400000;
-        const dowNext = next.getDay();
-        if (
-          diff === 1 &&
-          isInSeason(next, { seasonStart, seasonEnd }) &&
-          ((dow === 5 && dowNext === 6) || (dow === 6 && dowNext === 0))
-        ) {
-          total += weekend.twoConsecutiveDays;
+        const canUseTwoDay =
+          !!d0 &&
+          !!d1 &&
+          !!w1 &&
+          samePricingWindow(w0, w1) &&
+          isConsecutive(d0, d1);
+
+        if (canUseTwoDay) {
+          total += w0.twoConsecutiveDays ?? 350;
           i += 2;
           continue;
         }
+
+        total += w0.singleDay ?? 200;
+        i += 1;
+        continue;
       }
 
-      // Single in-season day — **this now uses weekend.singleDay (125) even on weekends**
-      const isWeekend = dow === 5 || dow === 6 || dow === 0;
-      total += isWeekend ? weekend.singleDay : weekdayRate;
-      i++;
+      if (w0?.type === "flat") {
+        total += w0.rate ?? seasonConfig.weekdayRate ?? 150;
+        i += 1;
+        continue;
+      }
+
+      total += seasonConfig.weekdayRate ?? 150;
+      i += 1;
     }
 
     return total;
@@ -257,14 +201,14 @@ const CartDrawer = () => {
     const perPerson = computePerPersonTotal(booking!.dates);
     const partyDeckDays = booking!.partyDeckDates || [];
     const partyDeckCost =
-      (normCfg?.partyDeckPerDay ?? 500) * (partyDeckDays?.length || 0);
+      (seasonConfig?.partyDeckRatePerDay ?? 500) * (partyDeckDays?.length || 0);
     return perPerson * (booking!.numberOfHunters || 0) + partyDeckCost;
   }, [
     hasBooking,
     booking?.dates,
     booking?.numberOfHunters,
     booking?.partyDeckDates,
-    normCfg,
+    seasonConfig,
   ]);
 
   // --- Merch stock & totals (unchanged) ---
@@ -494,7 +438,7 @@ const CartDrawer = () => {
                         {!!booking!.partyDeckDates?.length && (
                           <li>
                             Party Deck: {booking!.partyDeckDates.length} × $
-                            {normCfg?.partyDeckPerDay ?? 500}
+                            {seasonConfig?.partyDeckRatePerDay ?? 500}
                           </li>
                         )}
                         <li className="bg-white max-w-[220px] text-[var(--color-footer)] p-1 shadow-sm text-md font-bold">
