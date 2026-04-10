@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import { LogOut, Menu, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import logo from "../assets/logo-official.webp";
@@ -42,13 +42,16 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
 
   const location = useLocation();
-
+  const isActivePath = (to: string) => {
+    if (to === "/") return location.pathname === "/";
+    return location.pathname === to;
+  };
   const navLinks = useMemo(
     () => [
       { to: "/", label: "Home" },
       { to: "/book", label: "Book a Hunt" },
       { to: "/rules", label: "Property Rules" },
-      { to: "/merch", label: "Merch" },
+
       { to: "/gallery", label: "Gallery" },
       { to: "/videos", label: "Videos" },
       { to: "/contact", label: "Contact" },
@@ -118,19 +121,29 @@ export default function Navbar() {
 
           {/* Desktop nav */}
           <div className="hidden items-center md:space-x-2 lg:flex lg:space-x-4 text-xs">
-            {navLinks.map((l) => (
-              <Link
-                key={l.to}
-                to={l.to}
-                className={[
-                  "rounded-sm p-2 text-white transition",
-                  "hover:bg-[var(--color-background)]/40",
-                  l.label === "Book a Hunt" ? "font-bold" : "",
-                ].join(" ")}
-              >
-                {l.label}
-              </Link>
-            ))}
+            {navLinks.map((l) => {
+              const isActive = isActivePath(l.to);
+
+              return (
+                <NavLink
+                  key={l.to}
+                  to={l.to}
+                  className={[
+                    " px-3 py-2 text-white transition-all duration-200",
+                    "border border-transparent",
+                    isActive
+                      ? "bg-[var(--color-card)] text-[var(--color-accent-gold)] border-[var(--color-accent-gold)]/40 shadow-[0_0_0_1px_rgba(217,181,106,0.08)]"
+                      : "hover:bg-[var(--color-card)]/20 text-white/60 hover:text-white",
+                    l.label === "Book a Hunt" && !isActive
+                      ? "font-bold"
+                      : "font-bold",
+                  ].join(" ")}
+                  aria-current={isActive ? "page" : undefined}
+                >
+                  {l.label}
+                </NavLink>
+              );
+            })}
 
             {!user ? (
               <button
@@ -144,7 +157,12 @@ export default function Navbar() {
                 <Link
                   to="/dashboard"
                   title="Dashboard"
-                  className="ml-2 h-10 w-10 overflow-hidden rounded-full border border-white transition hover:opacity-80"
+                  className={[
+                    "ml-2 h-10 w-10 overflow-hidden rounded-full border transition hover:opacity-80",
+                    location.pathname === "/dashboard"
+                      ? "border-[var(--color-accent-gold)] shadow-[0_0_0_2px_rgba(217,181,106,0.18)]"
+                      : "border-white",
+                  ].join(" ")}
                 >
                   {user.photoURL ? (
                     <img
@@ -263,17 +281,27 @@ export default function Navbar() {
                 animate="visible"
                 variants={listVariants}
               >
-                {navLinks.map((l) => (
-                  <motion.li key={l.to} variants={itemVariants}>
-                    <Link
-                      to={l.to}
-                      onClick={() => setIsOpen(false)}
-                      className="block rounded-lg border border-white/10 bg-white/5 px-4 py-3 font-gin text-sm transition hover:border-white/30"
-                    >
-                      {l.label}
-                    </Link>
-                  </motion.li>
-                ))}
+                {navLinks.map((l) => {
+                  const isActive = isActivePath(l.to);
+
+                  return (
+                    <motion.li key={l.to} variants={itemVariants}>
+                      <NavLink
+                        to={l.to}
+                        onClick={() => setIsOpen(false)}
+                        className={[
+                          "block rounded-lg border px-4 py-3 font-gin text-sm transition-all duration-200",
+                          isActive
+                            ? "border-[var(--color-accent-gold)]/40 bg-[var(--color-accent-gold)]/10 text-[var(--color-accent-gold)]"
+                            : "border-white/10 bg-white/5 text-white hover:border-white/30 hover:text-[var(--color-accent-gold)]",
+                        ].join(" ")}
+                        aria-current={isActive ? "page" : undefined}
+                      >
+                        {l.label}
+                      </NavLink>
+                    </motion.li>
+                  );
+                })}
               </motion.ul>
 
               {/* Actions */}

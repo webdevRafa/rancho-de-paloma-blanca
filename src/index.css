@@ -4,6 +4,7 @@
   /* Base */
   --color-background: #201209;   /* Dark wood backdrop */
   --color-card: #24150a;         /* Warm mid-brown for cards & navbar */
+  --color-card-hover: #3a2414;         /* Warm mid-brown for cards & navbar */
 
   /* Text */
   --color-text: #F6E7D2;         /* Cream text for readability */
