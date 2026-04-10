@@ -15,7 +15,7 @@ import CustomerInfoForm from "../components/CustomerInfoForm";
 import { getSeasonConfig } from "../utils/getSeasonConfig";
 import toIsoAlpha3 from "../utils/toIsoAlpha3";
 import { formatLongDate } from "../utils/formatDate";
-import type { Attendee } from "../types/Types";
+import type { Attendee, PricingWindow, SeasonConfig } from "../types/Types";
 import grass from "../assets/images/group.webp";
 type EPApi = {
   init: (jwt: string, config: Record<string, any>) => any;
@@ -46,18 +46,6 @@ export type CustomerInfo = {
     postalCode?: string;
     country?: string;
   };
-};
-
-export type SeasonConfig = {
-  seasonStart: string;
-  seasonEnd: string;
-  weekdayRate?: number;
-  weekendRates?: {
-    singleDay: number;
-    twoConsecutiveDays: number;
-    threeDayCombo: number;
-  };
-  partyDeckRatePerDay?: number;
 };
 
 type BookingLine = {
@@ -437,6 +425,28 @@ function buildProductsForJwt(args: {
   return products;
 }
 
+function getPricingWindowForDate(
+  iso: string,
+  cfg: SeasonConfig | null
+): PricingWindow | null {
+  if (!cfg) return null;
+  const windows = cfg.pricingWindows ?? [];
+  return windows.find((w) => inRange(iso, w.start, w.end)) ?? null;
+}
+
+function samePricingWindow(
+  a: PricingWindow | null,
+  b: PricingWindow | null
+): boolean {
+  if (!a || !b) return false;
+  return a.start === b.start && a.end === b.end && a.type === b.type;
+}
+
+function isDateInActiveSeason(iso: string, cfg: SeasonConfig | null): boolean {
+  if (!cfg?.seasonStart || !cfg?.seasonEnd) return false;
+  return inRange(iso, cfg.seasonStart, cfg.seasonEnd);
+}
+
 function calculateTotals(args: {
   booking: BookingLine | null;
   merchItems: MerchItem[];
@@ -444,77 +454,85 @@ function calculateTotals(args: {
 }) {
   const { booking, merchItems, cfg } = args;
   const merchTotal = merchItems.reduce((sum, m) => sum + m.price * m.qty, 0);
+
   let bookingTotal = 0;
+  const invalidDates: string[] = [];
+
   if (booking && booking.dates.length > 0) {
-    const all = sortIsoDates(booking.dates);
-    const weekdayRate = cfg?.weekdayRate ?? 125;
-    const wkRates = cfg?.weekendRates ?? {
-      singleDay: 200,
-      twoConsecutiveDays: 350,
-      threeDayCombo: 450,
-    };
-    const isInSeason = (iso: string) =>
-      cfg
-        ? inRange(iso, cfg.seasonStart, cfg.seasonEnd)
-        : (() => {
-            const d = new Date(`${iso}T00:00:00`);
-            const m = d.getMonth() + 1;
-            const dd = d.getDate();
-            return (m === 9 && dd >= 6) || (m === 10 && dd <= 26);
-          })();
-    const isWeekend = (iso: string) => {
-      const d = new Date(`${iso}T00:00:00`);
-      const dow = d.getDay();
-      return dow === 5 || dow === 6 || dow === 0;
-    };
-    const offSeasonDays = all.filter((d) => !isInSeason(d));
-    bookingTotal +=
-      offSeasonDays.length * weekdayRate * (booking.numberOfHunters || 1);
-    const inSeasonDays = all.filter((d) => isInSeason(d));
-    const seasonDaysSorted = sortIsoDates(inSeasonDays);
-    let seasonCostPerPerson = 0;
-    for (let i = 0; i < seasonDaysSorted.length; ) {
-      const d0 = seasonDaysSorted[i],
-        d1 = seasonDaysSorted[i + 1],
-        d2 = seasonDaysSorted[i + 2];
-      const wk0 = d0 ? isWeekend(d0) : false,
-        wk1 = d1 ? isWeekend(d1) : false,
-        wk2 = d2 ? isWeekend(d2) : false;
-      if (
-        d0 &&
-        d1 &&
-        d2 &&
-        wk0 &&
-        wk1 &&
-        wk2 &&
-        isConsecutive(d0, d1) &&
-        isConsecutive(d1, d2)
-      ) {
-        seasonCostPerPerson += wkRates.threeDayCombo;
-        i += 3;
-        continue;
+    const allDates = sortIsoDates(booking.dates);
+    const hunters = booking.numberOfHunters || 1;
+
+    for (const iso of allDates) {
+      if (!isDateInActiveSeason(iso, cfg)) {
+        invalidDates.push(iso);
       }
-      if (d0 && d1 && isConsecutive(d0, d1)) {
-        seasonCostPerPerson += wkRates.twoConsecutiveDays;
-        i += 2;
-        continue;
-      }
-      if (d0) {
-        seasonCostPerPerson += wkRates.singleDay;
+    }
+
+    const validDates = allDates.filter((iso) => isDateInActiveSeason(iso, cfg));
+
+    for (let i = 0; i < validDates.length; ) {
+      const d0 = validDates[i];
+      const d1 = validDates[i + 1];
+      const d2 = validDates[i + 2];
+
+      const w0 = getPricingWindowForDate(d0, cfg);
+      const w1 = d1 ? getPricingWindowForDate(d1, cfg) : null;
+      const w2 = d2 ? getPricingWindowForDate(d2, cfg) : null;
+
+      if (w0?.type === "package") {
+        const canUseThreeDay =
+          !!d0 &&
+          !!d1 &&
+          !!d2 &&
+          !!w1 &&
+          !!w2 &&
+          samePricingWindow(w0, w1) &&
+          samePricingWindow(w1, w2) &&
+          isConsecutive(d0, d1) &&
+          isConsecutive(d1, d2);
+
+        if (canUseThreeDay) {
+          bookingTotal += (w0.threeDayCombo ?? 450) * hunters;
+          i += 3;
+          continue;
+        }
+
+        const canUseTwoDay =
+          !!d0 &&
+          !!d1 &&
+          !!w1 &&
+          samePricingWindow(w0, w1) &&
+          isConsecutive(d0, d1);
+
+        if (canUseTwoDay) {
+          bookingTotal += (w0.twoConsecutiveDays ?? 350) * hunters;
+          i += 2;
+          continue;
+        }
+
+        bookingTotal += (w0.singleDay ?? 200) * hunters;
         i += 1;
         continue;
       }
-      i++;
+
+      if (w0?.type === "flat") {
+        bookingTotal += (w0.rate ?? cfg?.weekdayRate ?? 150) * hunters;
+        i += 1;
+        continue;
+      }
+
+      bookingTotal += (cfg?.weekdayRate ?? 150) * hunters;
+      i += 1;
     }
-    bookingTotal += seasonCostPerPerson * (booking.numberOfHunters || 1);
+
     const partyDays = booking.partyDeckDates?.length || 0;
     const partyRate = cfg?.partyDeckRatePerDay ?? 500;
     bookingTotal += partyDays * partyRate;
   }
-  const amount = bookingTotal + merchTotal;
-  return { bookingTotal, merchTotal, amount };
-}
 
+  const amount = bookingTotal + merchTotal;
+  return { bookingTotal, merchTotal, amount, invalidDates };
+}
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -665,6 +683,8 @@ export default function CheckoutPage() {
     [booking, merchArray, seasonConfig]
   );
   const amount = totals.amount;
+  const invalidBookingDates = totals.invalidDates ?? [];
+  const hasInvalidBookingDates = invalidBookingDates.length > 0;
 
   const [sdkReady, setSdkReady] = useState(false);
   const [instanceReady, setInstanceReady] = useState(false);
@@ -1215,8 +1235,8 @@ export default function CheckoutPage() {
   }, []);
 
   const canStart = useMemo(
-    () => amount > 0 && !!orderId && !hasStockErrors,
-    [amount, orderId, hasStockErrors]
+    () => amount > 0 && !!orderId && !hasStockErrors && !hasInvalidBookingDates,
+    [amount, orderId, hasStockErrors, hasInvalidBookingDates]
   );
 
   if (!isHydrated)
@@ -1229,9 +1249,13 @@ export default function CheckoutPage() {
       </div>
       <div className="max-w-4xl mt-30 mx-auto px-4 py-10 relative min-h-screen">
         {/* Display any error messages */}
-        {(errorMsg || (cfgError as any)) && (
+        {(errorMsg || (cfgError as any) || hasInvalidBookingDates) && (
           <div className="mb-6 rounded-lg border border-red-500/30 bg-red-500/10 text-red-700 p-3">
-            {errorMsg || (cfgError as any)}
+            {errorMsg ||
+              (cfgError as any) ||
+              `These selected dates are outside the active season: ${invalidBookingDates.join(
+                ", "
+              )}. Please update your booking before checkout.`}
           </div>
         )}
 

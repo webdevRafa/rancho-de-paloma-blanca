@@ -41,6 +41,16 @@ export interface Availability {
   partyDeckBooked: boolean;
 }
 
+export interface PricingWindow {
+  start: string;
+  end: string;
+  type: "flat" | "package";
+  rate?: number;
+  singleDay?: number;
+  twoConsecutiveDays?: number;
+  threeDayCombo?: number;
+}
+
 
 export interface SeasonRates {
   singleDay: number;
@@ -53,9 +63,10 @@ export interface SeasonConfig {
   seasonEnd: string;
   weekendRates: SeasonRates;
   weekdayRate: number;
-  availableDates: string[];
   partyDeckRatePerDay: number;
   maxHuntersPerDay: number;
+  availableDates?: string[];
+  pricingWindows?: PricingWindow[];
 }
 
 export interface PendingOrder {
