@@ -139,9 +139,9 @@ const DateSelector = ({
       <div className="date-selector">
         <DayPicker
           mode="multiple"
-          month={rawStart ? new Date(`${rawStart}T00:00:00`) : undefined}
           startMonth={rawStart ? new Date(`${rawStart}T00:00:00`) : undefined}
           endMonth={rawEnd ? new Date(`${rawEnd}T00:00:00`) : undefined}
+          defaultMonth={rawStart ? new Date(`${rawStart}T00:00:00`) : undefined}
           selected={selected}
           onDayClick={handleDayClick}
           disabled={isDateBlocked}
