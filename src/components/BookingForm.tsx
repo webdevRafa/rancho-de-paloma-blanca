@@ -5,6 +5,7 @@ import { doc, getDoc } from "firebase/firestore";
 import type {
   NewBooking,
   SeasonConfig,
+  PricingWindow,
   Availability,
   BookingStatus,
 } from "../types/Types";
@@ -118,6 +119,7 @@ const BookingForm = () => {
   useEffect(() => {
     const fetchConfig = async () => {
       const config = await getSeasonConfig();
+      console.log("BookingForm seasonConfig:", config);
       setSeasonConfig(config);
     };
     fetchConfig();
@@ -213,96 +215,161 @@ const BookingForm = () => {
     return `${monthName} ${day}${suffix}, ${year}`;
   };
 
+  const sortIsoDates = (dates: string[]) =>
+    [...dates].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+
+  const isConsecutive = (d0: string, d1: string) => {
+    const a = new Date(`${d0}T00:00:00`);
+    const b = new Date(`${d1}T00:00:00`);
+    return (b.getTime() - a.getTime()) / 86400000 === 1;
+  };
+
+  const inRange = (iso: string, startIso: string, endIso: string) => {
+    const t = new Date(`${iso}T00:00:00`).getTime();
+    const s = new Date(`${startIso}T00:00:00`).getTime();
+    const e = new Date(`${endIso}T00:00:00`).getTime();
+    return t >= s && t <= e;
+  };
+
+  const getPricingWindowForDate = (
+    iso: string,
+    cfg: SeasonConfig | null
+  ): PricingWindow | null => {
+    if (!cfg) return null;
+    const windows = cfg.pricingWindows ?? [];
+    return windows.find((w) => inRange(iso, w.start, w.end)) ?? null;
+  };
+
+  const samePricingWindow = (
+    a: PricingWindow | null,
+    b: PricingWindow | null
+  ): boolean => {
+    if (!a || !b) return false;
+    return a.start === b.start && a.end === b.end && a.type === b.type;
+  };
+
+  const isDateInActiveSeason = (
+    iso: string,
+    cfg: SeasonConfig | null
+  ): boolean => {
+    if (!cfg?.seasonStart || !cfg?.seasonEnd) return false;
+    return inRange(iso, cfg.seasonStart, cfg.seasonEnd);
+  };
+
+  const getInvalidSelectedDates = (): string[] => {
+    return form.dates.filter((iso) => !isDateInActiveSeason(iso, seasonConfig));
+  };
+
   const handleNextStep = () => {
-    // Make sure the hunters value is committed before moving on.
     commitHunters();
+
+    if (step === 2) {
+      if (form.dates.length === 0) {
+        alert("Please select at least one date.");
+        return;
+      }
+
+      const invalidDates = getInvalidSelectedDates();
+      if (invalidDates.length > 0) {
+        alert(
+          `These selected dates are outside the active season: ${invalidDates.join(
+            ", "
+          )}`
+        );
+        return;
+      }
+    }
+
     setStep((prev) => prev + 1);
   };
   const handlePrevStep = () => setStep((prev) => prev - 1);
 
   const calculateTotalPrice = (): number => {
     if (!seasonConfig) return 0;
-    const {
-      seasonStart,
-      seasonEnd,
-      weekendRates,
-      weekdayRate,
-      partyDeckRatePerDay,
-    } = seasonConfig;
 
-    const dateObjs = form.dates
-      .map((d) => {
-        const [y, m, d2] = d.split("-").map(Number);
-        return new Date(y, m - 1, d2);
-      })
-      .sort((a, b) => a.getTime() - b.getTime());
+    const validDates = sortIsoDates(
+      form.dates.filter((iso) => isDateInActiveSeason(iso, seasonConfig))
+    );
 
-    const toISO = (d: Date) => {
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, "0");
-      const dd = String(d.getDate()).padStart(2, "0");
-      return `${yyyy}-${mm}-${dd}`;
-    };
+    const hunters = form.numberOfHunters || 1;
+    let bookingTotal = 0;
 
-    let perPersonTotal = 0;
-    let i = 0;
-    while (i < dateObjs.length) {
-      const current = dateObjs[i];
-      const iso0 = toISO(current);
-      const inSeason = iso0 >= seasonStart && iso0 <= seasonEnd;
-      const dow0 = current.getDay();
-      const isWeekend = inSeason && (dow0 === 5 || dow0 === 6 || dow0 === 0);
-      if (isWeekend) {
-        if (dow0 === 5 && i + 2 < dateObjs.length) {
-          const d1 = dateObjs[i + 1];
-          const d2 = dateObjs[i + 2];
-          const iso1 = toISO(d1);
-          const iso2 = toISO(d2);
-          const diff1 = (d1.getTime() - current.getTime()) / 86_400_000;
-          const diff2 = (d2.getTime() - d1.getTime()) / 86_400_000;
-          const inSeason1 = iso1 >= seasonStart && iso1 <= seasonEnd;
-          const inSeason2 = iso2 >= seasonStart && iso2 <= seasonEnd;
-          const dow1 = d1.getDay();
-          const dow2 = d2.getDay();
-          if (
-            diff1 === 1 &&
-            diff2 === 1 &&
-            dow1 === 6 &&
-            dow2 === 0 &&
-            inSeason1 &&
-            inSeason2
-          ) {
-            perPersonTotal += weekendRates.threeDayCombo;
-            i += 3;
-            continue;
-          }
+    for (let i = 0; i < validDates.length; ) {
+      const d0 = validDates[i];
+      const d1 = validDates[i + 1];
+      const d2 = validDates[i + 2];
+
+      const w0 = getPricingWindowForDate(d0, seasonConfig);
+      const w1 = d1 ? getPricingWindowForDate(d1, seasonConfig) : null;
+      const w2 = d2 ? getPricingWindowForDate(d2, seasonConfig) : null;
+      console.log("pricing debug", {
+        d0,
+        d1,
+        d2,
+        w0,
+        w1,
+        w2,
+      });
+
+      if (w0?.type === "package") {
+        const canUseThreeDay =
+          !!d0 &&
+          !!d1 &&
+          !!d2 &&
+          !!w1 &&
+          !!w2 &&
+          samePricingWindow(w0, w1) &&
+          samePricingWindow(w1, w2) &&
+          isConsecutive(d0, d1) &&
+          isConsecutive(d1, d2);
+
+        if (canUseThreeDay) {
+          bookingTotal += (w0.threeDayCombo ?? 450) * hunters;
+          i += 3;
+          continue;
         }
-        if (i + 1 < dateObjs.length) {
-          const next = dateObjs[i + 1];
-          const diff = (next.getTime() - current.getTime()) / 86_400_000;
-          const isoNext = toISO(next);
-          const inSeasonNext = isoNext >= seasonStart && isoNext <= seasonEnd;
-          const dowNext = next.getDay();
-          if (
-            diff === 1 &&
-            inSeasonNext &&
-            ((dow0 === 5 && dowNext === 6) || (dow0 === 6 && dowNext === 0))
-          ) {
-            perPersonTotal += weekendRates.twoConsecutiveDays;
-            i += 2;
-            continue;
-          }
+
+        const canUseTwoDay =
+          !!d0 &&
+          !!d1 &&
+          !!w1 &&
+          samePricingWindow(w0, w1) &&
+          isConsecutive(d0, d1);
+
+        console.log("two-day package check", {
+          d0,
+          d1,
+          canUseTwoDay,
+          sameWindow: samePricingWindow(w0, w1),
+          consecutive: !!d1 ? isConsecutive(d0, d1) : false,
+          twoConsecutiveDays: w0?.twoConsecutiveDays,
+        });
+
+        if (canUseTwoDay) {
+          bookingTotal += (w0.twoConsecutiveDays ?? 350) * hunters;
+          i += 2;
+          continue;
         }
-        perPersonTotal += weekendRates.singleDay;
+
+        bookingTotal += (w0.singleDay ?? 200) * hunters;
         i += 1;
         continue;
       }
-      perPersonTotal += weekdayRate;
+
+      if (w0?.type === "flat") {
+        bookingTotal += (w0.rate ?? seasonConfig.weekdayRate ?? 150) * hunters;
+        i += 1;
+        continue;
+      }
+
+      bookingTotal += (seasonConfig.weekdayRate ?? 150) * hunters;
       i += 1;
     }
 
-    const partyDeckCost = partyDeckRatePerDay * form.partyDeckDates.length;
-    return perPersonTotal * form.numberOfHunters + partyDeckCost;
+    const partyDeckCost =
+      (seasonConfig.partyDeckRatePerDay ?? 500) * form.partyDeckDates.length;
+
+    return bookingTotal + partyDeckCost;
   };
 
   const blockIfNamesMissing = (): boolean => {
@@ -323,6 +390,16 @@ const BookingForm = () => {
       alert("Season configuration not loaded. Please try again later.");
       return;
     }
+    const invalidDates = getInvalidSelectedDates();
+    if (invalidDates.length > 0) {
+      alert(
+        `These selected dates are outside the active season: ${invalidDates.join(
+          ", "
+        )}`
+      );
+      return;
+    }
+
     // Ensure hunters is committed before building the booking
     commitHunters();
 
@@ -371,6 +448,16 @@ const BookingForm = () => {
       alert("Season configuration not loaded. Please try again later.");
       return;
     }
+    const invalidDates = getInvalidSelectedDates();
+    if (invalidDates.length > 0) {
+      alert(
+        `These selected dates are outside the active season: ${invalidDates.join(
+          ", "
+        )}`
+      );
+      return;
+    }
+
     if (form.dates.length === 0) {
       alert("Please select at least one date.");
       return;
@@ -465,6 +552,14 @@ const BookingForm = () => {
                 numberOfHunters={form.numberOfHunters}
               />
             </div>
+
+            {seasonConfig && (
+              <p className="mt-3 text-center text-xs text-[var(--color-footer)]/80">
+                Available booking dates are limited to{" "}
+                <strong>{seasonConfig.seasonStart}</strong> through{" "}
+                <strong>{seasonConfig.seasonEnd}</strong>.
+              </p>
+            )}
           </>
         )}
 

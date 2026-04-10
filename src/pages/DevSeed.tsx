@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { seedAvailability } from "../utils/seed/seedAvailability";
+
 import { useAuth } from "../context/AuthContext";
 import { collection, doc, writeBatch } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
@@ -17,8 +17,6 @@ type ProductSeed = {
 };
 
 const DevSeed = () => {
-  const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [importBusy, setImportBusy] = useState(false);
   const [importResult, setImportResult] = useState<{
@@ -26,19 +24,6 @@ const DevSeed = () => {
     skipped: number;
   } | null>(null);
   const { user } = useAuth();
-
-  const handleSeedAvailability = async () => {
-    setLoading(true);
-    try {
-      await seedAvailability();
-      setDone(true);
-    } catch (err) {
-      console.error("Error seeding availability:", err);
-      alert("Failed to seed availability");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   async function parseJsonFile<T = unknown>(f: File): Promise<T> {
     const text = await f.text();
@@ -126,18 +111,13 @@ const DevSeed = () => {
     <div className="p-10 text-white mt-30 mx-auto max-w-6xl space-y-8">
       <div>
         <h1 className="text-3xl mb-4 text-white">Dev Seeder</h1>
-        <button
-          onClick={handleSeedAvailability}
-          disabled={loading}
-          className="bg-[var(--color-button)] px-3 py-2 rounded text-white hover:bg-[var(--color-button-hover)] disabled:opacity-50 text-sm"
-        >
-          {loading ? "Seeding..." : "Seed Availability Data"}
-        </button>
-        {done && (
-          <p className="mt-3 text-green-400">
-            ✅ Availability seeding complete!
-          </p>
-        )}
+        <p className="text-sm text-white/70">
+          Availability seeding is now terminal-only. Run the seed script from
+          project root with:
+        </p>
+        <code className="mt-2 inline-block rounded bg-black/30 px-3 py-2 text-sm text-green-300">
+          npx tsx scripts/seedAvailability.ts
+        </code>
       </div>
 
       <div className="border border-white/10 rounded-2xl p-5">

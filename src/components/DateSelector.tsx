@@ -28,27 +28,39 @@ const DateSelector = ({
   const [availableDates, setAvailableDates] = useState<AvailabilityDoc[]>([]);
   const [selected, setSelected] = useState<Date[]>([]);
 
-  // Compute min selectable boundary (today vs season start)
+  // Compute active season boundaries
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todayStr = toLocalDateString(today);
 
   const rawStart = seasonConfig?.seasonStart?.replace(/"/g, "") ?? "";
+  const rawEnd = seasonConfig?.seasonEnd?.replace(/"/g, "") ?? "";
 
+  // Do not allow selection before the later of today or season start
   const minSelectable = rawStart
     ? todayStr >= rawStart
       ? todayStr
       : rawStart
     : todayStr;
 
-  // NEW: allow off-season by extending the query horizon past seasonEnd.
-  // Here we fetch until Dec 31 of the *current year* (adjust if you want farther).
-  const horizonEnd = `${today.getFullYear()}-12-31`;
+  // Hard stop at the configured season end
+  const maxSelectable = rawEnd || minSelectable;
 
   useEffect(() => {
     const fetchAvailability = async () => {
+      if (!seasonConfig?.seasonStart || !seasonConfig?.seasonEnd) {
+        setAvailableDates([]);
+        return;
+      }
+
       const startKey = minSelectable;
-      const endKey = horizonEnd; // 🔑 no longer capped at seasonEnd
+      const endKey = maxSelectable;
+
+      // If today is already after the season end, show nothing
+      if (startKey > endKey) {
+        setAvailableDates([]);
+        return;
+      }
 
       const ref = collection(db, "availability");
       const q = query(
@@ -66,9 +78,8 @@ const DateSelector = ({
       setAvailableDates(data);
     };
 
-    // We still wait for seasonConfig to load because we use its start date
     if (seasonConfig) fetchAvailability();
-  }, [seasonConfig, minSelectable, horizonEnd]);
+  }, [seasonConfig, minSelectable, maxSelectable]);
 
   // Quick lookup for capacity
   const availableMap = new Map(availableDates.map((d) => [d.id, d]));
@@ -80,15 +91,17 @@ const DateSelector = ({
   const isDateBlocked = (day: Date) => {
     const dateStr = toLocalDateString(day);
 
-    // Before minSelectable (season start or today)
+    // Before active season window
     if (dateStr < minSelectable) return true;
 
-    // ❌ REMOVED: hard stop after seasonEnd, so we allow off-season selections.
-    // if (rawEnd && dateStr > rawEnd) return true;
+    // After active season window
+    if (rawEnd && dateStr > rawEnd) return true;
 
-    // Capacity check (treat missing doc as 0 booked = available)
+    // Capacity check (treat missing doc as unavailable if it is inside season but not seeded)
     const avail = availableMap.get(dateStr);
-    const booked = avail?.huntersBooked ?? 0;
+    if (!avail) return true;
+
+    const booked = avail.huntersBooked ?? 0;
     return booked + numberOfHunters > maxCapacity;
   };
 
@@ -126,6 +139,9 @@ const DateSelector = ({
       <div className="date-selector">
         <DayPicker
           mode="multiple"
+          month={rawStart ? new Date(`${rawStart}T00:00:00`) : undefined}
+          startMonth={rawStart ? new Date(`${rawStart}T00:00:00`) : undefined}
+          endMonth={rawEnd ? new Date(`${rawEnd}T00:00:00`) : undefined}
           selected={selected}
           onDayClick={handleDayClick}
           disabled={isDateBlocked}
