@@ -118,6 +118,7 @@ type OrderDoc = {
 
 const ORDER_ID_KEY = "rdpb:orderId";
 const EMBEDDED_CONTAINER_ID = "embeddedpayments";
+const formatMoney = (value: number) => `$${value.toFixed(2)}`;
 
 /** Recursively remove any fields with value `undefined`. */
 function pruneUndefinedDeep<T>(obj: T): T {
@@ -533,6 +534,164 @@ function calculateTotals(args: {
   const amount = bookingTotal + merchTotal;
   return { bookingTotal, merchTotal, amount, invalidDates };
 }
+
+function OrderSummaryCard({
+  title = "Your order summary",
+  products,
+  total,
+  booking,
+  dateRangeLabels,
+  partyDeckRangeLabels,
+}: {
+  title?: string;
+  products: Array<{
+    name?: string;
+    quantity: number;
+    unit: number;
+    extended: number;
+    description?: string;
+  }>;
+  total: number;
+  booking: BookingLine | null;
+  dateRangeLabels: string[];
+  partyDeckRangeLabels: string[];
+}) {
+  return (
+    <aside className="rounded-2xl border border-black/10 bg-white p-5 md:p-6 shadow-sm">
+      <div className="flex items-start justify-between gap-4 border-b border-black/10 pb-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/45">
+            Checkout
+          </p>
+          <h3 className="mt-1 text-2xl font-acumin text-[var(--color-footer)]">
+            {title}
+          </h3>
+        </div>
+
+        <div className="text-right">
+          <p className="text-xs uppercase tracking-[0.16em] text-black/45">
+            Total
+          </p>
+          <p className="text-2xl font-semibold text-[var(--color-footer)]">
+            {formatMoney(total)}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+        <div className="rounded-xl bg-neutral-50 px-3 py-3 border border-black/5">
+          <p className="text-[11px] uppercase tracking-wide text-black/45">
+            Hunters
+          </p>
+          <p className="mt-1 font-semibold text-[var(--color-footer)]">
+            {booking?.numberOfHunters ?? 0}
+          </p>
+        </div>
+
+        <div className="rounded-xl bg-neutral-50 px-3 py-3 border border-black/5">
+          <p className="text-[11px] uppercase tracking-wide text-black/45">
+            Days
+          </p>
+          <p className="mt-1 font-semibold text-[var(--color-footer)]">
+            {booking?.dates?.length ?? 0}
+          </p>
+        </div>
+      </div>
+
+      {dateRangeLabels.length > 0 && (
+        <div className="mt-4 rounded-xl bg-neutral-50 px-3 py-3 border border-black/5">
+          <p className="text-[11px] uppercase tracking-wide text-black/45">
+            Hunt dates
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {dateRangeLabels.map((label, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-[var(--color-footer)]"
+              >
+                {label}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {partyDeckRangeLabels.length > 0 && (
+        <div className="mt-4 rounded-xl bg-neutral-50 px-3 py-3 border border-black/5">
+          <p className="text-[11px] uppercase tracking-wide text-black/45">
+            Party deck dates
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {partyDeckRangeLabels.map((label, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-[var(--color-footer)]"
+              >
+                {label}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-5">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold uppercase tracking-[0.14em] text-black/45">
+            Line items
+          </p>
+          <p className="text-xs text-black/45">
+            {products.reduce((sum, item) => sum + item.quantity, 0)} total units
+          </p>
+        </div>
+
+        <div className="mt-3 space-y-3">
+          {products.map((item, idx) => (
+            <div
+              key={`${item.name}-${idx}`}
+              className="rounded-xl border border-black/10 bg-white px-4 py-4"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-base font-semibold leading-6 text-[var(--color-footer)]">
+                    {item.name}
+                  </p>
+
+                  {item.description ? (
+                    <p className="mt-1 text-xs text-black/55">
+                      {item.description}
+                    </p>
+                  ) : null}
+
+                  <p className="mt-2 text-sm text-black/60">
+                    {item.quantity} × {formatMoney(item.unit)}
+                  </p>
+                </div>
+
+                <div className="shrink-0 text-right">
+                  <p className="text-base font-semibold leading-6 text-[var(--color-footer)]">
+                    {formatMoney(item.extended)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-5 border-t border-black/10 pt-4">
+        <div className="flex items-center justify-between">
+          <p className="text-base font-semibold text-[var(--color-footer)]">
+            Order total
+          </p>
+          <p className="text-2xl font-semibold text-[var(--color-footer)]">
+            {formatMoney(total)}
+          </p>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -917,6 +1076,10 @@ export default function CheckoutPage() {
           orderId,
           amount,
           currency: "USD",
+          summary: {
+            hide: true,
+            hideTotals: true,
+          },
           customer: {
             firstName: customer.firstName || "Guest",
             lastName: customer.lastName || "Customer",
@@ -1431,84 +1594,63 @@ export default function CheckoutPage() {
           </section>
         )}
 
-        {/* Step 3: Pay Securely */}
         {step === 3 && (
-          <section className="mb-8 p-4 rounded-xl border bg-neutral-100">
-            <h2 className="text-xl mb-4 font-acumin">
-              Pay Securely (Embedded)
-            </h2>
-            {/* Quick summary */}
-            <div className="mb-4 p-3 rounded-lg border bg-white/70">
-              <div className="grid sm:grid-cols-3 gap-3">
-                <div>
-                  <div className="text-[11px] uppercase tracking-wide opacity-60">
-                    Hunters
-                  </div>
-                  <div className="font-semibold">
-                    {booking?.numberOfHunters ?? 0}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[11px] uppercase tracking-wide opacity-60">
-                    Days
-                  </div>
-                  <div className="font-semibold">
-                    {booking?.dates?.length ?? 0}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[11px] uppercase tracking-wide opacity-60">
-                    Dates
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {dateRangeLabels.map((label, i) => (
-                      <span
-                        key={i}
-                        className="inline-block px-2 py-1 rounded-full bg-neutral-100 border text-xs"
-                        title={label}
-                      >
-                        {label}
-                      </span>
-                    ))}
-                    {dateRangeLabels.length === 0 && (
-                      <span className="text-xs opacity-70">—</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-              {booking?.partyDeckDates?.length ? (
-                <div className="mt-3 text-xs">
-                  <span className="opacity-60 mr-1">Party Deck:</span>
-                  <span className="font-medium">
-                    {partyDeckRangeLabels.join(", ")}
-                  </span>
-                </div>
-              ) : null}
-            </div>
-            {/* Total */}
-            <div className="mb-4 flex justify-between items-baseline">
-              <div className="text-lg">Total</div>
-              <div className="text-2xl font-bold">${amount.toFixed(2)}</div>
-            </div>
-            {/* Embedded payments panel */}
-            <div
-              id={EMBEDDED_CONTAINER_ID}
-              className={[
-                "min-h-[260px] rounded-xl shadow-lg bg-white", // bigger min height to reveal card form
-                sdkReady ? "opacity-100" : "opacity-60",
-                "transition-opacity",
-              ].join(" ")}
-            />
-            {!sdkReady && (
-              <p className="mt-2 text-sm opacity-70">
-                The payment panel will appear here after you click “Start secure
-                payment.”
+          <section className="mb-8 rounded-2xl border border-black/10 bg-neutral-100 p-4 md:p-5">
+            <div className="mb-5">
+              <h2 className="text-2xl font-acumin text-[var(--color-footer)]">
+                Pay securely
+              </h2>
+              <p className="mt-1 text-sm text-black/60">
+                Review your order on the left and complete payment securely on
+                the right.
               </p>
-            )}
-            {sdkReady && !instanceReady && (
-              <p className="mt-2 text-sm opacity-70">Loading payment panel…</p>
-            )}
-            {/* Back button */}
+            </div>
+
+            <div className="grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)] items-start">
+              <OrderSummaryCard
+                title="Your order summary"
+                products={reviewProducts}
+                total={amount}
+                booking={
+                  booking
+                    ? {
+                        dates: booking.dates,
+                        numberOfHunters: booking.numberOfHunters,
+                        partyDeckDates: booking.partyDeckDates,
+                        seasonConfig: seasonConfig || undefined,
+                        bookingTotal: totals.bookingTotal,
+                      }
+                    : null
+                }
+                dateRangeLabels={dateRangeLabels}
+                partyDeckRangeLabels={partyDeckRangeLabels}
+              />
+
+              <div className="rounded-2xl border border-black/10 bg-white p-4 md:p-5 shadow-sm">
+                <div
+                  id={EMBEDDED_CONTAINER_ID}
+                  className={[
+                    "min-h-[560px] rounded-xl bg-white",
+                    sdkReady ? "opacity-100" : "opacity-60",
+                    "transition-opacity",
+                  ].join(" ")}
+                />
+
+                {!sdkReady && (
+                  <p className="mt-3 text-sm text-black/55">
+                    The payment panel will appear here after you click “Start
+                    secure payment.”
+                  </p>
+                )}
+
+                {sdkReady && !instanceReady && (
+                  <p className="mt-3 text-sm text-black/55">
+                    Loading payment panel…
+                  </p>
+                )}
+              </div>
+            </div>
+
             <div className="mt-6 flex justify-start">
               <button
                 onClick={handleBackToReview}
