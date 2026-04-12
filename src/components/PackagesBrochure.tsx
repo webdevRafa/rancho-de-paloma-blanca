@@ -1,12 +1,17 @@
+type PackageTier = {
+  label: string;
+  price: string;
+};
+
 type PackageCard = {
   key: string;
   title: string;
-  price: string;
-  unit: string;
+  price?: string;
+  unit?: string;
   details: string;
   badge?: string;
+  tiers?: PackageTier[];
 };
-
 export function PackagesBrochure() {
   const packages: PackageCard[] = [
     {
@@ -20,21 +25,29 @@ export function PackagesBrochure() {
     },
     {
       key: "weekend-package-1",
-      title: "Weekend Hunt Packages",
-      price: "$200 / $350 / $450",
+      title: "Weekend Package Rates",
       unit: "per gun",
       details:
-        "Friday, Sept 4 – Sunday, Sept 6. 1-day package: $200, 2-day package: $350, 3-day package: $450.",
+        "Friday, Sept 4 – Sunday, Sept 6. Weekend package pricing applies to consecutive hunt days.",
       badge: "Sept 4–6",
+      tiers: [
+        { label: "1 day", price: "$200" },
+        { label: "2 consecutive days", price: "$350" },
+        { label: "3 consecutive days", price: "$450" },
+      ],
     },
     {
       key: "weekend-package-2",
-      title: "Weekend Hunt Packages",
-      price: "$200 / $350 / $450",
+      title: "Weekend Package Rates",
       unit: "per gun",
       details:
-        "Friday, Sept 11 – Sunday, Sept 13. 1-day package: $200, 2-day package: $350, 3-day package: $450.",
+        "Friday, Sept 11 – Sunday, Sept 13. Weekend package pricing applies to consecutive hunt days.",
       badge: "Sept 11–13",
+      tiers: [
+        { label: "1 day", price: "$200" },
+        { label: "2 consecutive days", price: "$350" },
+        { label: "3 consecutive days", price: "$450" },
+      ],
     },
     {
       key: "standard-early",
@@ -107,14 +120,42 @@ export function PackagesBrochure() {
                 {pkg.title}
               </h3>
 
-              <div className="mt-2 flex flex-wrap items-baseline gap-1">
-                <div className="text-2xl font-bold tracking-tight">
-                  {pkg.price}
+              {pkg.tiers?.length ? (
+                <div className="mt-4 rounded-xl border border-black/8 bg-[var(--color-background)]/5 p-4">
+                  <div className="space-y-2">
+                    {pkg.tiers.map((tier) => (
+                      <div
+                        key={tier.label}
+                        className="flex items-center justify-between gap-3 border-b border-black/8 pb-2 last:border-b-0 last:pb-0"
+                      >
+                        <span className="text-sm font-medium text-[var(--color-background)]/80">
+                          {tier.label}
+                        </span>
+                        <span className="text-lg font-bold tracking-tight text-[var(--color-background)]">
+                          {tier.price}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {pkg.unit && (
+                    <p className="mt-3 text-xs font-medium uppercase tracking-wide text-[var(--color-background)]/55">
+                      {pkg.unit}
+                    </p>
+                  )}
                 </div>
-                <div className="text-sm text-[var(--color-background)]/70">
-                  {pkg.unit}
+              ) : (
+                <div className="mt-2 flex flex-wrap items-baseline gap-1">
+                  <div className="text-2xl font-bold tracking-tight">
+                    {pkg.price}
+                  </div>
+                  {pkg.unit && (
+                    <div className="text-sm text-[var(--color-background)]/70">
+                      {pkg.unit}
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
 
               <p className="mt-3 text-sm leading-6 text-[var(--color-background)]/80">
                 {pkg.details}

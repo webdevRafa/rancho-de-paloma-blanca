@@ -91,7 +91,7 @@ const BookingPage = () => {
       <section className="relative min-h-screen overflow-hidden pt-30">
         {/* Hero background */}
         <div
-          className="fixed inset-0 bg-center bg-cover"
+          className="fixed inset-0 bg-center bg-cover opacity-70"
           style={{ backgroundImage: `url(${dove})` }}
           aria-hidden="true"
         />
