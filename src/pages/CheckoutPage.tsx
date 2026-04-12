@@ -230,36 +230,72 @@ function sortIsoDates(dates: string[]) {
 function ensureEmbeddedStyles() {
   const styleId = "rdpb-embedded-styles";
   let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
+
   if (!styleEl) {
     styleEl = document.createElement("style");
     styleEl.id = styleId;
     document.head.appendChild(styleEl);
   }
+
   styleEl.textContent = `
-    /* Center the embedded form within its container */
-    #${EMBEDDED_CONTAINER_ID} .embedded-form-container {
-      max-width: 720px;
-      margin-left: auto;
-      margin-right: auto;
+    /* Keep the Deluxe mount area from causing page-wide horizontal overflow */
+    #${EMBEDDED_CONTAINER_ID} {
+      width: 100%;
+      max-width: 100%;
+      overflow-x: hidden;
     }
-    /* Hide the blank product thumbnail to prevent layout shifts */
+
+    /* Force inner wrappers to respect the available width */
+    #${EMBEDDED_CONTAINER_ID} > * {
+      max-width: 100%;
+    }
+
+    /* Let the widget sit naturally instead of forcing a centered fixed layout */
+    #${EMBEDDED_CONTAINER_ID} .embedded-form-container {
+      width: 100% !important;
+      max-width: 100% !important;
+      margin-left: 0 !important;
+      margin-right: 0 !important;
+      box-sizing: border-box;
+    }
+
+    /* Some Deluxe builds use inner layout wrappers that can overflow */
+    #${EMBEDDED_CONTAINER_ID} .payment-panel,
+    #${EMBEDDED_CONTAINER_ID} .payment-panel-container,
+    #${EMBEDDED_CONTAINER_ID} .embedded-payment-panel,
+    #${EMBEDDED_CONTAINER_ID} .embedded-form,
+    #${EMBEDDED_CONTAINER_ID} .embedded-checkout-container {
+      max-width: 100% !important;
+      box-sizing: border-box;
+    }
+
+    /* Hide the blank product thumbnail if Deluxe renders it */
     #${EMBEDDED_CONTAINER_ID} .product-thumbnail {
       display: none !important;
     }
-    /* Remove extra left spacing when the thumbnail is hidden */
+
+    /* Remove extra spacing left behind by the hidden thumbnail */
     #${EMBEDDED_CONTAINER_ID} .product-info {
       margin-left: 0 !important;
       padding-left: 0 !important;
     }
-    /* Use our Acumin font for the order summary heading */
+
+    /* Typography touch-up */
     #${EMBEDDED_CONTAINER_ID} .summary-title {
       font-family: var(--font-acumin, sans-serif) !important;
     }
-    /* Adjust font sizes on very small screens for better readability */
+
+    @media (max-width: 768px) {
+      #${EMBEDDED_CONTAINER_ID} {
+        overflow-x: auto;
+      }
+    }
+
     @media (max-width: 480px) {
       #${EMBEDDED_CONTAINER_ID} .summary-title {
         font-size: 1rem !important;
       }
+
       #${EMBEDDED_CONTAINER_ID} .summary-attribute {
         font-size: 0.875rem !important;
       }
@@ -557,7 +593,7 @@ function OrderSummaryCard({
   partyDeckRangeLabels: string[];
 }) {
   return (
-    <aside className="rounded-2xl border border-black/10 bg-white p-5 md:p-6 shadow-sm">
+    <aside className="w-full rounded-2xl border border-black/10 bg-white p-5 md:p-6 shadow-sm">
       <div className="flex items-start justify-between gap-4 border-b border-black/10 pb-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/45">
@@ -1410,7 +1446,7 @@ export default function CheckoutPage() {
       <div className="absolute top-0 left-0 w-[100vw] h-[100vh] z-[-1] opacity-30">
         <img className="w-full h-full object-cover" src={grass} alt="" />
       </div>
-      <div className="max-w-4xl mt-30 mx-auto px-4 py-10 relative min-h-screen">
+      <div className="max-w-6xl mt-30 mx-auto px-4 py-10 relative min-h-screen overflow-x-hidden">
         {/* Display any error messages */}
         {(errorMsg || (cfgError as any) || hasInvalidBookingDates) && (
           <div className="mb-6 rounded-lg border border-red-500/30 bg-red-500/10 text-red-700 p-3">
@@ -1606,7 +1642,7 @@ export default function CheckoutPage() {
               </p>
             </div>
 
-            <div className="grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)] items-start">
+            <div className="space-y-5">
               <OrderSummaryCard
                 title="Your order summary"
                 products={reviewProducts}
@@ -1626,11 +1662,11 @@ export default function CheckoutPage() {
                 partyDeckRangeLabels={partyDeckRangeLabels}
               />
 
-              <div className="rounded-2xl border border-black/10 bg-white p-4 md:p-5 shadow-sm">
+              <div className="min-w-0 overflow-x-hidden rounded-2xl border border-black/10 bg-white p-4 md:p-5 shadow-sm">
                 <div
                   id={EMBEDDED_CONTAINER_ID}
                   className={[
-                    "min-h-[560px] rounded-xl bg-white",
+                    "w-full max-w-full min-w-0 overflow-x-hidden min-h-[560px] rounded-xl bg-white",
                     sdkReady ? "opacity-100" : "opacity-60",
                     "transition-opacity",
                   ].join(" ")}
