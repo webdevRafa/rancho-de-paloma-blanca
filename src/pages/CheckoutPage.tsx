@@ -284,6 +284,42 @@ function ensureEmbeddedStyles() {
     #${EMBEDDED_CONTAINER_ID} .summary-title {
       font-family: var(--font-acumin, sans-serif) !important;
     }
+    /* Hide Deluxe's internal left-side order summary pane */
+    #${EMBEDDED_CONTAINER_ID} .purchase-summary,
+    #${EMBEDDED_CONTAINER_ID} .products-panel,
+    #${EMBEDDED_CONTAINER_ID} .summary-panel,
+    #${EMBEDDED_CONTAINER_ID} .left-panel,
+    #${EMBEDDED_CONTAINER_ID} .product-panel,
+    #${EMBEDDED_CONTAINER_ID} .embedded-left-panel {
+      display: none !important;
+      width: 0 !important;
+      min-width: 0 !important;
+      max-width: 0 !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      border: 0 !important;
+      overflow: hidden !important;
+    }
+
+    /* Let the payment form expand to full width when summary is hidden */
+    #${EMBEDDED_CONTAINER_ID} .payment-panel,
+    #${EMBEDDED_CONTAINER_ID} .payment-panel-container,
+    #${EMBEDDED_CONTAINER_ID} .embedded-payment-panel,
+    #${EMBEDDED_CONTAINER_ID} .embedded-form,
+    #${EMBEDDED_CONTAINER_ID} .embedded-checkout-container,
+    #${EMBEDDED_CONTAINER_ID} .payment-form,
+    #${EMBEDDED_CONTAINER_ID} .right-panel,
+    #${EMBEDDED_CONTAINER_ID} .card-details-panel {
+      width: 100% !important;
+      max-width: 100% !important;
+      flex: 1 1 100% !important;
+    }
+    /* Collapse any internal 2-column layout into a single payment column */
+    #${EMBEDDED_CONTAINER_ID} .embedded-form-container,
+    #${EMBEDDED_CONTAINER_ID} .embedded-payment-panel,
+    #${EMBEDDED_CONTAINER_ID} .payment-panel-container {
+      display: block !important;
+    }
 
     @media (max-width: 768px) {
       #${EMBEDDED_CONTAINER_ID} {
@@ -599,19 +635,12 @@ function OrderSummaryCard({
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/45">
             Checkout
           </p>
-          <h3 className="mt-1 text-2xl font-acumin text-[var(--color-footer)]">
+          <h3 className="mt-1 text-[32px] leading-none font-acumin text-[var(--color-footer)]">
             {title}
           </h3>
         </div>
 
-        <div className="text-right">
-          <p className="text-xs uppercase tracking-[0.16em] text-black/45">
-            Total
-          </p>
-          <p className="text-2xl font-semibold text-[var(--color-footer)]">
-            {formatMoney(total)}
-          </p>
-        </div>
+        <div className="shrink-0" />
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
@@ -674,9 +703,6 @@ function OrderSummaryCard({
         <div className="flex items-center justify-between">
           <p className="text-sm font-semibold uppercase tracking-[0.14em] text-black/45">
             Line items
-          </p>
-          <p className="text-xs text-black/45">
-            {products.reduce((sum, item) => sum + item.quantity, 0)} total units
           </p>
         </div>
 
@@ -1662,11 +1688,11 @@ export default function CheckoutPage() {
                 partyDeckRangeLabels={partyDeckRangeLabels}
               />
 
-              <div className="min-w-0 overflow-x-hidden rounded-2xl border border-black/10 bg-white p-4 md:p-5 shadow-sm">
+              <div className="min-w-0 overflow-x-hidden rounded-2xl border border-black/10 bg-white p-3 md:p-4 shadow-sm">
                 <div
                   id={EMBEDDED_CONTAINER_ID}
                   className={[
-                    "w-full max-w-full min-w-0 overflow-x-hidden min-h-[560px] rounded-xl bg-white",
+                    "w-full max-w-full min-w-0 overflow-x-hidden min-h-[520px] rounded-xl bg-white",
                     sdkReady ? "opacity-100" : "opacity-60",
                     "transition-opacity",
                   ].join(" ")}
