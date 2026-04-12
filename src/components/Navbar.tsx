@@ -104,7 +104,7 @@ export default function Navbar() {
       {/* Top bar */}
       <nav
         className={[
-          "fixed top-0 left-0 z-30 w-full transition-all duration-300",
+          "fixed top-0 left-0 z-80 w-full transition-all duration-300",
           showNav ? "translate-y-0" : "-translate-y-full",
           scrolled ? "bg-[var(--color-footer)] shadow-md" : "bg-transparent",
         ].join(" ")}

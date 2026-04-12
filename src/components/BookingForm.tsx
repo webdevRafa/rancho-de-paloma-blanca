@@ -707,7 +707,7 @@ const BookingForm = () => {
                     ← Back
                   </button>
                 </div>
-                <div className="w-full">
+                <div className="w-full hidden">
                   <button
                     className="bg-[var(--color-accent-gold)] mx-auto block hover:bg-[var(--color-accent-gold)]/80 text-[var(--color-footer)] transition duration-300 ease-in-out font-bold shadow-md px-6 p-2 text-xs"
                     onClick={handleContinueToMerch}

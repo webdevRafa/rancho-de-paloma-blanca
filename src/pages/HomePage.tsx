@@ -59,7 +59,6 @@ const HomePage = () => {
     <>
       {/* HERO (parallax + fade on scroll) */}
       <div
-        data-aos="fade-in"
         data-aos-duration="2000"
         ref={heroRef}
         className="relative w-full h-[100vh] flex items-center justify-center overflow-hidden"

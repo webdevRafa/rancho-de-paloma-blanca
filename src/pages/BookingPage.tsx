@@ -91,7 +91,6 @@ const BookingPage = () => {
       <section className="relative min-h-screen overflow-hidden pt-30">
         {/* Hero background */}
         <div
-          data-aos="zoom-out"
           className="fixed inset-0 bg-center bg-cover"
           style={{ backgroundImage: `url(${dove})` }}
           aria-hidden="true"
@@ -108,73 +107,42 @@ const BookingPage = () => {
             variants={container}
             initial="hidden"
             animate="show"
-            className="grid gap-6 lg:grid-cols-[minmax(0,520px)_1fr]"
+            className="mx-auto flex max-w-5xl flex-col gap-8"
           >
-            {/* Sign-in card */}
-            <motion.aside
-              variants={item}
-              className="rounded-2xl border border-white/15 bg-white/95 backdrop-blur p-6 sm:p-8 shadow-2xl"
-            >
-              <div className="mb-5">
-                <h1 className="text-2xl md:text-3xl font-gin text-[var(--color-background)]">
-                  Sign in to book your hunt
-                </h1>
-                <p className="mt-2 text-sm md:text-base text-[var(--color-background)]/80">
-                  Create an account or sign in to choose your hunt dates, party
-                  size, and optional Party Deck. You can also add merch and
-                  check out in a single order.
-                </p>
-              </div>
+            {/* Sign-in card above brochure */}
+            <motion.aside variants={item} className="w-full  mx-auto shadow-md">
+              {/* Left side text */}
+              <h1 className="text-md font-gin mb-2 text-white">
+                Sign in to book your hunt
+              </h1>
+              <div className="flex flex-col sm:flex-row sm:items-start justify-start gap-3">
+                {/* CTA buttons */}
+                <div className="flex gap-2 w-full sm:w-auto">
+                  <button
+                    onClick={() => setAuthOpen(true)}
+                    className="flex-1 sm:flex-none rounded-md bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] px-3 py-2 text-xs font-semibold text-white transition-colors"
+                  >
+                    Sign in / Sign up
+                  </button>
 
-              {/* CTAs */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <button
-                  onClick={() => setAuthOpen(true)}
-                  className="w-full text-sm rounded-xl bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white font-semibold py-3 transition-colors"
-                >
-                  Sign in / Create account
-                </button>
-
-                <button
-                  onClick={async () => {
-                    try {
-                      await loginWithGoogle();
-                    } catch (e) {
-                      console.warn(e);
-                    }
-                  }}
-                  className="w-full text-sm rounded-xl border border-[var(--color-footer)]/30 bg-white hover:bg-neutral-50 text-[var(--color-background)] font-semibold py-3 transition-colors"
-                  aria-label="Continue with Google"
-                  title="Continue with Google"
-                >
-                  Continue with Google
-                </button>
-              </div>
-
-              {/* Trust bullets */}
-              <ul className="mt-6 space-y-2 text-sm text-[var(--color-background)]/80">
-                <li>
-                  • No spam — we use your account to keep bookings and receipts
-                  in one place.
-                </li>
-                <li>
-                  • You’ll see availability in real time and package pricing for
-                  in-season weekends.
-                </li>
-                <li>
-                  • Pay securely online; your spots are confirmed after payment.
-                </li>
-              </ul>
-
-              {/* Tiny reassurance footer */}
-              <div className="mt-5 rounded-xl border border-[var(--color-footer)]/30 bg-white/70 text-[var(--color-background)]/80 p-3 text-xs">
-                Having trouble? Try the Google sign-in option or contact us and
-                we’ll get you squared away.
+                  <button
+                    onClick={async () => {
+                      try {
+                        await loginWithGoogle();
+                      } catch (e) {
+                        console.warn(e);
+                      }
+                    }}
+                    className="flex-1 sm:flex-none rounded-md border border-[var(--color-footer)]/20 bg-white px-3 py-2 text-xs font-semibold text-[var(--color-background)] hover:bg-neutral-100 transition-colors"
+                  >
+                    Continue with Google
+                  </button>
+                </div>
               </div>
             </motion.aside>
 
-            {/* Packages / pricing brochure (kept as your existing component) */}
-            <motion.div variants={item}>
+            {/* Packages brochure below */}
+            <motion.div variants={item} className="w-full mt-2">
               <PackagesBrochure />
             </motion.div>
           </motion.div>

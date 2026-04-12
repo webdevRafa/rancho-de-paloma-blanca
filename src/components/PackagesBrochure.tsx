@@ -1,14 +1,58 @@
-// --- PackagesBrochure (brochure-only; no selection or state) ---
-import { motion } from "framer-motion";
+type PackageCard = {
+  key: string;
+  title: string;
+  price: string;
+  unit: string;
+  details: string;
+  badge?: string;
+};
 
 export function PackagesBrochure() {
-  const items = [
+  const packages: PackageCard[] = [
     {
-      key: "off",
-      title: "Regular Season",
-      price: "$125",
-      unit: "/day per person",
-      details: "Available year-round, outside Sept 14th – Oct 26th.",
+      key: "rio-hondo",
+      title: "Opening Hunts • Rio Hondo",
+      price: "$200",
+      unit: "per gun",
+      details:
+        "Tuesday, Sept 1 – Thursday, Sept 3. Opening hunts in Rio Hondo, TX.",
+      badge: "Sept 1–3",
+    },
+    {
+      key: "weekend-package-1",
+      title: "Weekend Hunt Packages",
+      price: "$200 / $350 / $450",
+      unit: "per gun",
+      details:
+        "Friday, Sept 4 – Sunday, Sept 6. 1-day package: $200, 2-day package: $350, 3-day package: $450.",
+      badge: "Sept 4–6",
+    },
+    {
+      key: "weekend-package-2",
+      title: "Weekend Hunt Packages",
+      price: "$200 / $350 / $450",
+      unit: "per gun",
+      details:
+        "Friday, Sept 11 – Sunday, Sept 13. 1-day package: $200, 2-day package: $350, 3-day package: $450.",
+      badge: "Sept 11–13",
+    },
+    {
+      key: "standard-early",
+      title: "Standard Hunts",
+      price: "$200",
+      unit: "per gun",
+      details:
+        "Monday, Sept 7 – Thursday, Sept 10. Standard in-season hunt rate.",
+      badge: "Sept 7–10",
+    },
+    {
+      key: "late-season",
+      title: "Late Season Hunts",
+      price: "$150",
+      unit: "per gun",
+      details:
+        "Monday, Sept 14 – Sunday, Oct 25. Reduced late-season hunt rate.",
+      badge: "Sept 14 – Oct 25",
     },
   ];
 
@@ -16,35 +60,35 @@ export function PackagesBrochure() {
     key: "deck",
     title: "Party Deck",
     price: "$500",
-    unit: "/day",
-    details: "Optional add-on. Reserve the elevated deck per day if available.",
+    unit: "per day",
+    details:
+      "Elevate your hunt with our two-story Party Deck overlooking the fields. Perfect for regrouping between flights, grilling, and relaxing in comfort with shade, power, fans, and running water on site.",
     badge: "Add-On",
   };
 
   return (
-    <section className="relative max-w-6xl mx-auto px-4 py-10">
-      <div className="mb-6">
-        <h2 className="text-2xl md:text-3xl font-gin text-white">
-          Packages &amp; Pricing
+    <section className="relative max-w-6xl mx-auto px-1 py-2 lg:px-0">
+      <div className="mb-8">
+        <h2 className="text-3xl md:text-5xl font-gin text-white leading-tight">
+          2026 Dove Hunting Season
         </h2>
-        <p className="mt-2 text-sm md:text-base text-neutral-200">
-          Pricing is applied automatically when you pick dates. In-season
-          bundles (2-day consecutive, 3-day Fri–Sun) are recognized and
-          calculated by our booking logic
+
+        <p className="mt-2 text-base md:text-lg text-white/80 font-medium">
+          September 1 – October 25, 2026
+        </p>
+
+        <p className="mt-4 max-w-2xl text-sm md:text-[15px] leading-7 text-neutral-200/90">
+          Choose your hunt dates below. Weekend packages are automatically
+          applied based on availability.
         </p>
       </div>
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {items.map((pkg) => (
-          <motion.div
+      <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        {packages.map((pkg) => (
+          <div
             key={pkg.key}
-            initial={{ opacity: 0, y: 12 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-40px" }}
-            transition={{ duration: 0.35 }}
-            className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/95 backdrop-blur shadow-md hover:shadow-lg"
+            className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/95 backdrop-blur shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
           >
-            {/* glow on hover */}
             <div
               className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
               style={{
@@ -52,33 +96,34 @@ export function PackagesBrochure() {
                   "radial-gradient(220px 160px at 75% -10%, rgba(179,142,53,0.14), transparent)",
               }}
             />
-            <div className="relative p-6">
+            <div className="relative p-6 flex flex-col h-full">
+              {pkg.badge && (
+                <div className="mb-3 inline-flex rounded-full bg-[var(--color-footer)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white">
+                  {pkg.badge}
+                </div>
+              )}
+
               <h3 className="text-xl font-acumin text-[var(--color-background)]">
                 {pkg.title}
               </h3>
-              <div className="mt-2 flex items-baseline gap-1">
-                <div className="text-3xl font-bold text-[var(--color-background)]">
+
+              <div className="mt-2 flex flex-wrap items-baseline gap-1">
+                <div className="text-2xl font-bold tracking-tight">
                   {pkg.price}
                 </div>
                 <div className="text-sm text-[var(--color-background)]/70">
                   {pkg.unit}
                 </div>
               </div>
-              <p className="mt-2 text-sm text-[var(--color-background)]/80">
+
+              <p className="mt-3 text-sm leading-6 text-[var(--color-background)]/80">
                 {pkg.details}
               </p>
             </div>
-          </motion.div>
+          </div>
         ))}
 
-        {/* Add-on card */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-40px" }}
-          transition={{ duration: 0.35 }}
-          className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/95 backdrop-blur shadow-md hover:shadow-lg"
-        >
+        <div className="group relative overflow-hidden border-[var(--color-accent-gold)] border-2 backdrop-blur shadow-lg hover:shadow-2xl hover:-translate-y-1 transition-all duration-300">
           <div
             className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
             style={{
@@ -87,58 +132,42 @@ export function PackagesBrochure() {
             }}
           />
           <div className="relative p-6">
-            <div className="flex items-start justify-between">
-              <h3 className="text-xl font-acumin text-[var(--color-background)]">
-                {addon.title}
-              </h3>
-              <span className="text-[10px] uppercase tracking-wide px-2 py-1 rounded-full bg-[var(--color-footer)] text-white">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <h3 className="text-xl font-acumin text-white">{addon.title}</h3>
+              <span className="rounded-full  px-2 py-1 text-[10px] uppercase tracking-wide text-white">
                 {addon.badge}
               </span>
             </div>
-            <div className="mt-2 flex items-baseline gap-1">
-              <div className="text-3xl font-bold text-[var(--color-background)]">
-                {addon.price}
-              </div>
+
+            <div className="mt-2 flex flex-wrap items-baseline gap-1">
+              <div className="text-3xl font-bold text-white">{addon.price}</div>
               <div className="text-sm text-[var(--color-background)]/70">
                 {addon.unit}
               </div>
             </div>
-            <p className="mt-2 text-sm text-[var(--color-background)]/80">
-              {addon.details}
-            </p>
+
+            <p className="mt-3 text-sm leading-6 text-white">{addon.details}</p>
           </div>
-        </motion.div>
+        </div>
       </div>
 
       <div className="mt-6 grid md:grid-cols-3 gap-4 text-sm">
-        <div className="rounded-xl border border-black/5 bg-white p-4">
-          <p className="font-semibold text-[var(--color-footer)] mb-1">
-            In-Season Window
-          </p>
-          <p className="text-[var(--color-background)]/80">
-            Sept 6 – Oct 26 Regular season bookings. all other dates are at{" "}
-            <span className="font-medium">$125/day per person</span>.
+        <div className=" p-4">
+          <p className="mb-1 font-semibold text-white">2026 Season Window</p>
+          <p className="text-white">
+            The current season runs from{" "}
+            <span className="font-medium">September 1, 2026</span> through{" "}
+            <span className="font-medium">October 25, 2026</span>.
           </p>
         </div>
-        <div className="rounded-xl border border-black/5 bg-white p-4">
-          <p className="font-semibold text-[var(--color-footer)] mb-1">
-            Capacity
-          </p>
-          <p className="text-[var(--color-background)]/80">
+
+        <div className=" p-4">
+          <p className="mb-1 font-semibold text-white">Capacity</p>
+          <p className="text-white">
             We host up to{" "}
-            <span className="font-medium">100 hunters per day!</span>&nbsp;
-            Availability updates in real-time; spots are confirmed after
+            <span className="font-medium">100 hunters per day</span>.
+            Availability updates in real time, and spots are confirmed after
             payment.
-          </p>
-        </div>
-        <div className="rounded-xl border border-black/5 bg-white p-4">
-          <p className="font-semibold text-[var(--color-footer)] mb-1">
-            How pricing applies
-          </p>
-          <p className="text-[var(--color-background)]/80">
-            Select any dates freely; we detect eligible 2-day consecutive and
-            Fri–Sun 3-day groupings and apply package pricing automatically at
-            checkout.
           </p>
         </div>
       </div>
