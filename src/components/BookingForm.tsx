@@ -217,6 +217,61 @@ const BookingForm = () => {
 
   const sortIsoDates = (dates: string[]) =>
     [...dates].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  const getSelectedDatesSummary = (dates: string[]) => {
+    const sorted = sortIsoDates(dates);
+
+    if (sorted.length === 0) {
+      return "Not selected";
+    }
+
+    if (sorted.length === 1) {
+      return formatFriendlyDate(sorted[0]);
+    }
+
+    const allConsecutive = sorted.every((date, index) => {
+      if (index === 0) return true;
+      return isConsecutive(sorted[index - 1], date);
+    });
+
+    if (allConsecutive) {
+      const first = sorted[0];
+      const last = sorted[sorted.length - 1];
+
+      const [fYear, fMonth, fDay] = first.split("-").map(Number);
+      const [lYear, lMonth, lDay] = last.split("-").map(Number);
+
+      const firstDate = new Date(fYear, fMonth - 1, fDay);
+      const lastDate = new Date(lYear, lMonth - 1, lDay);
+
+      const firstMonth = firstDate.toLocaleString("en-US", { month: "long" });
+      const lastMonth = lastDate.toLocaleString("en-US", { month: "long" });
+
+      const getOrdinal = (day: number) => {
+        const j = day % 10;
+        const k = day % 100;
+        if (j === 1 && k !== 11) return `${day}st`;
+        if (j === 2 && k !== 12) return `${day}nd`;
+        if (j === 3 && k !== 13) return `${day}rd`;
+        return `${day}th`;
+      };
+
+      if (fYear === lYear && fMonth === lMonth) {
+        return `${firstMonth} ${getOrdinal(fDay)} – ${getOrdinal(
+          lDay
+        )}, ${fYear}`;
+      }
+
+      if (fYear === lYear) {
+        return `${firstMonth} ${getOrdinal(fDay)} – ${lastMonth} ${getOrdinal(
+          lDay
+        )}, ${fYear}`;
+      }
+
+      return `${formatFriendlyDate(first)} – ${formatFriendlyDate(last)}`;
+    }
+
+    return `${sorted.length} selected dates`;
+  };
 
   const isConsecutive = (d0: string, d1: string) => {
     const a = new Date(`${d0}T00:00:00`);
@@ -284,7 +339,7 @@ const BookingForm = () => {
   };
   const handlePrevStep = () => setStep((prev) => prev - 1);
 
-  const calculateTotalPrice = (): number => {
+  const calculateHuntSubtotal = (): number => {
     if (!seasonConfig) return 0;
 
     const validDates = sortIsoDates(
@@ -302,14 +357,6 @@ const BookingForm = () => {
       const w0 = getPricingWindowForDate(d0, seasonConfig);
       const w1 = d1 ? getPricingWindowForDate(d1, seasonConfig) : null;
       const w2 = d2 ? getPricingWindowForDate(d2, seasonConfig) : null;
-      console.log("pricing debug", {
-        d0,
-        d1,
-        d2,
-        w0,
-        w1,
-        w2,
-      });
 
       if (w0?.type === "package") {
         const canUseThreeDay =
@@ -336,15 +383,6 @@ const BookingForm = () => {
           samePricingWindow(w0, w1) &&
           isConsecutive(d0, d1);
 
-        console.log("two-day package check", {
-          d0,
-          d1,
-          canUseTwoDay,
-          sameWindow: samePricingWindow(w0, w1),
-          consecutive: !!d1 ? isConsecutive(d0, d1) : false,
-          twoConsecutiveDays: w0?.twoConsecutiveDays,
-        });
-
         if (canUseTwoDay) {
           bookingTotal += (w0.twoConsecutiveDays ?? 350) * hunters;
           i += 2;
@@ -366,10 +404,17 @@ const BookingForm = () => {
       i += 1;
     }
 
+    return bookingTotal;
+  };
+
+  const calculateTotalPrice = (): number => {
+    if (!seasonConfig) return 0;
+
+    const huntSubtotal = calculateHuntSubtotal();
     const partyDeckCost =
       (seasonConfig.partyDeckRatePerDay ?? 500) * form.partyDeckDates.length;
 
-    return bookingTotal + partyDeckCost;
+    return huntSubtotal + partyDeckCost;
   };
 
   const blockIfNamesMissing = (): boolean => {
@@ -565,18 +610,36 @@ const BookingForm = () => {
 
         {step === 3 && (
           <>
-            <div className="text-sm text-[var(--color-footer)] space-y-1">
+            <div className="text-sm text-[var(--color-footer)] space-y-3">
               <p>
                 Hunters: <strong>{form.numberOfHunters}</strong>
               </p>
-              <p>
-                Dates:{" "}
-                <strong>
-                  {form.dates.length === 0
-                    ? "Not selected"
-                    : form.dates.map((d) => formatFriendlyDate(d)).join(", ")}
-                </strong>
-              </p>
+
+              <div>
+                <p className="mb-1">
+                  Dates: <strong>{getSelectedDatesSummary(form.dates)}</strong>
+                </p>
+
+                {form.dates.length > 0 && (
+                  <>
+                    <p className="text-xs text-[var(--color-footer)] mb-2">
+                      {form.dates.length} hunt day
+                      {form.dates.length > 1 ? "s" : ""} selected
+                    </p>
+
+                    <div className="flex flex-wrap gap-2">
+                      {sortIsoDates(form.dates).map((date) => (
+                        <span
+                          key={date}
+                          className="inline-flex items-center rounded-full bg-neutral-100 border border-black/10 px-3 py-1 text-xs font-medium text-[var(--color-footer)]"
+                        >
+                          {formatFriendlyDate(date)}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Attendees full-name capture */}
@@ -657,19 +720,52 @@ const BookingForm = () => {
             )}
 
             {seasonConfig && (
-              <div className="text-center text-[var(--color-text)] space-y-1 text-sm mt-4">
-                <p className="text-lg font-semibold text-[var(--color-footer)] bg-[var(--color-accent-gold)]/30 py-1 rounded-md">
-                  Total Price: ${calculateTotalPrice()}
-                </p>
-                {form.partyDeckDates.length > 0 && (
-                  <p className="text-black">
-                    Party Deck: ${seasonConfig.partyDeckRatePerDay} ×{" "}
-                    {form.partyDeckDates.length} = $
-                    {seasonConfig.partyDeckRatePerDay *
-                      form.partyDeckDates.length}
+              <div className="mt-6 rounded-2xl border border-[var(--color-accent-gold)]/30 bg-[var(--color-accent-gold)]/10 p-4 md:p-5">
+                <div className="mb-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-footer)]/65">
+                    Booking Summary
                   </p>
-                )}
-                <p className="text-xs italic text-[var(--color-footer)] mt-2">
+                </div>
+
+                <div className="space-y-2 text-sm text-[var(--color-footer)]">
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Hunt subtotal</span>
+                    <span className="font-semibold">
+                      ${calculateHuntSubtotal()}
+                    </span>
+                  </div>
+
+                  {form.partyDeckDates.length > 0 && (
+                    <div className="flex items-start justify-between gap-4">
+                      <span>
+                        Party Deck
+                        <span className="block text-xs text-[var(--color-footer)]/65">
+                          {form.partyDeckDates.length} day
+                          {form.partyDeckDates.length > 1 ? "s" : ""} × $
+                          {seasonConfig.partyDeckRatePerDay}
+                        </span>
+                      </span>
+                      <span className="font-semibold">
+                        $
+                        {seasonConfig.partyDeckRatePerDay *
+                          form.partyDeckDates.length}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="my-4 h-px bg-[var(--color-footer)]/15" />
+
+                <div className="flex items-center justify-between gap-4 rounded-xl bg-[var(--color-accent-gold)]/20 px-4 py-3">
+                  <span className="text-base font-semibold text-[var(--color-footer)]">
+                    Total due today
+                  </span>
+                  <span className="text-2xl font-bold text-[var(--color-footer)]">
+                    ${calculateTotalPrice()}
+                  </span>
+                </div>
+
+                <p className="mt-3 text-center text-xs italic text-[var(--color-footer)]/80">
                   Your hunt will be reserved after checkout is completed.
                 </p>
               </div>

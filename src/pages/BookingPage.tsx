@@ -154,143 +154,152 @@ const BookingPage = () => {
     );
   }
 
-  // ---------- 2) BOOKING / CART UX (for signed‑in users) ----------
+  // ---------- 2) BOOKING / CART UX (for signed-in users) ----------
   return (
-    <div className="relative">
-      {/* Hero banner (subtle) */}
+    <section className="relative min-h-screen overflow-hidden">
+      {/* Background image */}
+      <div
+        className="fixed inset-0 z-0"
+        style={{
+          backgroundImage: `url(${partyDeck})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+          backgroundAttachment: isIOS ? "scroll" : "fixed",
+          opacity: 0.4,
+        }}
+        aria-hidden="true"
+      />
 
-      <div className="w-full  min-h-screen mx-auto px-4 relative flex items-center justify-center">
-        <AnimatePresence mode="wait">
-          {!hasBooking && cartTotalItems === 0 ? (
-            // No cart yet — show the booking form
-            <div className="relative z-20 peer">
-              {" "}
-              {/* ⬅️ becomes the hover source */}
+      {/* Overlay */}
+      <div
+        className="fixed inset-0 z-0 bg-gradient-to-b from-black/70 via-black/60 to-black/75"
+        aria-hidden="true"
+      />
+
+      {/* Content */}
+      <div className="relative z-10 max-w-[1400px] mx-auto px-4 lg:px-6 pt-28 pb-16">
+        <div className="mx-auto flex max-w-6xl flex-col gap-8">
+          <AnimatePresence mode="wait">
+            {!hasBooking && cartTotalItems === 0 ? (
               <motion.div
                 key="booking-form"
                 initial={{ opacity: 0, y: 16, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 16, scale: 0.98 }}
                 transition={{ duration: 0.4 }}
-                className="py-2"
+                className="w-full"
               >
                 <BookingForm />
               </motion.div>
-            </div>
-          ) : (
-            // Cart‑in‑progress panel replaces the form
-            <motion.div
-              key="cart-blocker"
-              initial={{ opacity: 0, y: 16, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 16, scale: 0.98 }}
-              transition={{ duration: 0.4 }}
-              className="bg-white max-w-[800px] mx-auto  z-40 relative rounded-b-2xl shadow-2xl p-6 md:p-8 border border-white/10 mt-10"
-            >
-              <h2 className="text-2xl md:text-3xl text-[var(--color-background)] font-acumin mb-2">
-                You’ve got a cart in progress
-              </h2>
-              <p className="text-sm text-[var(--color-background)]/80 mb-6">
-                You already started a booking and/or added merchandise. Finish
-                checkout or edit your dates below. If you want to start over,
-                you can clear your cart.
-              </p>
+            ) : (
+              <motion.div
+                key="cart-blocker"
+                initial={{ opacity: 0, y: 16, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 16, scale: 0.98 }}
+                transition={{ duration: 0.4 }}
+                className="bg-white max-w-[800px] mx-auto w-full relative rounded-b-2xl shadow-2xl p-6 md:p-8 border border-white/10"
+              >
+                <h2 className="text-2xl md:text-3xl text-[var(--color-background)] font-acumin mb-2">
+                  You’ve got a cart in progress
+                </h2>
+                <p className="text-sm text-[var(--color-background)]/80 mb-6">
+                  You already started a booking and/or added merchandise. Finish
+                  checkout or edit your dates below. If you want to start over,
+                  you can clear your cart.
+                </p>
 
-              <div className="space-y-3 text-sm">
-                {hasBooking && (
-                  <div className="rounded-md p-4 bg-neutral-100 border border-black/5">
-                    <p className="font-semibold text-[var(--color-footer)] text-base mb-1">
-                      Current Booking
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      <span className="inline-flex items-center px-3 py-1 rounded-full bg-white border border-black/10">
-                        {booking?.numberOfHunters ?? 1} hunter
-                        {(booking?.numberOfHunters ?? 1) > 1 ? "s" : ""}
-                      </span>
-                      {booking?.dates?.map((d: string) => (
-                        <span
-                          key={d}
-                          className="inline-flex items-center px-3 py-1 rounded-full bg-white border border-black/10"
-                        >
-                          {formatLongDate(d)}
-                        </span>
-                      ))}
-                    </div>
-                    {booking?.partyDeckDates?.length ? (
-                      <p className="mt-2 text-[var(--color-background)]/80">
-                        Party Deck reserved for:{" "}
-                        <span className="font-medium">
-                          {booking.partyDeckDates
-                            .map((d: string) => formatLongDate(d))
-                            .join(", ")}
-                        </span>
+                <div className="space-y-3 text-sm">
+                  {hasBooking && (
+                    <div className="rounded-md p-4 bg-neutral-100 border border-black/5">
+                      <p className="font-semibold text-[var(--color-footer)] text-base mb-1">
+                        Current Booking
                       </p>
-                    ) : null}
-                  </div>
-                )}
+                      <div className="flex flex-wrap gap-2">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full bg-white border border-black/10">
+                          {booking?.numberOfHunters ?? 1} hunter
+                          {(booking?.numberOfHunters ?? 1) > 1 ? "s" : ""}
+                        </span>
+                        {booking?.dates?.map((d: string) => (
+                          <span
+                            key={d}
+                            className="inline-flex items-center px-3 py-1 rounded-full bg-white border border-black/10"
+                          >
+                            {formatLongDate(d)}
+                          </span>
+                        ))}
+                      </div>
 
-                {hasMerch && (
-                  <div className="rounded-md p-4 bg-neutral-100 border border-black/5">
-                    <p className="font-semibold text-[var(--color-footer)] text-base mb-1">
-                      Merchandise
-                    </p>
-                    <p className="text-[var(--color-background)]/80">
-                      {Object.values(merchItems || {}).length} item(s) in cart.
-                    </p>
-                  </div>
-                )}
-              </div>
+                      {booking?.partyDeckDates?.length ? (
+                        <p className="mt-2 text-[var(--color-background)]/80">
+                          Party Deck reserved for:{" "}
+                          <span className="font-medium">
+                            {booking.partyDeckDates
+                              .map((d: string) => formatLongDate(d))
+                              .join(", ")}
+                          </span>
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
 
-              <div className="mt-6 flex flex-col sm:flex-row gap-3">
-                <button
-                  onClick={() => navigate("/checkout")}
-                  className="flex-1 bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white px-3 py-3 rounded-md font-semibold text-sm transition-colors"
-                >
-                  Go to Checkout
-                </button>
+                  {hasMerch && (
+                    <div className="rounded-md p-4 bg-neutral-100 border border-black/5">
+                      <p className="font-semibold text-[var(--color-footer)] text-base mb-1">
+                        Merchandise
+                      </p>
+                      <p className="text-[var(--color-background)]/80">
+                        {Object.values(merchItems || {}).length} item(s) in
+                        cart.
+                      </p>
+                    </div>
+                  )}
+                </div>
 
-                {hasBooking && (
+                <div className="mt-6 flex flex-col sm:flex-row gap-3">
                   <button
-                    onClick={() => setEditOpen(true)}
-                    className="flex-1 bg-[var(--color-accent-gold,#B38E35)]/15 hover:bg-[var(--color-accent-gold,#B38E35)]/25 text-[var(--color-footer)] px-3 py-3 rounded-md font-semibold text-sm transition-colors"
+                    onClick={() => navigate("/checkout")}
+                    className="flex-1 bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white px-3 py-3 rounded-md font-semibold text-sm transition-colors"
                   >
-                    Edit Dates
+                    Go to Checkout
                   </button>
-                )}
 
-                <button
-                  onClick={resetCart}
-                  className="flex-1 bg-[var(--color-footer)] hover:opacity-90 text-white px-3 py-3 rounded-md text-sm transition-colors"
-                  title="Clear everything and start over"
-                >
-                  Clear Cart & Start Over
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        <div
-          className="absolute inset-0 z-10"
-          style={{
-            backgroundImage: `url(${partyDeck})`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            backgroundRepeat: "no-repeat",
-            backgroundAttachment: isIOS ? "scroll" : "fixed",
-            opacity: 0.4,
-          }}
-          aria-hidden="true"
-        />
+                  {hasBooking && (
+                    <button
+                      onClick={() => setEditOpen(true)}
+                      className="flex-1 bg-[var(--color-accent-gold,#B38E35)]/15 hover:bg-[var(--color-accent-gold,#B38E35)]/25 text-[var(--color-footer)] px-3 py-3 rounded-md font-semibold text-sm transition-colors"
+                    >
+                      Edit Dates
+                    </button>
+                  )}
+
+                  <button
+                    onClick={resetCart}
+                    className="flex-1 bg-[var(--color-footer)] hover:opacity-90 text-white px-3 py-3 rounded-md text-sm transition-colors"
+                    title="Clear everything and start over"
+                  >
+                    Clear Cart & Start Over
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Packages brochure always visible for signed-in users */}
+          <div className="w-full">
+            <PackagesBrochure />
+          </div>
+        </div>
       </div>
 
-      {/* Edit dates directly from here */}
       {hasBooking && (
         <EditBookingDatesModal
           isOpen={editOpen}
           onClose={() => setEditOpen(false)}
         />
       )}
-    </div>
+    </section>
   );
 };
 
