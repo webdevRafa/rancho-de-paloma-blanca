@@ -273,6 +273,25 @@ const BookingForm = () => {
     return `${sorted.length} selected dates`;
   };
 
+  const getSelectedDatesMeta = (dates: string[]) => {
+    const sorted = sortIsoDates(dates);
+
+    if (sorted.length <= 1) return "";
+
+    const allConsecutive = sorted.every((date, index) => {
+      if (index === 0) return true;
+      return isConsecutive(sorted[index - 1], date);
+    });
+
+    if (allConsecutive) {
+      return `${sorted.length} consecutive hunt day${
+        sorted.length > 1 ? "s" : ""
+      }`;
+    }
+
+    return "";
+  };
+
   const isConsecutive = (d0: string, d1: string) => {
     const a = new Date(`${d0}T00:00:00`);
     const b = new Date(`${d1}T00:00:00`);
@@ -622,10 +641,11 @@ const BookingForm = () => {
 
                 {form.dates.length > 0 && (
                   <>
-                    <p className="text-xs text-[var(--color-footer)] mb-2">
-                      {form.dates.length} hunt day
-                      {form.dates.length > 1 ? "s" : ""} selected
-                    </p>
+                    {getSelectedDatesMeta(form.dates) && (
+                      <p className="text-xs text-[var(--color-footer)] mb-2">
+                        {getSelectedDatesMeta(form.dates)}
+                      </p>
+                    )}
 
                     <div className="flex flex-wrap gap-2">
                       {sortIsoDates(form.dates).map((date) => (
