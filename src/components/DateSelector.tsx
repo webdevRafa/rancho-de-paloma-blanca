@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { db } from "../firebase/firebaseConfig";
 import {
   collection,
@@ -38,7 +38,10 @@ const DateSelector = ({
 
   const rawStart = seasonConfig?.seasonStart?.replace(/"/g, "") ?? "";
   const rawEnd = seasonConfig?.seasonEnd?.replace(/"/g, "") ?? "";
-
+  const selectedDatesKey = useMemo(
+    () => [...selectedDates].sort().join("|"),
+    [selectedDates]
+  );
   // Do not allow selection before the later of today or season start
   const minSelectable = rawStart
     ? todayStr >= rawStart
@@ -54,19 +57,22 @@ const DateSelector = ({
   };
 
   useEffect(() => {
-    const nextSelected = selectedDates.map(isoToLocalDate);
+    const sortedSelected = selectedDatesKey ? selectedDatesKey.split("|") : [];
+
+    const nextSelected = sortedSelected.map(isoToLocalDate);
     setSelected(nextSelected);
 
-    if (selectedDates.length > 0) {
-      const sorted = [...selectedDates].sort();
-      setMonth(isoToLocalDate(sorted[0]));
+    if (sortedSelected.length > 0) {
+      setMonth(isoToLocalDate(sortedSelected[0]));
       return;
     }
 
     if (rawStart) {
-      setMonth(new Date(`${rawStart}T00:00:00`));
+      setMonth(isoToLocalDate(rawStart));
+    } else {
+      setMonth(undefined);
     }
-  }, [selectedDates, rawStart]);
+  }, [selectedDatesKey, rawStart]);
 
   useEffect(() => {
     const fetchAvailability = async () => {
@@ -139,26 +145,16 @@ const DateSelector = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availableDates, numberOfHunters, minSelectable, maxCapacity]);
 
-  const handleDayClick = (day: Date | undefined) => {
-    if (!day) return;
-    if (isDateBlocked(day)) return;
+  const handleSelect = (nextSelected: Date[] | undefined) => {
+    const safeNext = (nextSelected ?? []).filter((day) => !isDateBlocked(day));
 
-    const clickedISO = toLocalDateString(day);
-    const exists = selected.find((d) => toLocalDateString(d) === clickedISO);
-
-    let next: Date[];
-    if (exists) {
-      next = selected.filter((d) => toLocalDateString(d) !== clickedISO);
-    } else {
-      next = [...selected, new Date(day)];
-    }
-    setSelected(next);
-    onSelect(next.map((d) => toLocalDateString(d)));
+    setSelected(safeNext);
+    onSelect(safeNext.map((d) => toLocalDateString(d)));
   };
 
   return (
     <div className="flex justify-center">
-      <div className="date-selector">
+      <div className="date-selector touch-manipulation">
         <DayPicker
           mode="multiple"
           month={month}
@@ -167,9 +163,8 @@ const DateSelector = ({
           endMonth={rawEnd ? new Date(`${rawEnd}T00:00:00`) : undefined}
           defaultMonth={rawStart ? new Date(`${rawStart}T00:00:00`) : undefined}
           selected={selected}
-          onDayClick={handleDayClick}
+          onSelect={handleSelect}
           disabled={isDateBlocked}
-          modifiers={{ selected }}
           modifiersClassNames={{
             selected: "bg-[var(--color-accent-gold)] text-black",
             disabled: "opacity-40 cursor-not-allowed",

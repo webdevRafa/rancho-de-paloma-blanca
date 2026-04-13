@@ -45,6 +45,14 @@
   fill: inherit !important;
   stroke: inherit !important;
 }
+.date-selector {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.date-selector button,
+.date-selector .rdp-day {
+  touch-action: manipulation;
+}
 /* Change the chevron navigation icons to white */
 .rdp-nav_button svg {
   color: white !important;
