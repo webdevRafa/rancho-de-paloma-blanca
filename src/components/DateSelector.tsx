@@ -16,6 +16,7 @@ interface DateSelectorProps {
   onSelect: (dates: string[]) => void;
   seasonConfig: SeasonConfig | null;
   numberOfHunters: number;
+  selectedDates?: string[];
 }
 
 type AvailabilityDoc = Availability & { id: string };
@@ -24,9 +25,11 @@ const DateSelector = ({
   onSelect,
   seasonConfig,
   numberOfHunters,
+  selectedDates = [],
 }: DateSelectorProps) => {
   const [availableDates, setAvailableDates] = useState<AvailabilityDoc[]>([]);
   const [selected, setSelected] = useState<Date[]>([]);
+  const [month, setMonth] = useState<Date | undefined>(undefined);
 
   // Compute active season boundaries
   const today = new Date();
@@ -45,6 +48,25 @@ const DateSelector = ({
 
   // Hard stop at the configured season end
   const maxSelectable = rawEnd || minSelectable;
+  const isoToLocalDate = (iso: string) => {
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  };
+
+  useEffect(() => {
+    const nextSelected = selectedDates.map(isoToLocalDate);
+    setSelected(nextSelected);
+
+    if (selectedDates.length > 0) {
+      const sorted = [...selectedDates].sort();
+      setMonth(isoToLocalDate(sorted[0]));
+      return;
+    }
+
+    if (rawStart) {
+      setMonth(new Date(`${rawStart}T00:00:00`));
+    }
+  }, [selectedDates, rawStart]);
 
   useEffect(() => {
     const fetchAvailability = async () => {
@@ -139,6 +161,8 @@ const DateSelector = ({
       <div className="date-selector">
         <DayPicker
           mode="multiple"
+          month={month}
+          onMonthChange={setMonth}
           startMonth={rawStart ? new Date(`${rawStart}T00:00:00`) : undefined}
           endMonth={rawEnd ? new Date(`${rawEnd}T00:00:00`) : undefined}
           defaultMonth={rawStart ? new Date(`${rawStart}T00:00:00`) : undefined}

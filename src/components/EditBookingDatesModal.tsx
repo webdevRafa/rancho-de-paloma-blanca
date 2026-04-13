@@ -169,11 +169,18 @@ const EditBookingDatesModal = ({ isOpen, onClose }: Props) => {
             Select or remove dates. Capacity rules are enforced automatically.
           </p>
 
-          <DateSelector
-            onSelect={setTempDates}
-            seasonConfig={seasonConfig}
-            numberOfHunters={numberOfHunters}
-          />
+          {seasonConfig ? (
+            <DateSelector
+              onSelect={setTempDates}
+              seasonConfig={seasonConfig}
+              numberOfHunters={numberOfHunters}
+              selectedDates={tempDates}
+            />
+          ) : (
+            <div className="py-10 text-center text-sm text-[var(--color-footer)]/70">
+              Loading available dates…
+            </div>
+          )}
 
           {error && (
             <p className="mt-3 text-sm text-red-600" role="alert">
