@@ -13,6 +13,7 @@ import {
   writeBatch,
   serverTimestamp,
   increment,
+  deleteDoc,
 } from "firebase/firestore";
 import { useCart } from "../context/CartContext";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -244,6 +245,8 @@ const ClientDashboard: React.FC = () => {
   const [ordersTab, setOrdersTab] = useState<OrdersTab>("all");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmData, setConfirmData] = useState<CancelPreview | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Order | null>(null);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -534,6 +537,34 @@ const ClientDashboard: React.FC = () => {
     setConfirmOpen(false);
     setConfirmData(null);
   }
+  function openDeleteConfirm(order: Order) {
+    setDeleteTarget(order);
+    setDeleteOpen(true);
+  }
+
+  function closeDeleteConfirm() {
+    setDeleteOpen(false);
+    setDeleteTarget(null);
+  }
+
+  async function handleDeleteOrder(order: Order) {
+    try {
+      if (!order?.id) return;
+
+      if (order.status !== "pending") {
+        toast.error("Only unpaid orders can be deleted.");
+        return;
+      }
+
+      await deleteDoc(doc(db, "orders", order.id));
+
+      setOrders((prev) => prev.filter((o) => o.id !== order.id));
+      toast.success("Unpaid order deleted.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Could not delete this order.");
+    }
+  }
 
   const StageChip: React.FC<{ stage: Stage }> = ({ stage }) => {
     const base =
@@ -673,18 +704,28 @@ const ClientDashboard: React.FC = () => {
         </div>
 
         {/* Footer hint (optional) */}
-        <div className="mt-4 flex items-center justify-between">
+        <div className="mt-4 flex items-center justify-between gap-3">
           <div className="text-[11px] text-white/40">
             Need help? Contact us and reference{" "}
             <span className="font-mono">#{order.id}</span>.
           </div>
+
           {order.status === "pending" && (
-            <button
-              onClick={() => navigate("/checkout")}
-              className="text-xs rounded-md  border border-white/15 text-white/90 hover:bg-white/5 px-3 py-1.5"
-            >
-              Continue Payment
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => openDeleteConfirm(order)}
+                className="text-xs rounded-md border border-red-400/30 text-red-200 hover:bg-red-500/10 px-3 py-1.5"
+              >
+                Delete Order
+              </button>
+
+              <button
+                onClick={() => navigate("/checkout")}
+                className="text-xs rounded-md border border-white/15 text-white/90 hover:bg-white/5 px-3 py-1.5"
+              >
+                Continue Payment
+              </button>
+            </div>
           )}
         </div>
       </li>
@@ -1038,6 +1079,62 @@ const ClientDashboard: React.FC = () => {
                 className="px-4 py-2 text-sm rounded-md bg-red-600 hover:bg-red-700 text-white"
               >
                 Confirm Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---------- Delete Pending Order Confirm Modal ---------- */}
+      {deleteOpen && deleteTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={closeDeleteConfirm}
+          />
+          <div className="relative w-full max-w-md rounded-xl bg-white shadow-xl border border-black/5 p-5">
+            <h3 className="text-lg font-acumin font-semibold text-neutral-900">
+              Delete unpaid order
+            </h3>
+
+            <div className="mt-3 space-y-3 text-[13px] text-neutral-700">
+              <div>
+                <div className="text-neutral-500">Order</div>
+                <div className="font-medium break-all">#{deleteTarget.id}</div>
+              </div>
+
+              <div className="rounded-md bg-neutral-50 border border-black/5 p-3">
+                <p className="text-[13px] text-neutral-700">
+                  This order has not been paid yet, so you can safely delete it
+                  from your dashboard.
+                </p>
+                <p className="mt-2 text-[12px] text-neutral-500">
+                  Paid orders cannot be deleted here and must go through the
+                  cancel / refund process.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                onClick={closeDeleteConfirm}
+                className="px-4 py-2 text-sm rounded-md bg-neutral-100 hover:bg-neutral-200 text-neutral-800"
+              >
+                Keep Order
+              </button>
+              <button
+                onClick={async () => {
+                  const target = deleteTarget;
+                  closeDeleteConfirm();
+                  if (target) await handleDeleteOrder(target);
+                }}
+                className="px-4 py-2 text-sm rounded-md bg-red-600 hover:bg-red-700 text-white"
+              >
+                Delete Order
               </button>
             </div>
           </div>
