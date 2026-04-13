@@ -104,7 +104,7 @@ export default function Navbar() {
       {/* Top bar */}
       <nav
         className={[
-          "fixed top-0 left-0 z-80 w-full transition-all duration-300",
+          "fixed top-0 left-0 z-40 w-full transition-all duration-300",
           showNav ? "translate-y-0" : "-translate-y-full",
           scrolled ? "bg-[var(--color-footer)] shadow-md" : "bg-transparent",
         ].join(" ")}
@@ -207,7 +207,7 @@ export default function Navbar() {
         {isOpen && (
           <>
             <motion.button
-              className="fixed inset-0 z-40 bg-black"
+              className="fixed inset-0 z-[90] bg-black"
               initial="hidden"
               animate="visible"
               exit="exit"
@@ -216,14 +216,14 @@ export default function Navbar() {
               aria-label="Close menu overlay"
             />
             <motion.aside
-              className="fixed right-0 top-0 z-50 h-screen w-full overflow-y-auto border-l border-white/10 bg-gradient-to-b from-[var(--color-background)] to-transparent backdrop-blur-md"
+              className="fixed right-0 top-0 z-[100] h-screen w-full overflow-y-auto border-l border-white/10 bg-gradient-to-b from-[var(--color-background)] via-[var(--color-background)]/95 to-[var(--color-background)]/90 backdrop-blur-lg"
               initial="hidden"
               animate="visible"
               exit="exit"
               variants={drawerVariants}
             >
               {/* Drawer header */}
-              <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+              <div className="flex items-center justify-between border-b border-white/10 px-5 py-4 pb-5">
                 <div className="flex items-center gap-2 text-white">
                   <img src={logo} alt="" className="h-9 w-9" />
                   <p className="font-gin text-white">Rancho de Paloma Blanca</p>
@@ -239,7 +239,7 @@ export default function Navbar() {
 
               {/* User block */}
               <motion.div
-                className="flex items-center gap-3 px-5 py-4"
+                className="px-5 pt-4 pb-3"
                 initial={{ opacity: 0, y: 8 }}
                 animate={{
                   opacity: 1,
@@ -247,36 +247,52 @@ export default function Navbar() {
                   transition: { duration: 0.25, ease, delay: 0.05 },
                 }}
               >
-                <Link
-                  to="/dashboard"
-                  onClick={() => setIsOpen(false)}
-                  className="flex items-center gap-3 rounded-xl border border-white/10 bg-[var(--color-card)]/70 px-3 py-2"
-                >
-                  {user?.photoURL ? (
-                    <img
-                      src={user.photoURL}
-                      alt="User avatar"
-                      className="h-10 w-10 rounded-full border border-white object-cover"
-                    />
-                  ) : (
-                    <div className="grid h-10 w-10 place-items-center rounded-full border border-white bg-[var(--color-card)] text-white">
-                      ?
-                    </div>
-                  )}
-                  <div className="leading-tight text-white">
-                    <div className="font-gin">
-                      {user?.displayName || user?.email || "Guest"}
-                    </div>
-                    <div className="text-xs text-[var(--color-accent-sage)]">
-                      Dashboard
+                <div className="flex items-center justify-between gap-3  px-4 py-3 shadow-[0_8px_28px_rgba(0,0,0,0.28)] transition hover:border-[var(--color-accent-gold)]/30">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {user?.photoURL ? (
+                      <img
+                        src={user.photoURL}
+                        alt="User avatar"
+                        className="h-11 w-11 rounded-full border border-white object-cover shrink-0"
+                      />
+                    ) : (
+                      <div className="grid h-11 w-11 place-items-center rounded-full border border-white bg-[var(--color-card)] text-white shrink-0">
+                        ?
+                      </div>
+                    )}
+
+                    <div className="min-w-0 leading-tight text-white">
+                      <div className="font-gin truncate">
+                        {user?.displayName || user?.email || "Guest"}
+                      </div>
+                      <div className="mt-1 text-xs text-[var(--color-accent-sage)]">
+                        Welcome back to the ranch
+                      </div>
                     </div>
                   </div>
-                </Link>
+                </div>
+
+                {user && (
+                  <div className="mt-3">
+                    <Link
+                      to="/dashboard"
+                      onClick={() => setIsOpen(false)}
+                      className="block rounded-xl border border-[var(--color-accent-gold)]/35 bg-[var(--color-accent-gold)]/10 px-4 py-3 text-left shadow-[0_6px_20px_rgba(0,0,0,0.22)] transition hover:border-[var(--color-accent-gold)]/55 hover:bg-[var(--color-accent-gold)]/14"
+                    >
+                      <div className="font-gin text-sm text-[var(--color-accent-gold)]">
+                        My Orders
+                      </div>
+                      <div className="mt-1 text-[11px] text-white/55">
+                        View bookings, hunts, and history
+                      </div>
+                    </Link>
+                  </div>
+                )}
               </motion.div>
 
               {/* Links (staggered) */}
               <motion.ul
-                className="grid grid-cols-2 gap-x-4 gap-y-3 px-5 py-4 text-white"
+                className="grid grid-cols-2 gap-x-4 gap-y-3 px-5 pt-2 pb-4 text-white"
                 initial="hidden"
                 animate="visible"
                 variants={listVariants}
@@ -293,7 +309,7 @@ export default function Navbar() {
                           "block rounded-lg border px-4 py-3 font-gin text-sm transition-all duration-200",
                           isActive
                             ? "border-[var(--color-accent-gold)]/40 bg-[var(--color-accent-gold)]/10 text-[var(--color-accent-gold)]"
-                            : "border-white/10 bg-white/5 text-white hover:border-white/30 hover:text-[var(--color-accent-gold)]",
+                            : "border-white/10 bg-[var(--color-card)]/70 text-white shadow-[0_4px_20px_rgba(0,0,0,0.4)] hover:border-[var(--color-accent-gold)]/40 hover:bg-[var(--color-card-hover)] hover:text-[var(--color-accent-gold)]",
                         ].join(" ")}
                         aria-current={isActive ? "page" : undefined}
                       >
@@ -315,7 +331,7 @@ export default function Navbar() {
                       logout();
                       setIsOpen(false);
                     }}
-                    className="w-full rounded-lg border border-red-400/30 bg-red-400/10 px-4 py-2.5 text-left font-gin text-red-300 transition hover:bg-red-400/15"
+                    className="w-full rounded-xl border border-white/10 bg-[var(--color-card)]/80 px-4 py-3 text-left font-gin text-white/70 transition hover:border-red-400/35 hover:text-red-300 hover:bg-[var(--color-card-hover)]"
                   >
                     Sign Out
                   </motion.button>

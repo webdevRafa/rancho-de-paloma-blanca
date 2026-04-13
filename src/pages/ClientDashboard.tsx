@@ -131,6 +131,41 @@ function formatCreatedAt(createdAt: any): string {
   }
 }
 
+function formatDateRange(dates?: string[]): string {
+  if (!Array.isArray(dates) || dates.length === 0) return "No hunt dates";
+  const sorted = [...dates].sort();
+  if (sorted.length === 1) return formatFriendlyDateSafe(sorted[0]);
+  return `${formatFriendlyDateSafe(sorted[0])} – ${formatFriendlyDateSafe(
+    sorted[sorted.length - 1]
+  )}`;
+}
+
+function getCustomerName(order: Order): string {
+  const first = order.customer?.firstName?.trim() || "";
+  const last = order.customer?.lastName?.trim() || "";
+  const full = `${first} ${last}`.trim();
+  if (full) return full;
+
+  const fallbackName = (order.booking as any)?.name;
+  if (typeof fallbackName === "string" && fallbackName.trim()) {
+    return fallbackName.trim();
+  }
+
+  return "Guest";
+}
+
+function getCustomerEmail(order: Order): string {
+  return (
+    order.customer?.email || (order.booking as any)?.email || "No email on file"
+  );
+}
+
+function getCustomerPhone(order: Order): string {
+  return (
+    order.customer?.phone || (order.booking as any)?.phone || "No phone on file"
+  );
+}
+
 /** Normalize merch lines (supports object map or legacy array shapes). */
 function normalizeMerchItems(merch: Order["merchItems"]) {
   if (!merch)
@@ -241,7 +276,7 @@ const ClientDashboard: React.FC = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [successOrder, setSuccessOrder] = useState<Order | null>(null);
   const [loadingSuccess, setLoadingSuccess] = useState(false);
-  type OrdersTab = "all" | "paid" | "cancelled";
+  type OrdersTab = "all" | "upcoming" | "past" | "cancelled";
   const [ordersTab, setOrdersTab] = useState<OrdersTab>("all");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmData, setConfirmData] = useState<CancelPreview | null>(null);
@@ -361,10 +396,31 @@ const ClientDashboard: React.FC = () => {
     [orders]
   );
 
+  const upcomingOrders = useMemo(
+    () =>
+      validOrders.filter((o) => {
+        const stage = classifyStage(o);
+        return stage === "active" || stage === "pending";
+      }),
+    [validOrders]
+  );
+
+  const pastOrders = useMemo(
+    () => validOrders.filter((o) => classifyStage(o) === "completed"),
+    [validOrders]
+  );
+
+  const pendingOrders = useMemo(
+    () => orders.filter((o) => o.status === "pending"),
+    [orders]
+  );
+
   const filteredOrders = useMemo(() => {
     if (ordersTab === "cancelled") return cancelledOrders;
+    if (ordersTab === "upcoming") return upcomingOrders;
+    if (ordersTab === "past") return pastOrders;
     return orders;
-  }, [orders, validOrders, cancelledOrders, ordersTab]);
+  }, [orders, cancelledOrders, upcomingOrders, pastOrders, ordersTab]);
 
   // ---------------- Cancel + Refund (unchanged logic; now triggered from modal) ----------------
   const handleCancelOrder = async (order: Order) => {
@@ -584,144 +640,225 @@ const ClientDashboard: React.FC = () => {
     const merchLines = normalizeMerchItems(order.merchItems);
     const hasMerch = merchLines.length > 0;
     const hasBooking = Boolean(order?.booking?.dates?.length);
-
     const created = (order as any)?.createdAt
       ? formatCreatedAt((order as any).createdAt)
       : "";
 
+    const customerName = getCustomerName(order);
+    const customerEmail = getCustomerEmail(order);
+    const customerPhone = getCustomerPhone(order);
+    const attendeeCount = order.booking?.attendees?.length || 0;
+    const huntDateLabel = hasBooking
+      ? formatDateRange(order.booking?.dates)
+      : "Merchandise only order";
+
     return (
       <li
         key={order.id}
-        className="rounded-2xl border border-white/10 bg-[var(--color-card)]/60 backdrop-blur px-5 py-4 shadow-sm hover:shadow-lg hover:border-white/20 transition-all"
+        className="rounded-3xl border border-white/10 bg-[var(--color-card)]/70 backdrop-blur px-5 py-5 shadow-sm hover:shadow-lg hover:border-white/20 transition-all"
       >
-        {/* Header row */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex items-start gap-3">
-            <StageChip stage={classifyStage(order)} />
-            <div>
-              <div className="text-[13px] text-white/70 leading-none">
-                Order
-              </div>
-              <div className="text-sm font-medium text-white break-all">
-                #{order.id}
-              </div>
+        {/* Top row */}
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <StageChip stage={classifyStage(order)} />
+              <span className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+                {hasBooking ? "Reservation" : "Order"}
+              </span>
+            </div>
+
+            <h3 className="mt-3 text-2xl font-acumin text-white leading-snug tracking-tight">
+              {hasBooking ? huntDateLabel : "Merchandise Purchase"}
+            </h3>
+
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/70 backdrop-blur">
+                Order #{order.id}
+              </span>
+
               {created && (
-                <div className="mt-0.5 text-[11px] text-white/50">
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/70 backdrop-blur">
                   Placed {created}
+                </span>
+              )}
+
+              {hasBooking && (
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/70 backdrop-blur">
+                  {order.booking?.numberOfHunters || 0} hunter
+                  {(order.booking?.numberOfHunters || 0) !== 1 ? "s" : ""}
+                </span>
+              )}
+
+              {hasBooking && !!order.booking?.partyDeckDates?.length && (
+                <span className="rounded-full border border-[var(--color-accent-gold)]/30 bg-[var(--color-accent-gold)]/10 px-3 py-1 text-[var(--color-accent-gold)]">
+                  Party Deck included
+                </span>
+              )}
+
+              {attendeeCount > 0 && (
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/70 backdrop-blur">
+                  {attendeeCount} attendee{attendeeCount !== 1 ? "s" : ""}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="shrink-0 lg:text-right">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-white/50">
+              Total
+            </div>
+            <div className="mt-1 text-2xl font-semibold text-white tracking-tight">
+              ${fmtMoney(order.total)}
+            </div>
+          </div>
+        </div>
+
+        <div className="my-6 h-px bg-white/10" />
+
+        {/* Main content */}
+        <div className="grid gap-4 lg:grid-cols-3">
+          {/* Trip details */}
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+              Trip Details
+            </div>
+
+            {hasBooking ? (
+              <div className="mt-3 space-y-2 text-sm text-white/85">
+                <div>
+                  <span className="text-white/50">Dates:</span>{" "}
+                  <span className="font-medium">
+                    {order.booking?.dates
+                      ?.map(formatFriendlyDateSafe)
+                      .join(", ")}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-white/50">Hunters:</span>{" "}
+                  <span className="font-medium">
+                    {order.booking?.numberOfHunters || 0}
+                  </span>
+                </div>
+
+                {!!order.booking?.partyDeckDates?.length && (
+                  <div>
+                    <span className="text-white/50">Party Deck:</span>{" "}
+                    <span className="font-medium">
+                      {order.booking.partyDeckDates
+                        .map(formatFriendlyDateSafe)
+                        .join(", ")}
+                    </span>
+                  </div>
+                )}
+
+                {typeof (order.booking as any)?.price === "number" && (
+                  <div>
+                    <span className="text-white/50">Booking subtotal:</span>{" "}
+                    <span className="font-medium">
+                      ${fmtMoney((order.booking as any).price)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="mt-3 text-sm text-white/60">
+                No hunt reservation attached to this order.
+              </div>
+            )}
+          </div>
+
+          {/* Guest / payer info */}
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+              Guest & Payer Info
+            </div>
+
+            <div className="mt-3 space-y-2 text-sm text-white/85">
+              <div>
+                <span className="text-white/50">Name:</span>{" "}
+                <span className="font-medium">{customerName}</span>
+              </div>
+
+              <div className="break-all">
+                <span className="text-white/50">Email:</span>{" "}
+                <span className="font-medium">{customerEmail}</span>
+              </div>
+
+              <div>
+                <span className="text-white/50">Phone:</span>{" "}
+                <span className="font-medium">{customerPhone}</span>
+              </div>
+
+              {attendeeCount > 0 && (
+                <div>
+                  <span className="text-white/50">Attendees listed:</span>{" "}
+                  <span className="font-medium">{attendeeCount}</span>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <div className="text-[12px] uppercase tracking-wide text-white/50">
-                Total
-              </div>
-              <div className="text-lg font-semibold text-white">
-                ${fmtMoney(order.total)}
-              </div>
-            </div>
-
-            {order.status === "paid" && (
-              <button
-                onClick={() => openCancelConfirm(order)}
-                className="text-xs rounded-lg bg-red-600 hover:bg-red-700 text-white px-3 py-2"
-              >
-                Cancel{hasBooking ? " & Refund" : ""}
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Divider */}
-        <div className="my-4 h-px bg-white/10" />
-
-        {/* Content grid */}
-        <div className="grid gap-4 md:grid-cols-2">
-          {/* Booking panel */}
-          <div className="min-w-0">
-            <div className="text-[12px] uppercase tracking-wide text-white/50">
-              {hasBooking ? "Hunt Booking" : "Booking"}
-            </div>
-
-            {hasBooking ? (
-              <div className="mt-2 space-y-2 text-[13px] text-white/85">
-                <div>
-                  <span className="text-white/60">Hunters:</span>{" "}
-                  <span className="font-medium">
-                    {order.booking!.numberOfHunters}
-                  </span>
-                </div>
-
-                <div className="leading-snug">
-                  <span className="text-white/60">Dates:</span>{" "}
-                  {order.booking!.dates!.map(formatFriendlyDateSafe).join(", ")}
-                </div>
-
-                {!!order.booking!.partyDeckDates?.length && (
-                  <div className="leading-snug">
-                    <span className="text-white/60">Party Deck:</span>{" "}
-                    {order
-                      .booking!.partyDeckDates.map(formatFriendlyDateSafe)
-                      .join(", ")}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="mt-2 text-[13px] text-white/60">
-                No hunt booking in this order (merch-only).
-              </div>
-            )}
-          </div>
-
-          {/* Merch panel */}
-          <div className="min-w-0">
-            <div className="text-[12px] uppercase tracking-wide text-white/50">
+          {/* Merchandise / actions */}
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-white/40">
               Merchandise
             </div>
 
             {hasMerch ? (
-              <ul className="mt-2 space-y-1 text-[13px] text-white/85">
+              <ul className="mt-3 space-y-2 text-sm text-white/85">
                 {merchLines.map((li) => (
-                  <li key={li.id} className="flex items-center justify-between">
-                    <div className="truncate">
-                      {li.name} <span className="text-white/55">×</span>{" "}
-                      {li.quantity}
+                  <li
+                    key={li.id}
+                    className="flex items-start justify-between gap-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate">
+                        {li.name} × {li.quantity}
+                      </div>
                     </div>
-                    <div className="ml-4 shrink-0 font-medium">
+                    <div className="shrink-0 font-medium">
                       ${fmtMoney(li.price * li.quantity)}
                     </div>
                   </li>
                 ))}
               </ul>
             ) : (
-              <div className="mt-2 text-[13px] text-white/60">
+              <div className="mt-3 text-sm text-white/60">
                 No merchandise on this order.
               </div>
             )}
           </div>
         </div>
 
-        {/* Footer hint (optional) */}
-        <div className="mt-4 flex items-center justify-between gap-3">
+        {/* Footer actions */}
+        <div className="mt-5 flex flex-col gap-3 border-t border-white/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-[11px] text-white/40">
             Need help? Contact us and reference{" "}
             <span className="font-mono">#{order.id}</span>.
           </div>
 
+          {order.status === "paid" && (
+            <button
+              onClick={() => openCancelConfirm(order)}
+              className="rounded-xl bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-sm"
+            >
+              Cancel{hasBooking ? " & Refund" : ""}
+            </button>
+          )}
+
           {order.status === "pending" && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => openDeleteConfirm(order)}
-                className="text-xs rounded-md border border-red-400/30 text-red-200 hover:bg-red-500/10 px-3 py-1.5"
+                className="text-xs rounded-xl border border-red-400/30 text-red-200 hover:bg-red-500/10 px-3 py-2"
               >
                 Delete Order
               </button>
 
               <button
                 onClick={() => navigate("/checkout")}
-                className="text-xs rounded-md border border-white/15 text-white/90 hover:bg-white/5 px-3 py-1.5"
+                className="text-xs rounded-xl border border-white/15 text-white/90 hover:bg-white/5 px-3 py-2"
               >
                 Continue Payment
               </button>
@@ -738,22 +875,33 @@ const ClientDashboard: React.FC = () => {
       <div className="max-w-[1400px] mx-auto text-[var(--color-text)] py-6 min-h-[600px] px-6 flex flex-col md:flex-row gap-8 mt-20 md:mt-36">
         {/* Sidebar */}
         <aside className="w-full md:w-1/4">
-          <nav className="grid grid-cols-2 md:grid-cols-1 gap-2 max-w-[400px] ">
+          <nav className="grid grid-cols-2 md:grid-cols-1 gap-3 max-w-[400px]">
             <button
-              className={`text-left w-full px-4 py-2 rounded-lg border border-white/0 transition-all duration-300 ease-in-out ${
-                activeTab === "orders" && "border-white/100"
-              } `}
+              className={`text-left w-full px-4 py-3 rounded-xl border transition-all duration-300 ease-in-out ${
+                activeTab === "orders"
+                  ? "border-white bg-white/5 text-white shadow-sm"
+                  : "border-white/10 text-white/70 hover:border-white/25 hover:bg-white/5"
+              }`}
               onClick={() => setActiveTab("orders")}
             >
-              My Orders
+              <div className="font-medium">My Orders</div>
+              <div className="mt-1 text-xs text-white/45">
+                Reservations, purchases, and history
+              </div>
             </button>
+
             <button
-              className={`text-left rounded-lg w-full  px-4 py-2 border border-white/0 transition-all duration-300 ease-in-out ${
-                activeTab === "cart" && "border-white/100"
-              } `}
+              className={`text-left w-full px-4 py-3 rounded-xl border transition-all duration-300 ease-in-out ${
+                activeTab === "cart"
+                  ? "border-white bg-white/5 text-white shadow-sm"
+                  : "border-white/10 text-white/70 hover:border-white/25 hover:bg-white/5"
+              }`}
               onClick={() => setActiveTab("cart")}
             >
-              Continue Checkout
+              <div className="font-medium">Continue Checkout</div>
+              <div className="mt-1 text-xs text-white/45">
+                Resume your active cart
+              </div>
             </button>
             {!user && (
               <button
@@ -926,28 +1074,84 @@ const ClientDashboard: React.FC = () => {
             <p className="text-sm text-neutral-400">Loading your data...</p>
           ) : activeTab === "orders" ? (
             <>
-              <div className="flex items-center justify-between mb-3">
-                {/* Tabs */}
-                <div className="flex items-center gap-1 rounded-lg border border-black/5 p-1">
+              <div className="mb-5 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+                      Upcoming
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {upcomingOrders.length}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+                      Past Hunts
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {pastOrders.length}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+                      Pending Payment
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {pendingOrders.length}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 p-2">
                   <button
                     onClick={() => setOrdersTab("all")}
                     className={
-                      "px-3 py-1.5 text-xs rounded-md border " +
+                      "px-3 py-2 text-xs rounded-lg border transition " +
                       (ordersTab === "all"
-                        ? "border-white text-white"
-                        : "border-white/20")
+                        ? "border-white text-white bg-white/5"
+                        : "border-white/15 text-white/65 hover:border-white/30")
                     }
                   >
                     All <span className="opacity-60">({orders.length})</span>
                   </button>
 
                   <button
+                    onClick={() => setOrdersTab("upcoming")}
+                    className={
+                      "px-3 py-2 text-xs rounded-lg border transition " +
+                      (ordersTab === "upcoming"
+                        ? "border-white text-white bg-white/5"
+                        : "border-white/15 text-white/65 hover:border-white/30")
+                    }
+                  >
+                    Upcoming{" "}
+                    <span className="opacity-60">
+                      ({upcomingOrders.length})
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => setOrdersTab("past")}
+                    className={
+                      "px-3 py-2 text-xs rounded-lg border transition " +
+                      (ordersTab === "past"
+                        ? "border-white text-white bg-white/5"
+                        : "border-white/15 text-white/65 hover:border-white/30")
+                    }
+                  >
+                    Past{" "}
+                    <span className="opacity-60">({pastOrders.length})</span>
+                  </button>
+
+                  <button
                     onClick={() => setOrdersTab("cancelled")}
                     className={
-                      "px-3 py-1.5 text-xs rounded-md border " +
+                      "px-3 py-2 text-xs rounded-lg border transition " +
                       (ordersTab === "cancelled"
-                        ? "border-white text-white"
-                        : "border-white/20")
+                        ? "border-white text-white bg-white/5"
+                        : "border-white/15 text-white/65 hover:border-white/30")
                     }
                   >
                     Cancelled / Refunded{" "}
@@ -959,7 +1163,14 @@ const ClientDashboard: React.FC = () => {
               </div>
 
               {filteredOrders.length === 0 ? (
-                <p className="text-neutral-500"></p>
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-8 text-center">
+                  <p className="text-white/75 text-base">
+                    No records found in this section.
+                  </p>
+                  <p className="mt-2 text-sm text-white/45">
+                    When you place a booking or purchase, it will appear here.
+                  </p>
+                </div>
               ) : (
                 <ul className="grid gap-4 grid-cols-1">
                   {filteredOrders.map((order) => (

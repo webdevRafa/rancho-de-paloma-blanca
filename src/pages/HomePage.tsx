@@ -61,7 +61,7 @@ const HomePage = () => {
       <div
         data-aos-duration="2000"
         ref={heroRef}
-        className="relative w-full h-[100vh] flex items-center justify-center overflow-hidden"
+        className="relative isolate w-full h-[100vh] flex items-center justify-center overflow-hidden"
       >
         {/* Dark overlay so text stays readable regardless of image brightness */}
         <div className="absolute inset-0 bg-black/50 pointer-events-none" />
