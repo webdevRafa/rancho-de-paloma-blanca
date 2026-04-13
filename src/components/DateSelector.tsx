@@ -10,7 +10,14 @@ import {
 import type { Availability, SeasonConfig } from "../types/Types";
 import { DayPicker, useDayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
-import { toLocalDateString } from "../utils/formatDate";
+// react-day-picker dates can behave like UTC calendar dates,
+// so use UTC getters here to avoid the one-day-back bug.
+const dayPickerDateToIso = (date: Date) => {
+  const year = date.getUTCFullYear();
+  const month = `${date.getUTCMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getUTCDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
 interface DateSelectorProps {
   onSelect: (dates: string[]) => void;
@@ -33,8 +40,11 @@ const DateSelector = ({
 
   // Compute active season boundaries
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayStr = toLocalDateString(today);
+  const todayStr = [
+    today.getFullYear(),
+    `${today.getMonth() + 1}`.padStart(2, "0"),
+    `${today.getDate()}`.padStart(2, "0"),
+  ].join("-");
 
   const rawStart = seasonConfig?.seasonStart?.replace(/"/g, "") ?? "";
   const rawEnd = seasonConfig?.seasonEnd?.replace(/"/g, "") ?? "";
@@ -117,7 +127,7 @@ const DateSelector = ({
 
   // Disable rule for DayPicker
   const isDateBlocked = (day: Date) => {
-    const dateStr = toLocalDateString(day);
+    const dateStr = dayPickerDateToIso(day);
 
     // Before active season window
     if (dateStr < minSelectable) return true;
@@ -138,7 +148,7 @@ const DateSelector = ({
     setSelected((prev) => {
       const next = prev.filter((d) => !isDateBlocked(d));
       if (next.length !== prev.length) {
-        onSelect(next.map((d) => toLocalDateString(d)));
+        onSelect(next.map((d) => dayPickerDateToIso(d)));
       }
       return next;
     });
@@ -149,7 +159,7 @@ const DateSelector = ({
     const safeNext = (nextSelected ?? []).filter((day) => !isDateBlocked(day));
 
     setSelected(safeNext);
-    onSelect(safeNext.map((d) => toLocalDateString(d)));
+    onSelect(safeNext.map((d) => dayPickerDateToIso(d)));
   };
 
   return (

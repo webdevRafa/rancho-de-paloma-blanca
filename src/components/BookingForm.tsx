@@ -142,25 +142,47 @@ const BookingForm = () => {
         setDeckAvailability({});
         return;
       }
+
       const availability: Record<string, boolean> = {};
+
       await Promise.all(
         form.dates.map(async (date) => {
-          const ref = doc(db, "availability", date);
-          const snap = await getDoc(ref);
-          if (snap.exists()) {
-            const data = snap.data() as Availability;
-            availability[date] = !data.partyDeckBooked;
-          } else {
-            availability[date] = true;
+          try {
+            const ref = doc(db, "availability", date);
+            const snap = await getDoc(ref);
+
+            if (snap.exists()) {
+              const data = snap.data() as Availability;
+
+              // Only available when explicitly NOT booked
+              availability[date] = data.partyDeckBooked !== true;
+            } else {
+              // Safer default: if the doc is missing, do NOT allow booking
+              availability[date] = false;
+            }
+          } catch (error) {
+            console.error(
+              "Failed to fetch party deck availability for",
+              date,
+              error
+            );
+
+            // Fail closed so we never accidentally oversell the party deck
+            availability[date] = false;
           }
         })
       );
+
       setDeckAvailability(availability);
+
       setForm((prev) => ({
         ...prev,
-        partyDeckDates: prev.partyDeckDates.filter((d) => availability[d]),
+        partyDeckDates: prev.partyDeckDates.filter(
+          (d) => availability[d] === true
+        ),
       }));
     };
+
     fetchDeckAvailability();
   }, [step, form.dates]);
 
@@ -852,23 +874,32 @@ const BookingForm = () => {
                 </div>
                 <div className="space-y-2">
                   {form.dates.map((date) => {
-                    const available = deckAvailability[date];
+                    const availabilityKnown = date in deckAvailability;
+                    const isAvailable = deckAvailability[date] === true;
                     const checked = form.partyDeckDates.includes(date);
+
                     return (
                       <label
                         key={date}
-                        className="flex items-center gap-2 text-sm"
+                        className={`flex items-center gap-2 text-sm ${
+                          !availabilityKnown || !isAvailable ? "opacity-70" : ""
+                        }`}
                       >
                         <input
                           type="checkbox"
-                          disabled={!available}
+                          disabled={!availabilityKnown || !isAvailable}
                           checked={checked}
                           onChange={() => togglePartyDeckDate(date)}
                           className="accent-[var(--color-accent-gold)]"
                         />
+
                         <span className="text-[var(--color-footer)]">
                           {formatFriendlyDate(date)}{" "}
-                          {available ? "" : "(unavailable)"}
+                          {!availabilityKnown
+                            ? "(checking...)"
+                            : !isAvailable
+                            ? "(unavailable)"
+                            : ""}
                         </span>
                       </label>
                     );
