@@ -28,7 +28,11 @@ const BookingForm = () => {
   const [step, setStep] = useState(1);
   const [seasonConfig, setSeasonConfig] = useState<SeasonConfig | null>(null);
   const [showPartyDeck, setShowPartyDeck] = useState(false);
+  const BACK_THE_BLUE_DATE = "2026-10-03";
 
+  const [showBackTheBlueDisclaimer, setShowBackTheBlueDisclaimer] =
+    useState(false);
+  const [backTheBlueAccepted, setBackTheBlueAccepted] = useState(false);
   const [showPartyDeckDisclaimer, setShowPartyDeckDisclaimer] = useState(false);
   const [partyDeckDisclaimerAccepted, setPartyDeckDisclaimerAccepted] =
     useState(false);
@@ -261,6 +265,40 @@ const BookingForm = () => {
     return `${monthName} ${day}${suffix}, ${year}`;
   };
 
+  const formatFriendlyDateRange = (startIso: string, endIso: string) => {
+    const [startYear, startMonth, startDay] = startIso.split("-").map(Number);
+    const [endYear, endMonth, endDay] = endIso.split("-").map(Number);
+
+    const startDate = new Date(startYear, startMonth - 1, startDay);
+    const endDate = new Date(endYear, endMonth - 1, endDay);
+
+    const startMonthName = startDate.toLocaleString("en-US", { month: "long" });
+    const endMonthName = endDate.toLocaleString("en-US", { month: "long" });
+
+    const getOrdinal = (day: number) => {
+      const j = day % 10;
+      const k = day % 100;
+      if (j === 1 && k !== 11) return `${day}st`;
+      if (j === 2 && k !== 12) return `${day}nd`;
+      if (j === 3 && k !== 13) return `${day}rd`;
+      return `${day}th`;
+    };
+
+    if (startYear === endYear && startMonth === endMonth) {
+      return `${startMonthName} ${getOrdinal(startDay)} – ${getOrdinal(
+        endDay
+      )}, ${startYear}`;
+    }
+
+    if (startYear === endYear) {
+      return `${startMonthName} ${getOrdinal(
+        startDay
+      )} – ${endMonthName} ${getOrdinal(endDay)}, ${startYear}`;
+    }
+
+    return `${formatFriendlyDate(startIso)} – ${formatFriendlyDate(endIso)}`;
+  };
+
   const sortIsoDates = (dates: string[]) =>
     [...dates].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   const getSelectedDatesSummary = (dates: string[]) => {
@@ -380,6 +418,27 @@ const BookingForm = () => {
     return form.dates.filter((iso) => !isDateInActiveSeason(iso, seasonConfig));
   };
 
+  const backTheBlueWindow = seasonConfig?.pricingWindows?.find(
+    (w) => w.start === BACK_THE_BLUE_DATE && w.end === BACK_THE_BLUE_DATE
+  );
+
+  const backTheBlueSelected = form.dates.includes(BACK_THE_BLUE_DATE);
+
+  useEffect(() => {
+    if (!backTheBlueSelected) {
+      setBackTheBlueAccepted(false);
+    }
+  }, [backTheBlueSelected]);
+
+  const confirmBackTheBlueDisclaimer = () => {
+    setBackTheBlueAccepted(true);
+    setShowBackTheBlueDisclaimer(false);
+  };
+
+  const cancelBackTheBlueDisclaimer = () => {
+    setShowBackTheBlueDisclaimer(false);
+  };
+
   const handleNextStep = () => {
     commitHunters();
 
@@ -396,6 +455,11 @@ const BookingForm = () => {
             ", "
           )}`
         );
+        return;
+      }
+
+      if (backTheBlueSelected && !backTheBlueAccepted) {
+        setShowBackTheBlueDisclaimer(true);
         return;
       }
     }
@@ -501,6 +565,7 @@ const BookingForm = () => {
       return;
     }
     const invalidDates = getInvalidSelectedDates();
+
     if (invalidDates.length > 0) {
       alert(
         `These selected dates are outside the active season: ${invalidDates.join(
@@ -509,7 +574,11 @@ const BookingForm = () => {
       );
       return;
     }
-
+    if (backTheBlueSelected && !backTheBlueAccepted) {
+      setStep(2);
+      setShowBackTheBlueDisclaimer(true);
+      return;
+    }
     // Ensure hunters is committed before building the booking
     commitHunters();
 
@@ -522,6 +591,7 @@ const BookingForm = () => {
       name: user.displayName || "Unknown",
       email: user.email || "No email",
       phone: form.phone,
+      backTheBlueAccepted,
       dates: form.dates,
       numberOfHunters: form.numberOfHunters,
       partyDeckDates: form.partyDeckDates,
@@ -567,6 +637,11 @@ const BookingForm = () => {
       );
       return;
     }
+    if (backTheBlueSelected && !backTheBlueAccepted) {
+      setStep(2);
+      setShowBackTheBlueDisclaimer(true);
+      return;
+    }
 
     if (form.dates.length === 0) {
       alert("Please select at least one date.");
@@ -586,6 +661,7 @@ const BookingForm = () => {
       name: user.displayName || "Unknown",
       email: user.email || "No email",
       phone: form.phone,
+      backTheBlueAccepted,
       dates: form.dates,
       numberOfHunters: form.numberOfHunters,
       partyDeckDates: form.partyDeckDates,
@@ -666,8 +742,13 @@ const BookingForm = () => {
             {seasonConfig && (
               <p className="mt-3 text-center text-xs text-[var(--color-footer)]/80">
                 Available booking dates are limited to{" "}
-                <strong>{seasonConfig.seasonStart}</strong> through{" "}
-                <strong>{seasonConfig.seasonEnd}</strong>.
+                <strong>
+                  {formatFriendlyDateRange(
+                    seasonConfig.seasonStart,
+                    seasonConfig.seasonEnd
+                  )}
+                </strong>
+                .
               </p>
             )}
           </>
@@ -707,6 +788,17 @@ const BookingForm = () => {
                 )}
               </div>
             </div>
+            {backTheBlueSelected && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-800/70">
+                  {backTheBlueWindow?.label || "Special Event"}
+                </p>
+                <p className="mt-1 text-sm text-blue-900">
+                  {backTheBlueWindow?.disclaimerBody ||
+                    "By selecting October 3rd, 2026, you confirm that all hunters on this booking qualify as first responders. Proof will be required at check-in. Anyone unable to provide proof will be turned away with no refund."}
+                </p>
+              </div>
+            )}
 
             {/* Attendees full-name capture */}
             <div className="mt-4 border-t border-[var(--color-footer)] pt-4">
@@ -982,6 +1074,63 @@ const BookingForm = () => {
                     className="rounded-md bg-[var(--color-footer)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--color-button-hover)] transition"
                   >
                     I understand
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showBackTheBlueDisclaimer && (
+          <motion.div
+            className="fixed inset-0 z-[130] bg-black/70 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={cancelBackTheBlueDisclaimer}
+          >
+            <div
+              className="absolute inset-0 flex items-center justify-center px-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <motion.div
+                className="w-full max-w-lg rounded-2xl border border-white/10 bg-white p-6 shadow-2xl"
+                initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 12, scale: 0.98 }}
+                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              >
+                <div className="mb-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-footer)]/60">
+                    {backTheBlueWindow?.label || "Special Event Notice"}
+                  </p>
+                  <h3 className="mt-2 text-2xl font-acumin text-[var(--color-footer)]">
+                    {backTheBlueWindow?.disclaimerTitle ||
+                      "First responder confirmation required"}
+                  </h3>
+                </div>
+
+                <p className="text-sm leading-7 text-[var(--color-footer)]/85">
+                  {backTheBlueWindow?.disclaimerBody ||
+                    "By selecting October 3rd, 2026, you confirm that all hunters on this booking qualify as first responders. Proof will be required at check-in. Anyone unable to provide proof will be turned away with no refund."}
+                </p>
+
+                <div className="mt-6 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={cancelBackTheBlueDisclaimer}
+                    className="rounded-md border border-black/10 px-4 py-2 text-sm font-semibold text-[var(--color-footer)] hover:bg-neutral-100 transition"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={confirmBackTheBlueDisclaimer}
+                    className="rounded-md bg-[var(--color-footer)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--color-button-hover)] transition"
+                  >
+                    I agree
                   </button>
                 </div>
               </motion.div>

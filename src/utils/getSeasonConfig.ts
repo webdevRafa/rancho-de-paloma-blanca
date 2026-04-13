@@ -30,8 +30,23 @@ export const getSeasonConfig = async (): Promise<SeasonConfig> => {
             : undefined,
         threeDayCombo:
           typeof w?.threeDayCombo === "number" ? w.threeDayCombo : undefined,
+
+        // special-event metadata
+        label: typeof w?.label === "string" ? w.label : undefined,
+        requiresDisclaimer:
+          typeof w?.requiresDisclaimer === "boolean"
+            ? w.requiresDisclaimer
+            : undefined,
+        disclaimerKey:
+          typeof w?.disclaimerKey === "string" ? w.disclaimerKey : undefined,
+        disclaimerTitle:
+          typeof w?.disclaimerTitle === "string" ? w.disclaimerTitle : undefined,
+        disclaimerBody:
+          typeof w?.disclaimerBody === "string" ? w.disclaimerBody : undefined,
       }))
-      .filter((windowItem: PricingWindow) => !!windowItem.start && !!windowItem.end)
+      .filter(
+        (windowItem: PricingWindow) => !!windowItem.start && !!windowItem.end
+      )
   : [];
 
   const hasNewSchema = data.weekendRates && data.weekdayRate !== undefined;

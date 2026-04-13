@@ -906,6 +906,9 @@ export default function CheckoutPage() {
   const amount = totals.amount;
   const invalidBookingDates = totals.invalidDates ?? [];
   const hasInvalidBookingDates = invalidBookingDates.length > 0;
+  const backTheBlueSelected = booking?.dates?.includes("2026-10-03") ?? false;
+  const backTheBlueNeedsAck =
+    backTheBlueSelected && !booking?.backTheBlueAccepted;
 
   const [sdkReady, setSdkReady] = useState(false);
   const [instanceReady, setInstanceReady] = useState(false);
@@ -1460,8 +1463,19 @@ export default function CheckoutPage() {
   }, []);
 
   const canStart = useMemo(
-    () => amount > 0 && !!orderId && !hasStockErrors && !hasInvalidBookingDates,
-    [amount, orderId, hasStockErrors, hasInvalidBookingDates]
+    () =>
+      amount > 0 &&
+      !!orderId &&
+      !hasStockErrors &&
+      !hasInvalidBookingDates &&
+      !backTheBlueNeedsAck,
+    [
+      amount,
+      orderId,
+      hasStockErrors,
+      hasInvalidBookingDates,
+      backTheBlueNeedsAck,
+    ]
   );
 
   if (!isHydrated)
@@ -1474,13 +1488,18 @@ export default function CheckoutPage() {
       </div>
       <div className="max-w-6xl mt-30 mx-auto px-4 py-10 relative min-h-screen overflow-x-hidden">
         {/* Display any error messages */}
-        {(errorMsg || (cfgError as any) || hasInvalidBookingDates) && (
+        {(errorMsg ||
+          (cfgError as any) ||
+          hasInvalidBookingDates ||
+          backTheBlueNeedsAck) && (
           <div className="mb-6 rounded-lg border border-red-500/30 bg-red-500/10 text-red-700 p-3">
             {errorMsg ||
               (cfgError as any) ||
-              `These selected dates are outside the active season: ${invalidBookingDates.join(
-                ", "
-              )}. Please update your booking before checkout.`}
+              (backTheBlueNeedsAck
+                ? "This booking includes October 3rd, 2026 for the Back the Blue event. You must acknowledge the first-responder proof requirement before payment. Please go back and re-confirm your booking selection."
+                : `These selected dates are outside the active season: ${invalidBookingDates.join(
+                    ", "
+                  )}. Please update your booking before checkout.`)}
           </div>
         )}
 

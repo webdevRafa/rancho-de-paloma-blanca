@@ -16,6 +16,7 @@ export interface NewBooking {
   dates: string[];
   numberOfHunters: number;
   partyDeckDates: string[];
+  backTheBlueAccepted?: boolean;
   price: number;
   status: BookingStatus;
   notes?: string;
@@ -41,7 +42,7 @@ export interface Availability {
   partyDeckBooked: boolean;
 }
 
-export interface PricingWindow {
+export type PricingWindow = {
   start: string;
   end: string;
   type: "flat" | "package";
@@ -49,7 +50,14 @@ export interface PricingWindow {
   singleDay?: number;
   twoConsecutiveDays?: number;
   threeDayCombo?: number;
-}
+
+  // optional metadata for special-event dates
+  label?: string;
+  requiresDisclaimer?: boolean;
+  disclaimerKey?: string;
+  disclaimerTitle?: string;
+  disclaimerBody?: string;
+};
 
 
 export interface SeasonRates {

@@ -10,11 +10,16 @@ type Props = {
 };
 
 const EditBookingDatesModal = ({ isOpen, onClose }: Props) => {
+  const BACK_THE_BLUE_DATE = "2026-10-03";
+
   const { booking, setBooking } = useCart();
   const [seasonConfig, setSeasonConfig] = useState<SeasonConfig | null>(null);
   const [tempDates, setTempDates] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showBackTheBlueDisclaimer, setShowBackTheBlueDisclaimer] =
+    useState(false);
+  const [backTheBlueAccepted, setBackTheBlueAccepted] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -27,6 +32,7 @@ const EditBookingDatesModal = ({ isOpen, onClose }: Props) => {
   useEffect(() => {
     if (!isOpen || !booking) return;
     setTempDates(booking.dates ?? []);
+    setBackTheBlueAccepted(booking.backTheBlueAccepted ?? false);
     setError(null);
   }, [isOpen, booking]);
 
@@ -34,6 +40,60 @@ const EditBookingDatesModal = ({ isOpen, onClose }: Props) => {
     () => booking?.numberOfHunters ?? 1,
     [booking]
   );
+
+  const sortIsoDates = (dates: string[]) =>
+    [...dates].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+
+  const isConsecutive = (d0: string, d1: string): boolean => {
+    const a = new Date(`${d0}T00:00:00`);
+    const b = new Date(`${d1}T00:00:00`);
+    return (b.getTime() - a.getTime()) / 86400000 === 1;
+  };
+
+  const inRange = (iso: string, startIso: string, endIso: string) => {
+    const t = new Date(`${iso}T00:00:00`).getTime();
+    const s = new Date(`${startIso}T00:00:00`).getTime();
+    const e = new Date(`${endIso}T00:00:00`).getTime();
+    return t >= s && t <= e;
+  };
+
+  const getPricingWindowForDate = (iso: string, cfg: SeasonConfig | null) => {
+    if (!cfg) return null;
+    return (
+      cfg.pricingWindows?.find((w) => inRange(iso, w.start, w.end)) ?? null
+    );
+  };
+
+  const samePricingWindow = (a: any, b: any) => {
+    if (!a || !b) return false;
+    return a.start === b.start && a.end === b.end && a.type === b.type;
+  };
+
+  const isDateInActiveSeason = (iso: string, cfg: SeasonConfig | null) => {
+    if (!cfg?.seasonStart || !cfg?.seasonEnd) return false;
+    return inRange(iso, cfg.seasonStart, cfg.seasonEnd);
+  };
+
+  const backTheBlueWindow = seasonConfig?.pricingWindows?.find(
+    (w) => w.start === BACK_THE_BLUE_DATE && w.end === BACK_THE_BLUE_DATE
+  );
+
+  const backTheBlueSelected = tempDates.includes(BACK_THE_BLUE_DATE);
+
+  useEffect(() => {
+    if (!backTheBlueSelected) {
+      setBackTheBlueAccepted(false);
+    }
+  }, [backTheBlueSelected]);
+
+  const confirmBackTheBlueDisclaimer = () => {
+    setBackTheBlueAccepted(true);
+    setShowBackTheBlueDisclaimer(false);
+  };
+
+  const cancelBackTheBlueDisclaimer = () => {
+    setShowBackTheBlueDisclaimer(false);
+  };
 
   if (!isOpen || !booking) return null;
 
@@ -43,89 +103,72 @@ const EditBookingDatesModal = ({ isOpen, onClose }: Props) => {
     partyDeckDates: string[]
   ): number => {
     if (!seasonConfig) return 0;
-    const {
-      seasonStart,
-      seasonEnd,
-      weekendRates,
-      weekdayRate,
-      partyDeckRatePerDay,
-    } = seasonConfig;
 
-    const toISO = (d: Date) => {
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, "0");
-      const dd = String(d.getDate()).padStart(2, "0");
-      return `${yyyy}-${mm}-${dd}`;
-    };
+    const validDates = sortIsoDates(
+      dates.filter((iso) => isDateInActiveSeason(iso, seasonConfig))
+    );
 
-    const dateObjs = dates
-      .map((d) => {
-        const [y, m, d2] = d.split("-").map(Number);
-        return new Date(y, m - 1, d2);
-      })
-      .sort((a, b) => a.getTime() - b.getTime());
+    let bookingTotal = 0;
 
-    let perPersonTotal = 0;
-    let i = 0;
-    while (i < dateObjs.length) {
-      const current = dateObjs[i];
-      const iso0 = toISO(current);
-      const inSeason = iso0 >= seasonStart && iso0 <= seasonEnd;
-      const dow0 = current.getDay();
-      const isWeekend = inSeason && (dow0 === 5 || dow0 === 6 || dow0 === 0);
+    for (let i = 0; i < validDates.length; ) {
+      const d0 = validDates[i];
+      const d1 = validDates[i + 1];
+      const d2 = validDates[i + 2];
 
-      if (isWeekend) {
-        if (dow0 === 5 && i + 2 < dateObjs.length) {
-          const d1 = dateObjs[i + 1];
-          const d2 = dateObjs[i + 2];
-          const iso1 = toISO(d1);
-          const iso2 = toISO(d2);
-          const diff1 = (d1.getTime() - current.getTime()) / 86_400_000;
-          const diff2 = (d2.getTime() - d1.getTime()) / 86_400_000;
-          const inSeason1 = iso1 >= seasonStart && iso1 <= seasonEnd;
-          const inSeason2 = iso2 >= seasonStart && iso2 <= seasonEnd;
-          const dow1 = d1.getDay();
-          const dow2 = d2.getDay();
-          if (
-            diff1 === 1 &&
-            diff2 === 1 &&
-            dow1 === 6 &&
-            dow2 === 0 &&
-            inSeason1 &&
-            inSeason2
-          ) {
-            perPersonTotal += weekendRates.threeDayCombo;
-            i += 3;
-            continue;
-          }
+      const w0 = getPricingWindowForDate(d0, seasonConfig);
+      const w1 = d1 ? getPricingWindowForDate(d1, seasonConfig) : null;
+      const w2 = d2 ? getPricingWindowForDate(d2, seasonConfig) : null;
+
+      if (w0?.type === "package") {
+        const canUseThreeDay =
+          !!d0 &&
+          !!d1 &&
+          !!d2 &&
+          !!w1 &&
+          !!w2 &&
+          samePricingWindow(w0, w1) &&
+          samePricingWindow(w1, w2) &&
+          isConsecutive(d0, d1) &&
+          isConsecutive(d1, d2);
+
+        if (canUseThreeDay) {
+          bookingTotal += (w0.threeDayCombo ?? 450) * hunters;
+          i += 3;
+          continue;
         }
-        if (i + 1 < dateObjs.length) {
-          const next = dateObjs[i + 1];
-          const diff = (next.getTime() - current.getTime()) / 86_400_000;
-          const isoNext = toISO(next);
-          const inSeasonNext = isoNext >= seasonStart && isoNext <= seasonEnd;
-          const dowNext = next.getDay();
-          if (
-            diff === 1 &&
-            inSeasonNext &&
-            ((dow0 === 5 && dowNext === 6) || (dow0 === 6 && dowNext === 0))
-          ) {
-            perPersonTotal += weekendRates.twoConsecutiveDays;
-            i += 2;
-            continue;
-          }
+
+        const canUseTwoDay =
+          !!d0 &&
+          !!d1 &&
+          !!w1 &&
+          samePricingWindow(w0, w1) &&
+          isConsecutive(d0, d1);
+
+        if (canUseTwoDay) {
+          bookingTotal += (w0.twoConsecutiveDays ?? 350) * hunters;
+          i += 2;
+          continue;
         }
-        perPersonTotal += weekendRates.singleDay;
+
+        bookingTotal += (w0.singleDay ?? 200) * hunters;
         i += 1;
         continue;
       }
 
-      perPersonTotal += weekdayRate;
+      if (w0?.type === "flat") {
+        bookingTotal += (w0.rate ?? seasonConfig.weekdayRate ?? 150) * hunters;
+        i += 1;
+        continue;
+      }
+
+      bookingTotal += (seasonConfig.weekdayRate ?? 150) * hunters;
       i += 1;
     }
 
-    const partyDeckCost = partyDeckRatePerDay * partyDeckDates.length;
-    return perPersonTotal * hunters + partyDeckCost;
+    const partyDeckCost =
+      (seasonConfig.partyDeckRatePerDay ?? 500) * partyDeckDates.length;
+
+    return bookingTotal + partyDeckCost;
   };
 
   const handleSave = () => {
@@ -133,18 +176,27 @@ const EditBookingDatesModal = ({ isOpen, onClose }: Props) => {
       setError("Please select at least one date.");
       return;
     }
+
+    if (backTheBlueSelected && !backTheBlueAccepted) {
+      setShowBackTheBlueDisclaimer(true);
+      return;
+    }
+
     setSaving(true);
     try {
       const nextDeckDays = (booking.partyDeckDates ?? []).filter((d) =>
         tempDates.includes(d)
       );
       const nextPrice = calcPrice(tempDates, numberOfHunters, nextDeckDays);
+
       setBooking({
         ...booking,
         dates: tempDates,
         partyDeckDates: nextDeckDays,
         price: nextPrice,
+        backTheBlueAccepted,
       });
+
       onClose();
     } finally {
       setSaving(false);
@@ -204,6 +256,45 @@ const EditBookingDatesModal = ({ isOpen, onClose }: Props) => {
             {saving ? "Saving…" : "Save Changes"}
           </button>
         </div>
+
+        {showBackTheBlueDisclaimer && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-4">
+            <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+              <div className="mb-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-footer)]/60">
+                  {backTheBlueWindow?.label || "Special Event Notice"}
+                </p>
+                <h3 className="mt-2 text-2xl font-acumin text-[var(--color-footer)]">
+                  {backTheBlueWindow?.disclaimerTitle ||
+                    "First responder confirmation required"}
+                </h3>
+              </div>
+
+              <p className="text-sm leading-7 text-[var(--color-footer)]/85">
+                {backTheBlueWindow?.disclaimerBody ||
+                  "By selecting October 3rd, 2026, you confirm that all hunters on this booking qualify as first responders. Proof will be required at check-in. Anyone unable to provide proof will be turned away with no refund."}
+              </p>
+
+              <div className="mt-6 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={cancelBackTheBlueDisclaimer}
+                  className="rounded-md border border-black/10 px-4 py-2 text-sm font-semibold text-[var(--color-footer)] hover:bg-neutral-100 transition"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={confirmBackTheBlueDisclaimer}
+                  className="rounded-md bg-[var(--color-footer)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--color-button-hover)] transition"
+                >
+                  I agree
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
