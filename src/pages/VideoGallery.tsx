@@ -9,7 +9,12 @@ const VideoGallery = () => {
       <div className="grid md:grid-cols-2 gap-12 max-w-6xl mx-auto">
         <VimeoEmbed videoId="1107628873" title="DJI_20230912140455_0050_D" />
         <VimeoEmbed videoId="1107467779" title="Untitled" />
-        <VimeoEmbed videoId="1107467779" title="Untitled (Duplicate Test)" />
+        <VimeoEmbed videoId="1182787763" title="Untitled" />
+        <VimeoEmbed videoId="1182787764" title="Untitled" />
+        <VimeoEmbed videoId="1182787765" title="Untitled" />
+        <VimeoEmbed videoId="1182787766" title="Untitled" />
+        <VimeoEmbed videoId="1182787740" title="Untitled" />
+        <VimeoEmbed videoId="1107477099" title="Untitled" />
       </div>
     </div>
   );
