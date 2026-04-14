@@ -72,12 +72,8 @@ const VideoGallery = () => {
           transition={{ duration: 0.6 }}
           className="mb-10 md:mb-14"
         >
-          <p className="mb-3 text-xs uppercase tracking-[0.35em] text-[var(--color-accent-gold)]/75 md:text-sm">
-            Videos
-          </p>
-
           <h1 className="font-gin text-3xl text-[var(--color-accent-gold)] sm:text-4xl md:text-5xl">
-            Watch the Rancho Experience
+            The Rancho Experience
           </h1>
 
           <p className="mt-2 max-w-3xl text-sm leading-7 text-[var(--color-text)]/75 md:text-base">
@@ -86,34 +82,6 @@ const VideoGallery = () => {
             define Rancho de Paloma Blanca.
           </p>
         </motion.div>
-
-        {/* Featured landscape videos */}
-        <section className="mb-12">
-          <div className="grid gap-6 lg:grid-cols-2">
-            {featuredVideos.map((video, index) => (
-              <motion.article
-                key={video.videoId}
-                initial={{ opacity: 0, y: 24, scale: 0.985 }}
-                whileInView={{ opacity: 1, y: 0, scale: 1 }}
-                viewport={{ once: true, amount: 0.2 }}
-                transition={{
-                  duration: 0.55,
-                  delay: index * 0.06,
-                  ease: [0.16, 1, 0.3, 1],
-                }}
-                className="overflow-hidden rounded-[28px]   shadow-[0_18px_45px_rgba(0,0,0,0.28)]"
-              >
-                <div className="p-4 md:p-5">
-                  <VimeoEmbed
-                    videoId={video.videoId}
-                    title={video.title}
-                    orientation={video.orientation}
-                  />
-                </div>
-              </motion.article>
-            ))}
-          </div>
-        </section>
 
         {/* Portrait videos */}
         {portraitVideos.length > 0 && (
@@ -144,6 +112,34 @@ const VideoGallery = () => {
             </div>
           </section>
         )}
+
+        {/* Featured landscape videos */}
+        <section className="mb-12">
+          <div className="grid gap-6 lg:grid-cols-2">
+            {featuredVideos.map((video, index) => (
+              <motion.article
+                key={video.videoId}
+                initial={{ opacity: 0, y: 24, scale: 0.985 }}
+                whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                viewport={{ once: true, amount: 0.2 }}
+                transition={{
+                  duration: 0.55,
+                  delay: index * 0.06,
+                  ease: [0.16, 1, 0.3, 1],
+                }}
+                className="overflow-hidden rounded-[28px]   shadow-[0_18px_45px_rgba(0,0,0,0.28)]"
+              >
+                <div className="p-4 md:p-5">
+                  <VimeoEmbed
+                    videoId={video.videoId}
+                    title={video.title}
+                    orientation={video.orientation}
+                  />
+                </div>
+              </motion.article>
+            ))}
+          </div>
+        </section>
 
         {/* Remaining landscape videos */}
         {moreVideos.length > 0 && (
