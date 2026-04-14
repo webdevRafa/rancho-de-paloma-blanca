@@ -98,16 +98,17 @@ const GalleryPage = () => {
           className="mb-10 md:mb-14"
         >
           <p className="mb-3 text-xs md:text-sm uppercase tracking-[0.35em] text-[var(--color-accent-gold)]/75">
-            Gallery
+            The Experience
           </p>
 
           <h1 className="font-gin text-3xl sm:text-4xl md:text-5xl text-[var(--color-accent-gold)]">
-            Rancho de Paloma Blanca
+            Life at Rancho de Paloma Blanca
           </h1>
 
-          <p className="mt-1 max-w-3xl text-sm md:text-base leading-7 text-[var(--color-text)]/75">
-            A visual look at the land, the birds, and the experience across the
-            ranch.
+          <p className="mt-2 max-w-3xl text-sm md:text-base leading-7 text-[var(--color-text)]/75">
+            From sunrise flights to time spent in the field, explore what a hunt
+            at Rancho de Paloma Blanca really feels like—authentic,
+            unforgettable, and built around the South Texas outdoors.
           </p>
         </motion.div>
 
