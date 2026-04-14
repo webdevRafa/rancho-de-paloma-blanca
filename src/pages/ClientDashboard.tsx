@@ -297,29 +297,60 @@ const ClientDashboard: React.FC = () => {
   // If redirected with ?status=paid&orderId=..., load the order for success panel
   useEffect(() => {
     let abort = false;
+
+    // Reset success state when URL is not the paid-success case
+    if (status !== "paid" || !orderIdParam || !user?.uid) {
+      setShowSuccess(false);
+      setSuccessOrder(null);
+      setLoadingSuccess(false);
+      return () => {
+        abort = true;
+      };
+    }
+
     (async () => {
-      if (status === "paid" && orderIdParam) {
-        try {
-          setLoadingSuccess(true);
-          setShowSuccess(true);
-          const snap = await getDoc(doc(db, "orders", orderIdParam));
-          if (!abort) {
-            if (snap.exists())
-              setSuccessOrder({ id: snap.id, ...(snap.data() as Order) });
-            else toast.error("Order not found.");
-          }
-        } catch (err) {
-          console.error("Failed to load order", err);
-          if (!abort) toast.error("Failed to load order details.");
-        } finally {
-          if (!abort) setLoadingSuccess(false);
+      try {
+        setLoadingSuccess(true);
+        setShowSuccess(true);
+
+        const snap = await getDoc(doc(db, "orders", orderIdParam));
+
+        if (abort) return;
+
+        if (!snap.exists()) {
+          setSuccessOrder(null);
+          toast.error("Order not found.");
+          return;
         }
+
+        const data = snap.data() as Order;
+        const fetchedOrder: Order = { id: snap.id, ...data };
+
+        // Extra client-side safety check so we only render the current user's order
+        if (fetchedOrder.userId !== user.uid) {
+          setSuccessOrder(null);
+          setShowSuccess(false);
+          toast.error("You do not have access to this order.");
+          navigate("/dashboard", { replace: true });
+          return;
+        }
+
+        setSuccessOrder(fetchedOrder);
+      } catch (err) {
+        console.error("Failed to load order", err);
+        if (!abort) {
+          setSuccessOrder(null);
+          toast.error("Failed to load order details.");
+        }
+      } finally {
+        if (!abort) setLoadingSuccess(false);
       }
     })();
+
     return () => {
       abort = true;
     };
-  }, [status, orderIdParam]);
+  }, [status, orderIdParam, user?.uid, navigate]);
 
   // Load this user's orders
   useEffect(() => {
@@ -557,6 +588,8 @@ const ClientDashboard: React.FC = () => {
 
   const handleSuccessDismiss = () => {
     setShowSuccess(false);
+    setSuccessOrder(null);
+    setLoadingSuccess(false);
     setActiveTab("orders");
     navigate("/dashboard", { replace: true });
   };
