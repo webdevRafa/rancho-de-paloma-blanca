@@ -12,7 +12,7 @@ const HeroSection = () => {
   }, []);
 
   return (
-    <section className="relative text-[var(--color-text)] h-[600px]  flex items-end justify-center overflow-hidden">
+    <section className="relative text-[var(--color-text)] h-[600px]  flex items-center justify-center overflow-hidden">
       {/* Background Videos */}
       <div
         data-aos="fade-in"

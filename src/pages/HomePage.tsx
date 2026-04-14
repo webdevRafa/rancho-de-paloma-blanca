@@ -216,7 +216,7 @@ const HomePage = () => {
             onClick={dismissPromo}
           >
             <div
-              className="promo-modal-shell  absolute inset-0 flex items-start justify-center p-3 sm:p-4 lg:items-center lg:p-6"
+              className="  absolute inset-0 flex items-start justify-center p-3 sm:p-4 lg:items-center lg:p-6"
               onClick={(e) => e.stopPropagation()}
             >
               <motion.div
@@ -224,7 +224,7 @@ const HomePage = () => {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 18, scale: 0.985 }}
                 transition={{ duration: 0.58, ease: [0.16, 1, 0.3, 1] }}
-                className="promo-modal-card relative flex w-full max-w-5xl flex-col overflow-hidden border border-white/10 bg-[var(--color-footer)] text-white shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
+                className="max-h-[100vh] relative flex w-full max-w-5xl flex-col overflow-hidden border border-white/10 bg-[var(--color-footer)] text-white shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
               >
                 <button
                   type="button"
@@ -262,7 +262,7 @@ const HomePage = () => {
 
                   {/* Right content */}
                   <div className="flex min-h-0 flex-col">
-                    <div className="promo-scroll min-h-0 flex-1 overflow-y-auto px-5 pt-14 pb-4 sm:px-6 sm:pt-16 sm:pb-5 md:px-7 md:pb-6 lg:px-7">
+                    <div className="promo-scroll min-h-0 flex-1 overflow-y-auto px-5 pt-1 pb-4 sm:px-6 sm:pt-16 sm:pb-5 md:px-7 md:pb-6 lg:px-7">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-gold)]">
                         Special Event
                       </p>

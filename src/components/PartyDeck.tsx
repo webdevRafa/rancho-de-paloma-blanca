@@ -116,7 +116,7 @@ const PartyDeck = () => {
   }, [lightboxOpen, close, prev, next]);
 
   return (
-    <div className="w-full px-4 md:px-8 py-10">
+    <div className="w-full px-4 md:px-8 py-10 mx-auto">
       <div className="flex flex-col md:flex-row gap-6 md:gap-10 items-start md:items-stretch">
         {/* LEFT: Hero image + previews */}
         <div className="w-full md:w-[min(860px,60vw)]">
