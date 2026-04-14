@@ -211,7 +211,7 @@ const HomePage = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 18, scale: 0.96 }}
             transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-            className="hidden md:block fixed right-4 z-[90] w-[calc(100%-2rem)] max-w-[340px] rounded-2xl border border-white/10 bg-[var(--color-footer)]/95 px-4 py-3 text-left shadow-2xl backdrop-blur bottom-[max(1rem,env(safe-area-inset-bottom))]"
+            className="hidden md:block fixed right-4 z-[90] w-[calc(100%-2rem)] cursor-pointer border-2 border-[var(--color-accent-gold)] max-w-[340px] bg-[var(--color-footer)] hover:bg-[var(--color-footer-hover)] px-4 py-3 text-left shadow-2xl backdrop-blur bottom-[max(1rem,env(safe-area-inset-bottom))]"
           >
             <div className="flex items-start gap-3">
               <img
@@ -240,7 +240,7 @@ const HomePage = () => {
       <AnimatePresence>
         {showBackTheBluePromo && (
           <motion.div
-            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md"
+            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md "
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -294,7 +294,7 @@ const HomePage = () => {
 
                   {/* Right content */}
                   <div className="flex min-h-0 flex-col">
-                    <div className="promo-scroll min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-4 sm:px-6 sm:pt-6 sm:pb-5 md:px-7 md:pb-6 lg:px-7 lg:pt-1">
+                    <div className="promo-scroll min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-4 sm:px-6 sm:pt-6 sm:pb-5 md:px-7 md:pb-6 lg:px-7 lg:pt-8">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-gold)]">
                         Special Event
                       </p>
