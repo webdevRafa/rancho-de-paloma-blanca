@@ -165,7 +165,7 @@ const HomePage = () => {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 14, scale: 0.98 }}
                   transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-                  className="md:hidden w-full max-w-[340px] rounded-2xl border border-white/10 bg-[var(--color-footer)]/95 px-4 py-3 text-left shadow-2xl backdrop-blur"
+                  className="md:hidden w-full max-w-[340px]  border border-[var(--color-accent-gold)] bg-[var(--color-footer)]/95 px-4 py-3 text-left shadow-2xl backdrop-blur"
                 >
                   <div className="flex items-start gap-3">
                     <img
