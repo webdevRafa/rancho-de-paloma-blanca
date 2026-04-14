@@ -216,7 +216,7 @@ const HomePage = () => {
             onClick={dismissPromo}
           >
             <div
-              className="  absolute inset-0 flex items-start justify-center p-3 sm:p-4 lg:items-center lg:p-6"
+              className="absolute inset-0 overflow-y-auto p-3 sm:p-4 lg:flex lg:items-center lg:justify-center lg:p-6"
               onClick={(e) => e.stopPropagation()}
             >
               <motion.div
@@ -224,7 +224,7 @@ const HomePage = () => {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 18, scale: 0.985 }}
                 transition={{ duration: 0.58, ease: [0.16, 1, 0.3, 1] }}
-                className="max-h-[100vh] relative flex w-full max-w-5xl flex-col overflow-hidden border border-white/10 bg-[var(--color-footer)] text-white shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
+                className="relative my-3 flex w-full max-w-5xl flex-col overflow-hidden border border-white/10 bg-[var(--color-footer)] text-white shadow-[0_24px_80px_rgba(0,0,0,0.45)] max-lg:min-h-0 max-lg:max-h-[calc(100dvh-1.5rem)] lg:max-h-[100vh]"
               >
                 <button
                   type="button"
@@ -235,7 +235,7 @@ const HomePage = () => {
                   ×
                 </button>
 
-                <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                   {/* Flyer panel */}
                   <div className="promo-flyer-panel flex min-h-0 flex-col ">
                     <div className=" ">
@@ -243,7 +243,7 @@ const HomePage = () => {
                         <img
                           src={backTheBlueFlyer}
                           alt="2nd Annual Back the Blue Dove Hunt flyer"
-                          className="max-h-[300px] lg:max-h-[800px] md:h-full w-full object-contain"
+                          className="h-auto w-full object-contain max-h-[240px] sm:max-h-[300px] lg:max-h-[800px] lg:h-full"
                         />
                       </div>
                     </div>
@@ -262,7 +262,7 @@ const HomePage = () => {
 
                   {/* Right content */}
                   <div className="flex min-h-0 flex-col">
-                    <div className="promo-scroll min-h-0 flex-1 overflow-y-auto px-5 pt-1 pb-4 sm:px-6 sm:pt-16 sm:pb-5 md:px-7 md:pb-6 lg:px-7">
+                    <div className="promo-scroll min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-4 sm:px-6 sm:pt-6 sm:pb-5 md:px-7 md:pb-6 lg:px-7 lg:pt-1">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-gold)]">
                         Special Event
                       </p>
@@ -312,7 +312,7 @@ const HomePage = () => {
                       <div className="h-6" />
                     </div>
 
-                    <div className="promo-modal-actions border-t border-white/10 bg-gradient-to-t from-black/70 via-[var(--color-footer)]/98 to-[var(--color-footer)]/96 px-4 py-4 backdrop-blur sm:px-6 md:px-8">
+                    <div className="promo-modal-actions shrink-0 border-t border-white/10 bg-gradient-to-t from-black/70 via-[var(--color-footer)]/98 to-[var(--color-footer)]/96 px-4 py-4 backdrop-blur sm:px-6 md:px-8">
                       <div className="flex flex-col gap-4">
                         <div className="max-w-[420px]">
                           <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--color-accent-gold)]/90">
@@ -330,7 +330,7 @@ const HomePage = () => {
                           </div>
                         </div>
 
-                        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+                        <div className="flex flex-col-reverse gap-3 pt-1 sm:flex-row sm:items-center sm:justify-end">
                           <button
                             type="button"
                             onClick={dismissPromo}
