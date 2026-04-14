@@ -42,6 +42,38 @@ const CustomerInfoForm = ({ value, onChange }: Props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.email, user?.displayName]);
 
+  useEffect(() => {
+    if (local.billingAddress?.country) return;
+
+    const next = {
+      ...local,
+      billingAddress: {
+        ...(local.billingAddress || {}),
+        country: "US",
+      },
+    };
+
+    setLocal(next);
+    onChange(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (local.billingAddress?.state) return;
+
+    const next = {
+      ...local,
+      billingAddress: {
+        ...(local.billingAddress || {}),
+        state: "TX",
+      },
+    };
+
+    setLocal(next);
+    onChange(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const update = (patch: Partial<CustomerInfo>) => {
     const next = { ...local, ...patch };
     setLocal(next);
@@ -57,6 +89,93 @@ const CustomerInfoForm = ({ value, onChange }: Props) => {
     };
     setLocal(next);
     onChange(next);
+  };
+
+  const formatPhone = (value: string) => {
+    const digits = value.replace(/\D/g, "").slice(0, 10);
+
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 6) {
+      return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+    }
+
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    update({ phone: formatPhone(e.target.value) });
+  };
+  const US_STATES = [
+    { code: "AL", name: "Alabama" },
+    { code: "AK", name: "Alaska" },
+    { code: "AZ", name: "Arizona" },
+    { code: "AR", name: "Arkansas" },
+    { code: "CA", name: "California" },
+    { code: "CO", name: "Colorado" },
+    { code: "CT", name: "Connecticut" },
+    { code: "DE", name: "Delaware" },
+    { code: "FL", name: "Florida" },
+    { code: "GA", name: "Georgia" },
+    { code: "HI", name: "Hawaii" },
+    { code: "ID", name: "Idaho" },
+    { code: "IL", name: "Illinois" },
+    { code: "IN", name: "Indiana" },
+    { code: "IA", name: "Iowa" },
+    { code: "KS", name: "Kansas" },
+    { code: "KY", name: "Kentucky" },
+    { code: "LA", name: "Louisiana" },
+    { code: "ME", name: "Maine" },
+    { code: "MD", name: "Maryland" },
+    { code: "MA", name: "Massachusetts" },
+    { code: "MI", name: "Michigan" },
+    { code: "MN", name: "Minnesota" },
+    { code: "MS", name: "Mississippi" },
+    { code: "MO", name: "Missouri" },
+    { code: "MT", name: "Montana" },
+    { code: "NE", name: "Nebraska" },
+    { code: "NV", name: "Nevada" },
+    { code: "NH", name: "New Hampshire" },
+    { code: "NJ", name: "New Jersey" },
+    { code: "NM", name: "New Mexico" },
+    { code: "NY", name: "New York" },
+    { code: "NC", name: "North Carolina" },
+    { code: "ND", name: "North Dakota" },
+    { code: "OH", name: "Ohio" },
+    { code: "OK", name: "Oklahoma" },
+    { code: "OR", name: "Oregon" },
+    { code: "PA", name: "Pennsylvania" },
+    { code: "RI", name: "Rhode Island" },
+    { code: "SC", name: "South Carolina" },
+    { code: "SD", name: "South Dakota" },
+    { code: "TN", name: "Tennessee" },
+    { code: "TX", name: "Texas" },
+    { code: "UT", name: "Utah" },
+    { code: "VT", name: "Vermont" },
+    { code: "VA", name: "Virginia" },
+    { code: "WA", name: "Washington" },
+    { code: "WV", name: "West Virginia" },
+    { code: "WI", name: "Wisconsin" },
+    { code: "WY", name: "Wyoming" },
+  ];
+
+  const formatPostalCode = (value: string) => {
+    return value.replace(/\D/g, "").slice(0, 5);
+  };
+
+  const normalizeCountry = (value: string) => {
+    const cleaned = value.replace(/[^a-zA-Z]/g, "").toUpperCase();
+    if (!cleaned) return "";
+    if (cleaned === "USA") return "US";
+    if (cleaned === "US") return "US";
+    return "US";
+  };
+
+  const handlePostalCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    updateBilling({ postalCode: formatPostalCode(e.target.value) });
+  };
+
+  const handleCountryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    updateBilling({ country: normalizeCountry(e.target.value) });
   };
 
   return (
@@ -118,10 +237,13 @@ const CustomerInfoForm = ({ value, onChange }: Props) => {
               <span className="text-[var(--color-footer)]/50">(optional)</span>
             </span>
             <input
+              type="tel"
+              inputMode="numeric"
+              autoComplete="tel"
               className="rounded-xl border border-black/10 bg-neutral-100 px-4 py-3 text-[var(--color-footer)] placeholder:text-[var(--color-footer)]/35 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-gold)]"
               value={local.phone || ""}
-              onChange={(e) => update({ phone: e.target.value })}
-              placeholder="444-444-4444"
+              onChange={handlePhoneChange}
+              placeholder="(444) 444-4444"
             />
           </label>
         </div>
@@ -181,13 +303,21 @@ const CustomerInfoForm = ({ value, onChange }: Props) => {
 
               <label className="flex flex-col">
                 <span className="mb-1.5 text-sm font-medium text-[var(--color-footer)]">
-                  State / Province
+                  State
                 </span>
-                <input
+                <select
                   className="rounded-xl border border-black/10 bg-neutral-100 px-4 py-3 text-[var(--color-footer)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-gold)]"
                   value={local.billingAddress?.state || ""}
                   onChange={(e) => updateBilling({ state: e.target.value })}
-                />
+                >
+                  <option value="">Select state</option>
+                  <option value="TX">Texas (TX)</option>
+                  {US_STATES.map((state) => (
+                    <option key={state.code} value={state.code}>
+                      {state.name} ({state.code})
+                    </option>
+                  ))}
+                </select>
               </label>
 
               <label className="flex flex-col">
@@ -195,11 +325,14 @@ const CustomerInfoForm = ({ value, onChange }: Props) => {
                   Postal code
                 </span>
                 <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="postal-code"
+                  maxLength={5}
                   className="rounded-xl border border-black/10 bg-neutral-100 px-4 py-3 text-[var(--color-footer)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-gold)]"
                   value={local.billingAddress?.postalCode || ""}
-                  onChange={(e) =>
-                    updateBilling({ postalCode: e.target.value })
-                  }
+                  onChange={handlePostalCodeChange}
+                  placeholder="78520"
                 />
               </label>
 
@@ -208,9 +341,13 @@ const CustomerInfoForm = ({ value, onChange }: Props) => {
                   Country
                 </span>
                 <input
+                  type="text"
+                  inputMode="text"
+                  autoComplete="country"
+                  maxLength={3}
                   className="rounded-xl border border-black/10 bg-neutral-100 px-4 py-3 text-[var(--color-footer)] placeholder:text-[var(--color-footer)]/35 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-gold)]"
                   value={local.billingAddress?.country || ""}
-                  onChange={(e) => updateBilling({ country: e.target.value })}
+                  onChange={handleCountryChange}
                   placeholder="US"
                 />
               </label>

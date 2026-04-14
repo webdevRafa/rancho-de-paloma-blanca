@@ -1660,9 +1660,6 @@ export default function CheckoutPage() {
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-footer)]/60">
                     Order Breakdown
                   </p>
-                  <h3 className="mt-1 text-xl font-acumin text-[var(--color-footer)]">
-                    Line items
-                  </h3>
                 </div>
 
                 {/* Mobile cards */}
