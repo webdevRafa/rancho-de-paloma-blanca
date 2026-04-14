@@ -7,7 +7,6 @@ import type {
   SeasonConfig,
   PricingWindow,
   Availability,
-  BookingStatus,
 } from "../types/Types";
 import gsignup from "../assets/google-signup.png";
 import { useNavigate } from "react-router-dom";
@@ -644,64 +643,6 @@ const BookingForm = () => {
     );
   }
 
-  const handleContinueToMerch = () => {
-    if (!user) {
-      alert("Please sign in with Google first.");
-      return;
-    }
-    if (!seasonConfig) {
-      alert("Season configuration not loaded. Please try again later.");
-      return;
-    }
-    const invalidDates = getInvalidSelectedDates();
-    if (invalidDates.length > 0) {
-      alert(
-        `These selected dates are outside the active season: ${invalidDates.join(
-          ", "
-        )}`
-      );
-      return;
-    }
-    if (backTheBlueSelected && !backTheBlueAccepted) {
-      setStep(2);
-      setShowBackTheBlueDisclaimer(true);
-      return;
-    }
-
-    if (form.dates.length === 0) {
-      alert("Please select at least one date.");
-      return;
-    }
-
-    // Commit hunters before computing price or navigating
-    commitHunters();
-
-    // Enforce attendee names before proceeding to merch
-    if (blockIfNamesMissing()) return;
-
-    const price = calculateTotalPrice();
-
-    const booking: Omit<NewBooking, "createdAt"> = {
-      userId: user.uid,
-      name: user.displayName || "Unknown",
-      email: user.email || "No email",
-      phone: form.phone,
-      backTheBlueAccepted,
-      dates: form.dates,
-      numberOfHunters: form.numberOfHunters,
-      partyDeckDates: form.partyDeckDates,
-      price,
-      status: "pending" as BookingStatus,
-      attendees: attendees.map((a) => ({
-        fullName: a.fullName.trim(),
-        waiverSigned: false,
-      })),
-    };
-
-    setBooking(booking);
-    navigate("/merch");
-  };
-
   return (
     <div className="max-w-2xl lg:w-[1000px] mx-auto mt-15 bg-white/95  p-8  shadow-2xl text-[var(--color-text)]">
       <h2 className="text-3xl font-gin mb-0 text-center text-[var(--color-footer)] bg-neutral-100 py-1">
@@ -781,210 +722,276 @@ const BookingForm = () => {
 
         {step === 3 && (
           <>
-            <div className="text-sm text-[var(--color-footer)] space-y-3">
-              <p>
-                Hunters: <strong>{form.numberOfHunters}</strong>
-              </p>
+            <div className="space-y-5">
+              {/* Booking overview */}
+              <section className="overflow-hidden rounded-2xl border border-black/10 bg-white shadow-[0_10px_30px_rgba(0,0,0,0.05)]">
+                <div className="border-b border-black/5 bg-neutral-50 px-5 py-4 md:px-6">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-footer)]/60">
+                    Booking Overview
+                  </p>
+                  <h3 className="mt-1 text-xl font-acumin text-[var(--color-footer)]">
+                    Review your hunt details
+                  </h3>
+                </div>
 
-              <div>
-                <p className="mb-1">
-                  Dates: <strong>{getSelectedDatesSummary(form.dates)}</strong>
-                </p>
-
-                {form.dates.length > 0 && (
-                  <>
-                    {getSelectedDatesMeta(form.dates) && (
-                      <p className="text-xs text-[var(--color-footer)] mb-2">
-                        {getSelectedDatesMeta(form.dates)}
+                <div className="px-5 py-5 md:px-6">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="rounded-xl border border-black/5 bg-neutral-50 p-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-footer)]/55">
+                        Hunters
                       </p>
-                    )}
+                      <p className="mt-2 text-2xl font-bold text-[var(--color-footer)]">
+                        {form.numberOfHunters}
+                      </p>
+                    </div>
 
-                    <div className="flex flex-wrap gap-2">
+                    <div className="rounded-xl border border-black/5 bg-neutral-50 p-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-footer)]/55">
+                        Selected Dates
+                      </p>
+                      <p className="mt-2 text-base font-semibold text-[var(--color-footer)]">
+                        {getSelectedDatesSummary(form.dates)}
+                      </p>
+                      {getSelectedDatesMeta(form.dates) && (
+                        <p className="mt-1 text-xs text-[var(--color-footer)]/65">
+                          {getSelectedDatesMeta(form.dates)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {form.dates.length > 0 && (
+                    <div className="mt-4 flex flex-wrap gap-2">
                       {sortIsoDates(form.dates).map((date) => (
                         <span
                           key={date}
-                          className="inline-flex items-center rounded-full bg-neutral-100 border border-black/10 px-3 py-1 text-xs font-medium text-[var(--color-footer)]"
+                          className="inline-flex items-center rounded-full border border-black/10 bg-white px-3 py-1 text-xs font-medium text-[var(--color-footer)] shadow-sm"
                         >
                           {formatFriendlyDate(date)}
                         </span>
                       ))}
                     </div>
-                  </>
-                )}
-              </div>
-            </div>
-            {backTheBlueSelected && (
-              <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-4 md:px-5">
-                <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-                  <img
-                    src={backTheBlueFlyer}
-                    alt="Back the Blue Dove Hunt flyer"
-                    className="h-24 w-24 rounded-xl object-cover border border-blue-200/80 shadow-sm"
-                  />
-
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-800/70">
-                      {backTheBlueWindow?.label || "Special Event"}
-                    </p>
-
-                    <p className="mt-1 text-sm font-semibold text-blue-950">
-                      October 3rd booking selected
-                    </p>
-
-                    <p className="mt-2 text-sm leading-6 text-blue-900">
-                      {backTheBlueWindow?.disclaimerBody ||
-                        "By selecting October 3rd, 2026, you confirm that all hunters on this booking qualify as first responders. Proof will be required at check-in. Anyone unable to provide proof will be turned away with no refund."}
-                    </p>
-
-                    <button
-                      type="button"
-                      onClick={() => setShowBackTheBlueDisclaimer(true)}
-                      className="mt-3 inline-flex items-center rounded-md border border-blue-300 bg-white px-3 py-2 text-xs font-semibold text-blue-900 hover:bg-blue-100 transition"
-                    >
-                      View event flyer
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Attendees full-name capture */}
-            <div className="mt-4 border-t border-[var(--color-footer)] pt-4">
-              <p className="mb-2 text-[var(--color-footer)] text-sm font-semibold">
-                Enter full names for all attendees
-              </p>
-              <div className="space-y-2">
-                {attendees.map((a, i) => (
-                  <label key={i} className="block">
-                    <span className="text-xs text-[var(--color-footer)]/80">
-                      {i === 0 ? "Lead (you)" : `Attendee ${i + 1}`}
-                    </span>
-                    <input
-                      type="text"
-                      value={a.fullName}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setAttendees((prev) => {
-                          const next = [...prev];
-                          next[i] = { ...next[i], fullName: v };
-                          return next;
-                        });
-                      }}
-                      placeholder="First Last"
-                      className="mt-1 w-full bg-neutral-200 text-[var(--color-footer)] px-4 py-3 rounded-md placeholder:text-[var(--color-footer)]/40 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-gold)]"
-                    />
-                  </label>
-                ))}
-              </div>
-              {!attendeeNamesComplete && (
-                <p className="mt-2 text-xs text-red-600">
-                  Please provide a full name (first & last) for each attendee.
-                </p>
-              )}
-            </div>
-
-            {form.dates.length > 0 && (
-              <div className="mt-4 border-t border-[var(--color-footer)] pt-4">
-                <div className="flex items-center gap-2">
-                  <p className="mb-2 text-[var(--color-footer)] text-sm font-semibold">
-                    Add Party Deck ($500/day):
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setShowPartyDeck(true)}
-                    className="text-md flex items-center px-2 py-1 text-white border-2  bg-[var(--color-background)] hover:bg-[var(--color-accent-sage)] rounded-md  font-acumin transition"
-                    aria-label="Preview Party Deck details and photos"
-                  >
-                    Preview <MdOutlinePreview className="size-5" />
-                  </button>
-                </div>
-                <div className="space-y-2">
-                  {form.dates.map((date) => {
-                    const availabilityKnown = date in deckAvailability;
-                    const isAvailable = deckAvailability[date] === true;
-                    const checked = form.partyDeckDates.includes(date);
-
-                    return (
-                      <label
-                        key={date}
-                        className={`flex items-center gap-2 text-sm ${
-                          !availabilityKnown || !isAvailable ? "opacity-70" : ""
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          disabled={!availabilityKnown || !isAvailable}
-                          checked={checked}
-                          onChange={() => togglePartyDeckDate(date)}
-                          className="accent-[var(--color-accent-gold)]"
-                        />
-
-                        <span className="text-[var(--color-footer)]">
-                          {formatFriendlyDate(date)}{" "}
-                          {!availabilityKnown
-                            ? "(checking...)"
-                            : !isAvailable
-                            ? "(unavailable)"
-                            : ""}
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {seasonConfig && (
-              <div className="mt-6 rounded-2xl border border-[var(--color-accent-gold)]/30 bg-[var(--color-accent-gold)]/10 p-4 md:p-5">
-                <div className="mb-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-footer)]/65">
-                    Booking Summary
-                  </p>
-                </div>
-
-                <div className="space-y-2 text-sm text-[var(--color-footer)]">
-                  <div className="flex items-center justify-between gap-4">
-                    <span>Hunt subtotal</span>
-                    <span className="font-semibold">
-                      ${calculateHuntSubtotal()}
-                    </span>
-                  </div>
-
-                  {form.partyDeckDates.length > 0 && (
-                    <div className="flex items-start justify-between gap-4">
-                      <span>
-                        Party Deck
-                        <span className="block text-xs text-[var(--color-footer)]/65">
-                          {form.partyDeckDates.length} day
-                          {form.partyDeckDates.length > 1 ? "s" : ""} × $
-                          {seasonConfig.partyDeckRatePerDay}
-                        </span>
-                      </span>
-                      <span className="font-semibold">
-                        $
-                        {seasonConfig.partyDeckRatePerDay *
-                          form.partyDeckDates.length}
-                      </span>
-                    </div>
                   )}
                 </div>
+              </section>
 
-                <div className="my-4 h-px bg-[var(--color-footer)]/15" />
+              {/* Back the Blue event card */}
+              {backTheBlueSelected && (
+                <section className="overflow-hidden rounded-2xl border border-blue-200 bg-blue-50 shadow-[0_10px_30px_rgba(37,99,235,0.08)]">
+                  <div className="border-b border-blue-200/70 bg-blue-100/50 px-5 py-4 md:px-6">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-900/60">
+                      {backTheBlueWindow?.label || "Special Event"}
+                    </p>
+                    <h3 className="mt-1 text-lg font-acumin text-blue-950">
+                      Back the Blue event booking selected
+                    </h3>
+                  </div>
 
-                <div className="flex items-center justify-between gap-4 rounded-xl bg-[var(--color-accent-gold)]/20 px-4 py-3">
-                  <span className="text-base font-semibold text-[var(--color-footer)]">
-                    Total due today
-                  </span>
-                  <span className="text-2xl font-bold text-[var(--color-footer)]">
-                    ${calculateTotalPrice()}
-                  </span>
+                  <div className="px-5 py-5 md:px-6">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                      <img
+                        src={backTheBlueFlyer}
+                        alt="Back the Blue Dove Hunt flyer"
+                        className="h-24 w-24 rounded-xl border border-blue-200/80 object-cover shadow-sm"
+                      />
+
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm leading-7 text-blue-900">
+                          {backTheBlueWindow?.disclaimerBody ||
+                            "By selecting October 3rd, 2026, you confirm that all hunters on this booking qualify as first responders. Proof will be required at check-in. Anyone unable to provide proof will be turned away with no refund."}
+                        </p>
+
+                        <button
+                          type="button"
+                          onClick={() => setShowBackTheBlueDisclaimer(true)}
+                          className="mt-4 inline-flex items-center rounded-md border border-blue-300 bg-white px-4 py-2 text-sm font-semibold text-blue-900 transition hover:bg-blue-100"
+                        >
+                          View event flyer
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              )}
+
+              {/* Attendees */}
+              <section className="overflow-hidden rounded-2xl border border-black/10 bg-white shadow-[0_10px_30px_rgba(0,0,0,0.05)]">
+                <div className="border-b border-black/5 bg-neutral-50 px-5 py-4 md:px-6">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-footer)]/60">
+                    Attendees
+                  </p>
+                  <h3 className="mt-1 text-xl font-acumin text-[var(--color-footer)]">
+                    Enter full names for all attendees
+                  </h3>
                 </div>
 
-                <p className="mt-3 text-center text-xs italic text-[var(--color-footer)]/80">
-                  Your hunt will be reserved after checkout is completed.
-                </p>
-              </div>
-            )}
+                <div className="space-y-3 px-5 py-5 md:px-6">
+                  {attendees.map((a, i) => (
+                    <label key={i} className="block">
+                      <span className="text-xs font-medium text-[var(--color-footer)]/75">
+                        {i === 0 ? "Lead (you)" : `Attendee ${i + 1}`}
+                      </span>
+                      <input
+                        type="text"
+                        value={a.fullName}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setAttendees((prev) => {
+                            const next = [...prev];
+                            next[i] = { ...next[i], fullName: v };
+                            return next;
+                          });
+                        }}
+                        placeholder="First Last"
+                        className="mt-1 w-full rounded-xl border border-black/10 bg-neutral-100 px-4 py-3 text-[var(--color-footer)] placeholder:text-[var(--color-footer)]/40 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-gold)]"
+                      />
+                    </label>
+                  ))}
+
+                  {!attendeeNamesComplete && (
+                    <p className="pt-1 text-xs text-red-600">
+                      Please provide a full name (first & last) for each
+                      attendee.
+                    </p>
+                  )}
+                </div>
+              </section>
+
+              {/* Party Deck */}
+              {form.dates.length > 0 && (
+                <section className="overflow-hidden rounded-2xl border border-black/10 bg-white shadow-[0_10px_30px_rgba(0,0,0,0.05)]">
+                  <div className="border-b border-black/5 bg-neutral-50 px-5 py-4 md:px-6">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-footer)]/60">
+                          Add-On Option
+                        </p>
+                        <h3 className="mt-1 text-xl font-acumin text-[var(--color-footer)]">
+                          Party Deck
+                        </h3>
+                        <p className="mt-1 text-sm text-[var(--color-footer)]/70">
+                          Optional add-on at $500 per reserved day.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowPartyDeck(true)}
+                        className="inline-flex items-center justify-center gap-2 rounded-md border border-[var(--color-footer)] bg-[var(--color-footer)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--color-button-hover)]"
+                        aria-label="Preview Party Deck details and photos"
+                      >
+                        Preview <MdOutlinePreview className="size-5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 px-5 py-5 md:px-6">
+                    {form.dates.map((date) => {
+                      const availabilityKnown = date in deckAvailability;
+                      const isAvailable = deckAvailability[date] === true;
+                      const checked = form.partyDeckDates.includes(date);
+
+                      return (
+                        <label
+                          key={date}
+                          className={`flex items-center justify-between gap-4 rounded-xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm ${
+                            !availabilityKnown || !isAvailable
+                              ? "opacity-70"
+                              : ""
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              disabled={!availabilityKnown || !isAvailable}
+                              checked={checked}
+                              onChange={() => togglePartyDeckDate(date)}
+                              className="accent-[var(--color-accent-gold)]"
+                            />
+
+                            <span className="text-[var(--color-footer)]">
+                              {formatFriendlyDate(date)}
+                            </span>
+                          </div>
+
+                          <span className="text-xs font-medium text-[var(--color-footer)]/65">
+                            {!availabilityKnown
+                              ? "Checking..."
+                              : !isAvailable
+                              ? "Unavailable"
+                              : "$500/day"}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+
+              {/* Summary */}
+              {seasonConfig && (
+                <section className="overflow-hidden rounded-2xl border border-[var(--color-accent-gold)]/30 bg-[var(--color-accent-gold)]/10 shadow-[0_12px_35px_rgba(0,0,0,0.06)]">
+                  <div className="border-b border-[var(--color-footer)]/10 px-5 py-4 md:px-6">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-footer)]/65">
+                      Booking Summary
+                    </p>
+                    <h3 className="mt-1 text-xl font-acumin text-[var(--color-footer)]">
+                      Final payment breakdown
+                    </h3>
+                  </div>
+
+                  <div className="px-5 py-5 md:px-6">
+                    <div className="space-y-3 text-sm text-[var(--color-footer)]">
+                      <div className="flex items-center justify-between gap-4">
+                        <span>Hunt subtotal</span>
+                        <span className="font-semibold">
+                          ${calculateHuntSubtotal()}
+                        </span>
+                      </div>
+
+                      {form.partyDeckDates.length > 0 && (
+                        <div className="flex items-start justify-between gap-4">
+                          <span>
+                            Party Deck
+                            <span className="block text-xs text-[var(--color-footer)]/65">
+                              {form.partyDeckDates.length} day
+                              {form.partyDeckDates.length > 1 ? "s" : ""} × $
+                              {seasonConfig.partyDeckRatePerDay}
+                            </span>
+                          </span>
+                          <span className="font-semibold">
+                            $
+                            {seasonConfig.partyDeckRatePerDay *
+                              form.partyDeckDates.length}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="my-5 h-px bg-[var(--color-footer)]/12" />
+
+                    <div className="flex items-center justify-between gap-4 rounded-2xl bg-[var(--color-accent-gold)]/20 px-4 py-4">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-footer)]/65">
+                          Total due today
+                        </p>
+                        <p className="mt-1 text-sm text-[var(--color-footer)]/75">
+                          Secure your booking at checkout
+                        </p>
+                      </div>
+
+                      <span className="text-3xl font-bold text-[var(--color-footer)]">
+                        ${calculateTotalPrice()}
+                      </span>
+                    </div>
+
+                    <p className="mt-4 text-center text-xs italic text-[var(--color-footer)]/80">
+                      Your hunt will be reserved after checkout is completed.
+                    </p>
+                  </div>
+                </section>
+              )}
+            </div>
           </>
         )}
 
@@ -1009,31 +1016,20 @@ const BookingForm = () => {
             </>
           ) : (
             <>
-              <div className="flex  w-full items-center justify-center">
-                <div className="w-full">
-                  <button
-                    onClick={handlePrevStep}
-                    className="text-xs mx-auto px-6 p-2 block text-[var(--color-button)] font-bold hover:underline"
-                  >
-                    ← Back
-                  </button>
-                </div>
-                <div className="w-full hidden">
-                  <button
-                    className="bg-[var(--color-accent-gold)] mx-auto block hover:bg-[var(--color-accent-gold)]/80 text-[var(--color-footer)] transition duration-300 ease-in-out font-bold shadow-md px-6 p-2 text-xs"
-                    onClick={handleContinueToMerch}
-                  >
-                    Merch
-                  </button>
-                </div>
-                <div className="w-full">
-                  <button
-                    onClick={handleSubmit}
-                    className="bg-[var(--color-button-hover)] md:bg-[var(--color-footer)] mx-auto block hover:bg-[var(--color-button-hover)] border border-[var(--color-button-hover)] font-bold text-white px-6 py-2  text-xs tracking-wide transition-all"
-                  >
-                    Checkout
-                  </button>
-                </div>
+              <div className="mt-2 grid w-full gap-3 sm:grid-cols-2">
+                <button
+                  onClick={handlePrevStep}
+                  className="order-2 inline-flex items-center justify-center rounded-md border border-[var(--color-footer)]/15 bg-white px-6 py-3 text-sm font-semibold text-[var(--color-footer)] transition hover:bg-neutral-50 sm:order-1"
+                >
+                  ← Back
+                </button>
+
+                <button
+                  onClick={handleSubmit}
+                  className="order-1 inline-flex items-center justify-center rounded-md border border-[var(--color-footer)] bg-[var(--color-footer)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[var(--color-button-hover)] sm:order-2"
+                >
+                  Checkout
+                </button>
               </div>
             </>
           )}

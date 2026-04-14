@@ -1563,113 +1563,236 @@ export default function CheckoutPage() {
             </div>
           </section>
         )}
-
         {/* Step 2: Review Order */}
         {step === 2 && (
-          <section className="mb-8 p-4 rounded-xl border bg-neutral-100">
-            <h2 className="text-xl mb-4 font-acumin">Review Your Order</h2>
-            {/* Summary details */}
-            <div className="mb-4 p-3 rounded-lg border bg-white/70">
-              <div className="grid sm:grid-cols-3 gap-3">
-                <div>
-                  <div className="text-[11px] uppercase tracking-wide opacity-60">
-                    Hunters
-                  </div>
-                  <div className="font-semibold">
-                    {booking?.numberOfHunters ?? 0}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[11px] uppercase tracking-wide opacity-60">
-                    Days
-                  </div>
-                  <div className="font-semibold">
-                    {booking?.dates?.length ?? 0}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[11px] uppercase tracking-wide opacity-60">
-                    Dates
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {dateRangeLabels.map((label, i) => (
-                      <span
-                        key={i}
-                        className="inline-block px-2 py-1 rounded-full bg-neutral-100 border text-xs"
-                        title={label}
-                      >
-                        {label}
-                      </span>
-                    ))}
-                    {dateRangeLabels.length === 0 && (
-                      <span className="text-xs opacity-70">—</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-              {booking?.partyDeckDates?.length ? (
-                <div className="mt-3 text-xs">
-                  <span className="opacity-60 mr-1">Party Deck:</span>
-                  <span className="font-medium">
-                    {partyDeckRangeLabels.join(", ")}
-                  </span>
-                </div>
-              ) : null}
+          <section className="mb-8 overflow-hidden rounded-2xl border border-black/10 bg-neutral-100 shadow-[0_20px_50px_rgba(0,0,0,0.10)]">
+            <div className="border-b border-black/5 bg-white/70 px-5 py-4 md:px-6">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-footer)]/60">
+                Checkout
+              </p>
+              <h2 className="mt-1 text-2xl font-acumin text-[var(--color-footer)] md:text-3xl">
+                Review your order
+              </h2>
+              <p className="mt-1 text-sm text-[var(--color-footer)]/70">
+                Confirm your hunt details and payment breakdown before
+                continuing to secure payment.
+              </p>
             </div>
-            {/* Line items */}
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="py-2 text-left">Item</th>
-                    <th className="py-2 text-right">Qty</th>
-                    <th className="py-2 text-right">Unit</th>
-                    <th className="py-2 text-right">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
+
+            <div className="space-y-5 px-5 py-5 md:px-6 md:py-6">
+              {/* Booking overview */}
+              <section className="overflow-hidden rounded-2xl border border-black/10 bg-white shadow-[0_10px_30px_rgba(0,0,0,0.05)]">
+                <div className="border-b border-black/5 bg-neutral-50 px-4 py-4 md:px-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-footer)]/60">
+                    Booking Overview
+                  </p>
+                  <h3 className="mt-1 text-xl font-acumin text-[var(--color-footer)]">
+                    Review your hunt details
+                  </h3>
+                </div>
+
+                <div className="px-4 py-5 md:px-5">
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="rounded-xl border border-black/5 bg-neutral-50 p-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-footer)]/55">
+                        Hunters
+                      </p>
+                      <p className="mt-2 text-2xl font-bold text-[var(--color-footer)]">
+                        {booking?.numberOfHunters ?? 0}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-black/5 bg-neutral-50 p-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-footer)]/55">
+                        Days
+                      </p>
+                      <p className="mt-2 text-2xl font-bold text-[var(--color-footer)]">
+                        {booking?.dates?.length ?? 0}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-black/5 bg-neutral-50 p-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-footer)]/55">
+                        Dates
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {dateRangeLabels.map((label, i) => (
+                          <span
+                            key={i}
+                            className="inline-flex items-center rounded-full border border-black/10 bg-white px-3 py-1 text-xs font-medium text-[var(--color-footer)] shadow-sm"
+                            title={label}
+                          >
+                            {label}
+                          </span>
+                        ))}
+                        {dateRangeLabels.length === 0 && (
+                          <span className="text-xs text-[var(--color-footer)]/60">
+                            —
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {booking?.partyDeckDates?.length ? (
+                    <div className="mt-4 rounded-xl border border-black/5 bg-neutral-50 p-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-footer)]/55">
+                        Party Deck
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {partyDeckRangeLabels.map((label, i) => (
+                          <span
+                            key={i}
+                            className="inline-flex items-center rounded-full border border-black/10 bg-white px-3 py-1 text-xs font-medium text-[var(--color-footer)] shadow-sm"
+                          >
+                            {label}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </section>
+
+              {/* Line items */}
+              <section className="overflow-hidden rounded-2xl border border-black/10 bg-white shadow-[0_10px_30px_rgba(0,0,0,0.05)]">
+                <div className="border-b border-black/5 bg-neutral-50 px-4 py-4 md:px-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-footer)]/60">
+                    Order Breakdown
+                  </p>
+                  <h3 className="mt-1 text-xl font-acumin text-[var(--color-footer)]">
+                    Line items
+                  </h3>
+                </div>
+
+                {/* Mobile cards */}
+                <div className="space-y-3 p-4 md:hidden">
                   {reviewProducts.map((item, idx) => (
-                    <tr key={idx} className="border-b last:border-0">
-                      <td className="py-2 pr-2 font-medium">{item.name}</td>
-                      <td className="py-2 text-right">{item.quantity}</td>
-                      <td className="py-2 text-right">
-                        ${item.unit.toFixed(2)}
-                      </td>
-                      <td className="py-2 text-right">
-                        ${item.extended.toFixed(2)}
-                      </td>
-                    </tr>
+                    <div
+                      key={idx}
+                      className="rounded-xl border border-black/10 bg-neutral-50 p-4"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <p className="text-base font-semibold text-[var(--color-footer)]">
+                            {item.name}
+                          </p>
+                          <p className="mt-2 text-sm text-[var(--color-footer)]/65">
+                            Qty: {item.quantity}
+                          </p>
+                          <p className="text-sm text-[var(--color-footer)]/65">
+                            Unit: ${item.unit.toFixed(2)}
+                          </p>
+                        </div>
+
+                        <div className="shrink-0 text-right">
+                          <p className="text-base font-semibold text-[var(--color-footer)]">
+                            ${item.extended.toFixed(2)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            </div>
-            {/* Total */}
-            <div className="mt-4 flex justify-end">
-              <div className="text-lg mr-2">Total</div>
-              <div className="text-2xl font-bold">${amount.toFixed(2)}</div>
-            </div>
-            {/* Buttons */}
-            <div className="mt-6 flex flex-wrap gap-3 justify-between">
-              <button
-                onClick={() => setStep(1)}
-                className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50"
-              >
-                Back
-              </button>
-              <div className="flex gap-3">
+                </div>
+
+                {/* Desktop table */}
+                <div className="hidden overflow-x-auto md:block">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-black/10 bg-white">
+                        <th className="px-5 py-3 text-left font-semibold text-[var(--color-footer)]">
+                          Item
+                        </th>
+                        <th className="px-5 py-3 text-right font-semibold text-[var(--color-footer)]">
+                          Qty
+                        </th>
+                        <th className="px-5 py-3 text-right font-semibold text-[var(--color-footer)]">
+                          Unit
+                        </th>
+                        <th className="px-5 py-3 text-right font-semibold text-[var(--color-footer)]">
+                          Amount
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reviewProducts.map((item, idx) => (
+                        <tr
+                          key={idx}
+                          className="border-b border-black/5 last:border-0"
+                        >
+                          <td className="px-5 py-4 pr-2 font-medium text-[var(--color-footer)]">
+                            {item.name}
+                          </td>
+                          <td className="px-5 py-4 text-right text-[var(--color-footer)]">
+                            {item.quantity}
+                          </td>
+                          <td className="px-5 py-4 text-right text-[var(--color-footer)]">
+                            ${item.unit.toFixed(2)}
+                          </td>
+                          <td className="px-5 py-4 text-right font-semibold text-[var(--color-footer)]">
+                            ${item.extended.toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              {/* Total */}
+              <section className="overflow-hidden rounded-2xl border border-[var(--color-accent-gold)]/30 bg-[var(--color-accent-gold)]/10 shadow-[0_12px_35px_rgba(0,0,0,0.06)]">
+                <div className="border-b border-[var(--color-footer)]/10 px-4 py-4 md:px-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-footer)]/65">
+                    Payment Summary
+                  </p>
+                  <h3 className="mt-1 text-xl font-acumin text-[var(--color-footer)]">
+                    Final amount due
+                  </h3>
+                </div>
+
+                <div className="px-4 py-5 md:px-5">
+                  <div className="flex items-center justify-between gap-4 rounded-2xl bg-[var(--color-accent-gold)]/20 px-4 py-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-footer)]/65">
+                        Total
+                      </p>
+                      <p className="mt-1 text-sm text-[var(--color-footer)]/75">
+                        Charged securely at the next step
+                      </p>
+                    </div>
+
+                    <div className="text-3xl font-bold text-[var(--color-footer)]">
+                      ${amount.toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* Actions */}
+              <div className="grid gap-3 sm:grid-cols-2">
                 <button
-                  disabled={!canStart || isSubmitting}
-                  onClick={handleStartSecurePayment}
-                  className="px-4 py-2 rounded-lg bg-[var(--color-accent-sage)] text-white disabled:opacity-50"
+                  onClick={() => setStep(1)}
+                  className="order-2 inline-flex items-center justify-center rounded-md border border-[var(--color-footer)]/15 bg-white px-6 py-3 text-sm font-semibold text-[var(--color-footer)] transition hover:bg-neutral-50 sm:order-1"
                 >
-                  {isSubmitting ? "Starting…" : "Start secure payment"}
+                  ← Back
                 </button>
-                <button
-                  onClick={fallbackHostedCheckout}
-                  className="hidden px-4 py-2 rounded-lg bg-gray-700 text-white"
-                >
-                  Use hosted checkout
-                </button>
+
+                <div className="order-1 flex flex-col gap-3 sm:order-2">
+                  <button
+                    disabled={!canStart || isSubmitting}
+                    onClick={handleStartSecurePayment}
+                    className="inline-flex items-center justify-center rounded-md border border-[var(--color-footer)] bg-[var(--color-footer)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[var(--color-button-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isSubmitting ? "Starting…" : "Start secure payment"}
+                  </button>
+
+                  <button
+                    onClick={fallbackHostedCheckout}
+                    className="hidden rounded-md bg-gray-700 px-4 py-2 text-white"
+                  >
+                    Use hosted checkout
+                  </button>
+                </div>
               </div>
             </div>
           </section>
