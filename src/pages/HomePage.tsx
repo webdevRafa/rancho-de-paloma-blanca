@@ -215,7 +215,7 @@ const HomePage = () => {
             onClick={dismissPromo}
           >
             <div
-              className="promo-modal-shell absolute inset-0 flex items-start justify-center p-3 sm:p-4 lg:items-center lg:p-6"
+              className="promo-modal-shell  absolute inset-0 flex items-start justify-center p-3 sm:p-4 lg:items-center lg:p-6"
               onClick={(e) => e.stopPropagation()}
             >
               <motion.div
@@ -223,34 +223,31 @@ const HomePage = () => {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 20, scale: 0.985 }}
                 transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                className="promo-modal-card relative flex w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[var(--color-footer)] text-white shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
+                className="promo-modal-card relative flex w-full max-w-5xl flex-col overflow-hidden border border-white/10 bg-[var(--color-footer)] text-white shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
               >
                 <button
                   type="button"
                   onClick={dismissPromo}
                   aria-label="Close event modal"
-                  className="absolute right-3 top-3 z-30 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/40 text-lg text-white/70 backdrop-blur transition hover:bg-black/70 hover:text-white hover:scale-105"
+                  className="absolute right-3 top-3 z-30 inline-flex h-10 w-10 items-center justify-center  text-4xl bg-[var(--color-background)] text-white/70  transition  hover:text-white hover:scale-105"
                 >
                   ×
                 </button>
 
                 <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                   {/* Flyer panel */}
-                  <div className="promo-flyer-panel flex min-h-0 flex-col border-b border-white/10 lg:border-r lg:border-b-0">
-                    <div className="promo-flyer-wrap p-3 sm:p-4 md:p-4 lg:px-5 lg:py-4">
-                      <div className="promo-flyer-frame relative mx-auto flex h-full items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-[#f8f8f8] shadow-[0_20px_60px_rgba(0,0,0,0.35)] lg:rounded-[22px]">
-                        {/* subtle glow */}
-                        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />
-
+                  <div className="promo-flyer-panel flex min-h-0 flex-col ">
+                    <div className=" ">
+                      <div className="relative mx-auto flex h-full items-start justify-center overflow-hidden   ">
                         <img
                           src={backTheBlueFlyer}
                           alt="2nd Annual Back the Blue Dove Hunt flyer"
-                          className="promo-flyer-image h-full w-full object-contain"
+                          className=" h-full w-full object-contain"
                         />
                       </div>
                     </div>
 
-                    <div className="hidden items-center justify-between gap-4 border-t border-white/10 bg-white/[0.03] px-5 py-4 lg:flex">
+                    <div className="hidden items-center justify-between gap-4 border-t border-white/10  px-5 py-4 lg:flex">
                       <div>
                         <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--color-accent-gold)]">
                           October 3rd, 2026
@@ -336,7 +333,7 @@ const HomePage = () => {
                           <button
                             type="button"
                             onClick={dismissPromo}
-                            className="promo-footer-secondary inline-flex w-full items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold transition sm:w-auto"
+                            className=" inline-flex cursor-pointer w-full items-center justify-center  px-6 py-1.5 text-sm font-semibold transition sm:w-auto text-white/80 hover:text-white"
                           >
                             Maybe later
                           </button>
@@ -344,7 +341,7 @@ const HomePage = () => {
                           <button
                             type="button"
                             onClick={handleBookEvent}
-                            className="promo-footer-primary inline-flex w-full items-center justify-center rounded-xl px-6 py-3.5 text-sm font-semibold transition sm:w-auto"
+                            className="bg-[var(--color-accent-gold)] hover:bg-[var(--color-accent-gold-hover)] text-[var(--color-background)] cursor-pointer inline-flex w-full items-center justify-center  px-6 py-1.5 text-sm font-semibold transition sm:w-auto"
                           >
                             Reserve your spot
                           </button>

@@ -21,6 +21,7 @@
   /* Accents */
   --color-accent-sage: #8FA27A;  /* Soft sage green */
   --color-accent-gold: #D9B56A;  /* Warm gold for highlights */
+  --color-accent-gold-hover: #ecca7f;  /* Warm gold for highlights */
 
   /* Typography Sizing (for Tailwind overrides) */
   --font-size-h1: 2.5rem;
