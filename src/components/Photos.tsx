@@ -124,7 +124,7 @@ const Photos = () => {
             <button
               key={i}
               onClick={() => open(i)}
-              className="flex-none w-[80vw] max-w-[520px] aspect-[16/10] snap-start overflow-hidden"
+              className="flex-none w-[80vw] max-w-[150px] aspect-[16/10] snap-start overflow-hidden"
               aria-label={`Open photo ${i + 1}`}
             >
               <img
@@ -138,7 +138,7 @@ const Photos = () => {
         </div>
 
         {/* Desktop */}
-        <div className="hidden md:grid md:grid-cols-5 gap-4">
+        <div className="hidden md:grid md:grid-cols-5 gap-4 max-w-5xl mx-auto">
           {images.map((src, i) => (
             <button
               key={i}
