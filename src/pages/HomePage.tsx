@@ -147,7 +147,7 @@ const HomePage = () => {
               booking—everything you need for a memorable South Texas hunt.
             </p>
 
-            <div className="flex items-center justify-center gap-2">
+            <div className="flex flex-col items-center justify-center gap-4">
               <a
                 data-aos="zoom-in"
                 data-aos-delay="300"
@@ -156,6 +156,38 @@ const HomePage = () => {
               >
                 Book Your Hunt
               </a>
+
+              {showPromoTeaser && !showBackTheBluePromo && (
+                <motion.button
+                  type="button"
+                  onClick={openPromo}
+                  initial={{ opacity: 0, y: 14, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 14, scale: 0.98 }}
+                  transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                  className="md:hidden w-full max-w-[340px] rounded-2xl border border-white/10 bg-[var(--color-footer)]/95 px-4 py-3 text-left shadow-2xl backdrop-blur"
+                >
+                  <div className="flex items-start gap-3">
+                    <img
+                      src={backTheBlueFlyer}
+                      alt="Back the Blue event flyer"
+                      className="h-14 w-14 rounded-lg border border-white/10 object-cover"
+                    />
+
+                    <div className="min-w-0">
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-accent-gold)]">
+                        October 3rd Event
+                      </p>
+                      <p className="mt-1 text-sm font-semibold leading-5 text-white">
+                        Back the Blue Dove Hunt
+                      </p>
+                      <p className="mt-1 text-xs text-white/70">
+                        First responder special event pricing
+                      </p>
+                    </div>
+                  </div>
+                </motion.button>
+              )}
             </div>
           </div>
         </div>
@@ -179,7 +211,7 @@ const HomePage = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 18, scale: 0.96 }}
             transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed right-4  z-[90] w-[calc(100%-2rem)] max-w-[340px] rounded-2xl border border-white/10 bg-[var(--color-footer)]/95 px-4 py-3 text-left shadow-2xl backdrop-blur bottom-[max(1rem,env(safe-area-inset-bottom))]"
+            className="hidden md:block fixed right-4 z-[90] w-[calc(100%-2rem)] max-w-[340px] rounded-2xl border border-white/10 bg-[var(--color-footer)]/95 px-4 py-3 text-left shadow-2xl backdrop-blur bottom-[max(1rem,env(safe-area-inset-bottom))]"
           >
             <div className="flex items-start gap-3">
               <img
