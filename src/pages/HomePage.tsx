@@ -211,7 +211,7 @@ const HomePage = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 18, scale: 0.96 }}
             transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-            className="hidden md:block fixed right-4 z-[90] w-[calc(100%-2rem)] cursor-pointer border-2 border-[var(--color-accent-gold)] max-w-[340px] bg-[var(--color-footer)] hover:bg-[var(--color-footer-hover)] px-4 py-3 text-left shadow-2xl backdrop-blur bottom-[max(1rem,env(safe-area-inset-bottom))]"
+            className="hidden md:block fixed right-4 z-[90] w-[calc(100%-2rem)] cursor-pointer border-2 border-[var(--color-accent-gold)] max-w-[340px] bg-[var(--color-footer)]  px-4 py-3 text-left shadow-2xl backdrop-blur bottom-[max(1rem,env(safe-area-inset-bottom))]"
           >
             <div className="flex items-start gap-3">
               <img
@@ -256,7 +256,7 @@ const HomePage = () => {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 18, scale: 0.985 }}
                 transition={{ duration: 0.58, ease: [0.16, 1, 0.3, 1] }}
-                className="relative my-3 flex w-full max-w-5xl flex-col overflow-hidden border border-white/10 bg-[var(--color-footer)] text-white shadow-[0_24px_80px_rgba(0,0,0,0.45)] max-lg:min-h-0 max-lg:max-h-[calc(100dvh-1.5rem)] lg:max-h-[100vh]"
+                className="relative my-3 flex w-full max-w-5xl flex-col overflow-hidden border-1 border-[var(--color-accent-gold)]/40 bg-[var(--color-footer)] text-white shadow-[0_24px_80px_rgba(0,0,0,0.45)] max-lg:min-h-0 max-lg:max-h-[calc(100dvh-1.5rem)] lg:max-h-[100vh]"
               >
                 <button
                   type="button"
