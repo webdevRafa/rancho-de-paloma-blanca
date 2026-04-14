@@ -1160,7 +1160,7 @@ const BookingForm = () => {
                 transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
               >
                 <div className="min-h-0 flex-1 overflow-y-auto">
-                  <div className="grid min-h-0 lg:grid-cols-[0.9fr_1.1fr]">
+                  <div className="grid h-full min-h-0 lg:grid-cols-[0.9fr_1.1fr]">
                     <div className="bg-neutral-100 p-3 sm:p-4 lg:p-0">
                       {/* Mobile / tablet preview */}
                       <div className="lg:hidden">
@@ -1191,8 +1191,8 @@ const BookingForm = () => {
                       </div>
                     </div>
 
-                    <div className="flex min-h-0 flex-col">
-                      <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-5 pb-4 sm:px-6 sm:pt-6 sm:pb-5 md:px-8 md:pb-6">
+                    <div className="flex min-h-0 flex-col max-lg:min-h-0">
+                      <div className="min-h-0 flex-1 px-5 pt-5 pb-24 sm:px-6 sm:pt-6 sm:pb-5 md:px-8 md:pb-6 lg:pb-6">
                         <div className="mb-5">
                           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-footer)]/60">
                             {backTheBlueWindow?.label || "Special Event Notice"}
@@ -1246,7 +1246,7 @@ const BookingForm = () => {
                         </p>
                       </div>
 
-                      <div className="shrink-0 border-t border-black/10 bg-white/95 px-5 py-4 backdrop-blur sm:px-6 md:px-8">
+                      <div className="shrink-0 border-t border-black/10 bg-white/95 px-5 py-4 backdrop-blur shadow-[0_-10px_30px_rgba(0,0,0,0.08)] max-lg:sticky max-lg:bottom-0 max-lg:z-10 sm:px-6 md:px-8">
                         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                           <button
                             type="button"
