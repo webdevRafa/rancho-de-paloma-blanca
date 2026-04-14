@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, useLocation } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import PropertyRules from "./pages/PropertyRules";
@@ -29,6 +29,8 @@ import RefundPage from "./pages/RefundPage";
 
 function App() {
   const { isHydrated } = useCart();
+  const location = useLocation();
+  const hideCartDrawer = location.pathname === "/checkout";
 
   useEffect(() => {
     AOS.init({
@@ -67,7 +69,7 @@ function App() {
           <Route path="/dev-add-docs" element={<DevSeed />} />
         </Routes>
         <Footer />
-        <CartDrawer />
+        {!hideCartDrawer && <CartDrawer />}
       </div>
       <ToastContainer position="top-center" />
     </>

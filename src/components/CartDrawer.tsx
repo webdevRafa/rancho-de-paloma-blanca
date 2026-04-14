@@ -295,7 +295,7 @@ const CartDrawer = () => {
           {isOpen ? (
             <>
               <div
-                className="fixed inset-0 bg-black/30 backdrop-blur-xs z-40"
+                className="fixed inset-0 bg-black/40 backdrop-blur-md z-40"
                 onClick={() => setIsOpen(false)}
               />
               <motion.div
@@ -303,13 +303,18 @@ const CartDrawer = () => {
                 animate={{ y: 0 }}
                 exit={{ y: "100%" }}
                 transition={{ duration: 0.4 }}
-                className="bg-neutral-100 max-w-2xl mx-auto rounded-t-lg shadow-xl pointer-events-auto z-50 relative"
+                className="bg-white max-w-2xl mx-auto rounded-t-2xl shadow-[0_-20px_60px_rgba(0,0,0,0.25)] pointer-events-auto z-50 relative border border-black/10"
               >
                 <div className="p-4">
                   <div className="flex justify-between items-center mb-2">
-                    <h3 className="text-lg font-bold font-acumin">
-                      Cart Summary
-                    </h3>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-black/50">
+                        Your Cart
+                      </p>
+                      <h3 className="text-xl font-acumin text-[var(--color-footer)]">
+                        Order Summary
+                      </h3>
+                    </div>
                     <div className="flex items-center gap-3">
                       <button
                         onClick={handleClearCart}
@@ -573,20 +578,26 @@ const CartDrawer = () => {
                     </div>
                   )}
 
-                  <div className="mt-3 flex items-center justify-between">
-                    <p className="font-bold text-lg bg-[var(--color-accent-gold)] px-2 rounded-sm shadow-sm">
-                      Total: ${total}
-                    </p>
+                  <div className="mt-5 border-t border-black/10 pt-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-black/50">
+                        Total
+                      </p>
+                      <p className="text-xl font-semibold text-[var(--color-footer)]">
+                        ${total}
+                      </p>
+                    </div>
+
                     <button
                       onClick={handleGoToCheckout}
                       disabled={hasViolations || hasMerchViolations}
-                      className={`ml-3 text-center py-3 px-4 rounded-md transition font-semibold ${
+                      className={`ml-3 px-5 py-3 rounded-lg font-semibold transition ${
                         hasViolations || hasMerchViolations
                           ? "bg-gray-400 text-white cursor-not-allowed"
-                          : "bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white"
+                          : "bg-[var(--color-footer)] text-white hover:bg-[var(--color-button-hover)]"
                       }`}
                     >
-                      Go to Checkout
+                      Checkout →
                     </button>
                   </div>
                 </div>
@@ -594,15 +605,27 @@ const CartDrawer = () => {
             </>
           ) : (
             <motion.button
-              initial={{ y: 100 }}
-              animate={{ y: 0 }}
-              exit={{ y: 100 }}
-              transition={{ duration: 0.3 }}
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 100, opacity: 0 }}
+              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.97 }}
               onClick={() => setIsOpen(true)}
-              className="pointer-events-auto flex items-center gap-3 mx-auto bg-[var(--color-accent-gold)] text-[var(--color-footer)] text-xs md:text-sm font-bold py-3 px-6 rounded-t-md shadow-lg"
+              className="pointer-events-auto mx-auto mb-2 flex items-center gap-3 rounded-md border border-black/10 bg-[var(--color-accent-gold)] px-5 py-3 shadow-xl backdrop-blur-md"
             >
-              <RiShoppingCartFill className="size-5" />
-              (${total})
+              <div className="flex items-center justify-center rounded-full bg-black/10 p-2">
+                <RiShoppingCartFill className="size-5 text-[var(--color-footer)]" />
+              </div>
+
+              <div className="flex flex-col leading-tight text-left">
+                <span className="text-[10px] uppercase tracking-wide text-[var(--color-footer)]/70">
+                  Cart Total
+                </span>
+                <span className="text-sm font-semibold text-[var(--color-footer)]">
+                  ${total}
+                </span>
+              </div>
             </motion.button>
           )}
         </AnimatePresence>
