@@ -72,7 +72,7 @@ const HomePage = () => {
 
     const timer = window.setTimeout(() => {
       setShowBackTheBluePromo(true);
-    }, 900);
+    }, 1250);
 
     return () => window.clearTimeout(timer);
   }, []);
@@ -212,6 +212,7 @@ const HomePage = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.42, ease: [0.16, 1, 0.3, 1] }}
             onClick={dismissPromo}
           >
             <div
@@ -219,10 +220,10 @@ const HomePage = () => {
               onClick={(e) => e.stopPropagation()}
             >
               <motion.div
-                initial={{ opacity: 0, y: 20, scale: 0.985 }}
+                initial={{ opacity: 0, y: 30, scale: 0.975 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 20, scale: 0.985 }}
-                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                exit={{ opacity: 0, y: 18, scale: 0.985 }}
+                transition={{ duration: 0.58, ease: [0.16, 1, 0.3, 1] }}
                 className="promo-modal-card relative flex w-full max-w-5xl flex-col overflow-hidden border border-white/10 bg-[var(--color-footer)] text-white shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
               >
                 <button
@@ -238,11 +239,11 @@ const HomePage = () => {
                   {/* Flyer panel */}
                   <div className="promo-flyer-panel flex min-h-0 flex-col ">
                     <div className=" ">
-                      <div className="relative mx-auto flex h-full items-start justify-center overflow-hidden   ">
+                      <div className="relative mx-auto flex h-full items-start justify-center overflow-hidden pb-3   ">
                         <img
                           src={backTheBlueFlyer}
                           alt="2nd Annual Back the Blue Dove Hunt flyer"
-                          className=" h-full w-full object-contain"
+                          className="max-h-[300px] lg:max-h-[800px] md:h-full w-full object-contain"
                         />
                       </div>
                     </div>
@@ -279,8 +280,8 @@ const HomePage = () => {
                         hunter.
                       </p>
 
-                      <div className="mt-6 grid gap-3 sm:grid-cols-3 lg:hidden">
-                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                        <div className="border border-white/10 bg-white/5 p-2">
                           <p className="text-[11px] uppercase tracking-[0.18em] text-white/55">
                             Date
                           </p>
@@ -289,7 +290,7 @@ const HomePage = () => {
                           </p>
                         </div>
 
-                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <div className="border border-white/10 bg-white/5 p-2">
                           <p className="text-[11px] uppercase tracking-[0.18em] text-white/55">
                             Location
                           </p>
@@ -298,7 +299,7 @@ const HomePage = () => {
                           </p>
                         </div>
 
-                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <div className=" border border-white/10 bg-white/5 p-2">
                           <p className="text-[11px] uppercase tracking-[0.18em] text-white/55">
                             Special Rate
                           </p>

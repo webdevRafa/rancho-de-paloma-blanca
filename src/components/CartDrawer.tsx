@@ -599,9 +599,9 @@ const CartDrawer = () => {
               exit={{ y: 100 }}
               transition={{ duration: 0.3 }}
               onClick={() => setIsOpen(true)}
-              className="pointer-events-auto flex items-center gap-3 mx-auto bg-[var(--color-accent-gold)] text-[var(--color-footer)] text-sm font-bold py-3 px-6 rounded-t-lg shadow-lg"
+              className="pointer-events-auto flex items-center gap-3 mx-auto bg-[var(--color-accent-gold)] text-[var(--color-footer)] text-xs md:text-sm font-bold py-3 px-6 rounded-t-md shadow-lg"
             >
-              <RiShoppingCartFill className="size-10" />
+              <RiShoppingCartFill className="size-5" />
               (${total})
             </motion.button>
           )}
