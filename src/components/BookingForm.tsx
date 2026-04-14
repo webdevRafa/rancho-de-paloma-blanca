@@ -18,6 +18,7 @@ import type { Attendee } from "../types/Types";
 import { motion, AnimatePresence } from "framer-motion";
 import PartyDeck from "./PartyDeck";
 import { MdOutlinePreview } from "react-icons/md";
+import backTheBlueFlyer from "../assets/images/btb_2026.png";
 
 const BookingForm = () => {
   const { user, login } = useAuth();
@@ -31,6 +32,8 @@ const BookingForm = () => {
   const BACK_THE_BLUE_DATE = "2026-10-03";
 
   const [showBackTheBlueDisclaimer, setShowBackTheBlueDisclaimer] =
+    useState(false);
+  const [showBackTheBlueFlyerViewer, setShowBackTheBlueFlyerViewer] =
     useState(false);
   const [backTheBlueAccepted, setBackTheBlueAccepted] = useState(false);
   const [showPartyDeckDisclaimer, setShowPartyDeckDisclaimer] = useState(false);
@@ -811,14 +814,37 @@ const BookingForm = () => {
               </div>
             </div>
             {backTheBlueSelected && (
-              <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-800/70">
-                  {backTheBlueWindow?.label || "Special Event"}
-                </p>
-                <p className="mt-1 text-sm text-blue-900">
-                  {backTheBlueWindow?.disclaimerBody ||
-                    "By selecting October 3rd, 2026, you confirm that all hunters on this booking qualify as first responders. Proof will be required at check-in. Anyone unable to provide proof will be turned away with no refund."}
-                </p>
+              <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-4 md:px-5">
+                <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                  <img
+                    src={backTheBlueFlyer}
+                    alt="Back the Blue Dove Hunt flyer"
+                    className="h-24 w-24 rounded-xl object-cover border border-blue-200/80 shadow-sm"
+                  />
+
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-800/70">
+                      {backTheBlueWindow?.label || "Special Event"}
+                    </p>
+
+                    <p className="mt-1 text-sm font-semibold text-blue-950">
+                      October 3rd booking selected
+                    </p>
+
+                    <p className="mt-2 text-sm leading-6 text-blue-900">
+                      {backTheBlueWindow?.disclaimerBody ||
+                        "By selecting October 3rd, 2026, you confirm that all hunters on this booking qualify as first responders. Proof will be required at check-in. Anyone unable to provide proof will be turned away with no refund."}
+                    </p>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowBackTheBlueDisclaimer(true)}
+                      className="mt-3 inline-flex items-center rounded-md border border-blue-300 bg-white px-3 py-2 text-xs font-semibold text-blue-900 hover:bg-blue-100 transition"
+                    >
+                      View event flyer
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1112,57 +1138,187 @@ const BookingForm = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
       <AnimatePresence>
         {showBackTheBlueDisclaimer && (
           <motion.div
-            className="fixed inset-0 z-[130] bg-black/70 backdrop-blur-sm"
+            className="fixed inset-0 z-[130] bg-black/75 backdrop-blur-sm p-3 sm:p-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={cancelBackTheBlueDisclaimer}
           >
             <div
-              className="absolute inset-0 flex items-center justify-center px-4"
+              className="absolute inset-0 flex items-start sm:items-center justify-center px-3 sm:px-4 pt-[84px] pb-3 sm:py-4"
               onClick={(e) => e.stopPropagation()}
             >
               <motion.div
-                className="w-full max-w-lg rounded-2xl border border-white/10 bg-white p-6 shadow-2xl"
+                className="w-full max-w-4xl max-h-[calc(100vh-96px)] sm:max-h-[92vh] overflow-hidden rounded-[24px] sm:rounded-[28px] border border-white/10 bg-white shadow-2xl"
                 initial={{ opacity: 0, y: 12, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 12, scale: 0.98 }}
                 transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
               >
-                <div className="mb-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-footer)]/60">
-                    {backTheBlueWindow?.label || "Special Event Notice"}
-                  </p>
-                  <h3 className="mt-2 text-2xl font-acumin text-[var(--color-footer)]">
-                    {backTheBlueWindow?.disclaimerTitle ||
-                      "First responder confirmation required"}
-                  </h3>
+                <div className="max-h-[92vh] overflow-y-auto">
+                  <div className="grid lg:grid-cols-[0.9fr_1.1fr]">
+                    <div className="bg-neutral-100 p-3 sm:p-4 lg:p-0">
+                      {/* Mobile / tablet preview */}
+                      <div className="lg:hidden">
+                        <div className="overflow-hidden rounded-2xl border border-black/10 bg-white">
+                          <img
+                            src={backTheBlueFlyer}
+                            alt="Back the Blue Dove Hunt flyer"
+                            className="w-full h-auto max-h-[42vh] object-contain bg-white"
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setShowBackTheBlueFlyerViewer(true)}
+                          className="mt-3 w-full rounded-md border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-[var(--color-footer)] hover:bg-neutral-100 transition"
+                        >
+                          View full flyer
+                        </button>
+                      </div>
+
+                      {/* Desktop image panel */}
+                      <div className="hidden lg:block h-full">
+                        <img
+                          src={backTheBlueFlyer}
+                          alt="Back the Blue Dove Hunt flyer"
+                          className="w-full h-full object-cover max-h-[92vh]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="p-5 sm:p-6 md:p-8">
+                      <div className="mb-5">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-footer)]/60">
+                          {backTheBlueWindow?.label || "Special Event Notice"}
+                        </p>
+
+                        <h3 className="mt-2 text-xl sm:text-2xl md:text-3xl font-acumin text-[var(--color-footer)] leading-tight">
+                          {backTheBlueWindow?.disclaimerTitle ||
+                            "First responder confirmation required"}
+                        </h3>
+
+                        <p className="mt-3 text-sm leading-6 sm:leading-7 text-[var(--color-footer)]/85">
+                          {backTheBlueWindow?.disclaimerBody ||
+                            "By selecting October 3rd, 2026, you confirm that all hunters on this booking qualify as first responders. Proof will be required at check-in. Anyone unable to provide proof will be turned away with no refund."}
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-black/10 bg-neutral-50 p-4">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--color-footer)]/55">
+                          Event Snapshot
+                        </p>
+
+                        <div className="mt-3 space-y-3 text-sm text-[var(--color-footer)]">
+                          <div className="flex items-start justify-between gap-4 border-b border-black/5 pb-3">
+                            <span className="text-[var(--color-footer)]/70">
+                              Date
+                            </span>
+                            <span className="font-semibold text-right">
+                              October 3rd, 2026
+                            </span>
+                          </div>
+
+                          <div className="flex items-start justify-between gap-4 border-b border-black/5 pb-3">
+                            <span className="text-[var(--color-footer)]/70">
+                              Location
+                            </span>
+                            <span className="font-semibold text-right">
+                              Brownsville, Texas
+                            </span>
+                          </div>
+
+                          <div className="flex items-start justify-between gap-4">
+                            <span className="text-[var(--color-footer)]/70">
+                              Flyer pricing
+                            </span>
+                            <span className="font-semibold text-right">
+                              $50 per gun
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <p className="mt-5 text-xs leading-6 text-[var(--color-footer)]/65">
+                        You should only continue if your booking qualifies for
+                        this event. Proof will be required at check-in.
+                      </p>
+
+                      <div className="mt-6 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+                        <button
+                          type="button"
+                          onClick={cancelBackTheBlueDisclaimer}
+                          className="rounded-md border border-black/10 px-4 py-2 text-sm font-semibold text-[var(--color-footer)] hover:bg-neutral-100 transition"
+                        >
+                          Cancel
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={confirmBackTheBlueDisclaimer}
+                          className="rounded-md bg-[var(--color-footer)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--color-button-hover)] transition"
+                        >
+                          I agree
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showBackTheBlueFlyerViewer && (
+          <motion.div
+            className="fixed inset-0 z-[140] bg-black/85 backdrop-blur-sm p-3 sm:p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowBackTheBlueFlyerViewer(false)}
+          >
+            <div
+              className="absolute inset-0 flex items-start sm:items-center justify-center px-3 sm:px-4 pt-[84px] pb-3 sm:py-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <motion.div
+                className="relative w-full max-w-3xl max-h-[calc(100vh-96px)] sm:max-h-[94vh] overflow-hidden rounded-[24px] border border-white/10 bg-white shadow-2xl"
+                initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 12, scale: 0.98 }}
+                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              >
+                <div className="sticky top-0 z-10 flex items-center justify-between border-b border-black/10 bg-white/95 px-4 py-3 backdrop-blur">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--color-footer)]/55">
+                      Event Flyer
+                    </p>
+                    <p className="text-sm font-semibold text-[var(--color-footer)]">
+                      Back the Blue Dove Hunt
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowBackTheBlueFlyerViewer(false)}
+                    className="rounded-md border border-black/10 px-3 py-1.5 text-sm font-semibold text-[var(--color-footer)] hover:bg-neutral-100 transition"
+                  >
+                    Close
+                  </button>
                 </div>
 
-                <p className="text-sm leading-7 text-[var(--color-footer)]/85">
-                  {backTheBlueWindow?.disclaimerBody ||
-                    "By selecting October 3rd, 2026, you confirm that all hunters on this booking qualify as first responders. Proof will be required at check-in. Anyone unable to provide proof will be turned away with no refund."}
-                </p>
-
-                <div className="mt-6 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={cancelBackTheBlueDisclaimer}
-                    className="rounded-md border border-black/10 px-4 py-2 text-sm font-semibold text-[var(--color-footer)] hover:bg-neutral-100 transition"
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={confirmBackTheBlueDisclaimer}
-                    className="rounded-md bg-[var(--color-footer)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--color-button-hover)] transition"
-                  >
-                    I agree
-                  </button>
+                <div className="max-h-[calc(94vh-68px)] overflow-y-auto bg-neutral-100 p-3 sm:p-4">
+                  <img
+                    src={backTheBlueFlyer}
+                    alt="Back the Blue Dove Hunt flyer"
+                    className="mx-auto w-full h-auto object-contain rounded-xl border border-black/10 bg-white"
+                  />
                 </div>
               </motion.div>
             </div>
