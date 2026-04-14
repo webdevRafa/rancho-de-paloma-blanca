@@ -37,6 +37,15 @@ export function PackagesBrochure() {
       ],
     },
     {
+      key: "standard-early",
+      title: "Standard Hunts",
+      price: "$200",
+      unit: "per gun",
+      details:
+        "Monday, Sept 7 – Thursday, Sept 10. Standard in-season hunt rate.",
+      badge: "Sept 7–10",
+    },
+    {
       key: "weekend-package-2",
       title: "Weekend Package Rates",
       unit: "per gun",
@@ -49,15 +58,7 @@ export function PackagesBrochure() {
         { label: "3 consecutive days", price: "$450" },
       ],
     },
-    {
-      key: "standard-early",
-      title: "Standard Hunts",
-      price: "$200",
-      unit: "per gun",
-      details:
-        "Monday, Sept 7 – Thursday, Sept 10. Standard in-season hunt rate.",
-      badge: "Sept 7–10",
-    },
+
     {
       key: "late-season",
       title: "Late Season Hunts",
@@ -73,7 +74,7 @@ export function PackagesBrochure() {
     key: "deck",
     title: "Party Deck",
     price: "$500",
-    unit: "per day",
+    unit: "per hunt, per day",
     details:
       "Elevate your hunt with our two-story Party Deck overlooking the fields. Perfect for regrouping between flights, grilling, and relaxing in comfort with shade, power, fans, and running water on site.",
     badge: "Add-On",
@@ -86,7 +87,7 @@ export function PackagesBrochure() {
           2026 Dove Hunting Season
         </h2>
 
-        <p className="mt-2 text-base md:text-lg text-white/80 font-medium">
+        <p className="mt-2 text-base md:text-lg text-black font-bold bg-[var(--color-accent-gold)] max-w-[400px] px-2 ">
           September 1 – October 25, 2026
         </p>
 
@@ -111,7 +112,7 @@ export function PackagesBrochure() {
             />
             <div className="relative p-6 flex flex-col h-full">
               {pkg.badge && (
-                <div className="mb-3 inline-flex rounded-full bg-[var(--color-footer)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white">
+                <div className="mb-3 inline-flex rounded-full bg-[var(--color-footer)] px-2.5 py-1 text-[14px] font-semibold uppercase tracking-wide text-white">
                   {pkg.badge}
                 </div>
               )}
@@ -182,9 +183,7 @@ export function PackagesBrochure() {
 
             <div className="mt-2 flex flex-wrap items-baseline gap-1">
               <div className="text-3xl font-bold text-white">{addon.price}</div>
-              <div className="text-sm text-[var(--color-background)]/70">
-                {addon.unit}
-              </div>
+              <div className="text-sm text-white">{addon.unit}</div>
             </div>
 
             <p className="mt-3 text-sm leading-6 text-white">{addon.details}</p>
