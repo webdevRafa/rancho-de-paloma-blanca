@@ -4,11 +4,23 @@ import React from "react";
 interface VimeoEmbedProps {
   videoId: string;
   title?: string;
+  orientation?: "landscape" | "portrait";
 }
 
-const VimeoEmbed: React.FC<VimeoEmbedProps> = ({ videoId, title = "" }) => {
+const VimeoEmbed: React.FC<VimeoEmbedProps> = ({
+  videoId,
+  title = "",
+  orientation = "landscape",
+}) => {
+  const isPortrait = orientation === "portrait";
+
   return (
-    <div className="relative pb-[56.25%] h-0 overflow-hidden rounded-lg shadow-lg border border-[var(--color-footer)]">
+    <div
+      className={[
+        "relative overflow-hidden rounded-2xl border border-white/10 bg-black shadow-[0_18px_50px_rgba(0,0,0,0.28)]",
+        isPortrait ? "aspect-[9/16]" : "aspect-video",
+      ].join(" ")}
+    >
       <iframe
         src={`https://player.vimeo.com/video/${videoId}?badge=0&autopause=0&player_id=0&app_id=58479`}
         frameBorder="0"
@@ -16,8 +28,8 @@ const VimeoEmbed: React.FC<VimeoEmbedProps> = ({ videoId, title = "" }) => {
         allowFullScreen
         referrerPolicy="strict-origin-when-cross-origin"
         title={title}
-        className="absolute top-0 left-0 w-full h-full"
-      ></iframe>
+        className="absolute inset-0 h-full w-full"
+      />
     </div>
   );
 };
