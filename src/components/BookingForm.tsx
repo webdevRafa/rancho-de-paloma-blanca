@@ -1209,10 +1209,6 @@ const BookingForm = () => {
                       </div>
 
                       <div className="rounded-2xl border border-black/10 bg-neutral-50 p-4">
-                        <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--color-footer)]/55">
-                          Event Snapshot
-                        </p>
-
                         <div className="mt-3 space-y-3 text-sm text-[var(--color-footer)]">
                           <div className="flex items-start justify-between gap-4 border-b border-black/5 pb-3">
                             <span className="text-[var(--color-footer)]/70">
@@ -1234,7 +1230,7 @@ const BookingForm = () => {
 
                           <div className="flex items-start justify-between gap-4">
                             <span className="text-[var(--color-footer)]/70">
-                              Flyer pricing
+                              Pricing
                             </span>
                             <span className="font-semibold text-right">
                               $50 per gun

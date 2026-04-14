@@ -275,10 +275,9 @@ const HomePage = () => {
                       <div className="mt-4 h-[2px] w-14 bg-[var(--color-accent-gold)] rounded-full" />
 
                       <p className="mt-4 max-w-[34ch] text-sm leading-7 text-white/80 md:text-[15px]">
-                        Join Rancho de Paloma Blanca in Brownsville for a
-                        special October 3rd dove hunt created to honor first
-                        responders. When a first responder books the hunt,
-                        everyone in their party—including friends and
+                        Join us for a special October 3rd dove hunt created to
+                        honor first responders. When a first responder books the
+                        hunt, everyone in their party—including friends and
                         family—receives the special event rate of $50 per
                         hunter.
                       </p>
