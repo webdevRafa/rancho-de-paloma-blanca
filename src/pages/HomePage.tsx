@@ -7,8 +7,6 @@ import heroImg from "../assets/images/three.webp";
 import Photos from "../components/Photos";
 import PhotosTwo from "../components/PhotosTwo";
 import PartyDeck from "../components/PartyDeck";
-
-// TODO: update this import path to your flyer image path
 import backTheBlueFlyer from "../assets/images/btb_2026.png";
 
 const BACK_THE_BLUE_PROMO_STORAGE_KEY = "rdpb-back-the-blue-promo-seen-2026";
@@ -31,6 +29,7 @@ const HomePage = () => {
 
     const onScroll = () => {
       if (raf) return;
+
       raf = requestAnimationFrame(() => {
         const y = window.scrollY;
 
@@ -81,11 +80,15 @@ const HomePage = () => {
   useEffect(() => {
     if (!showBackTheBluePromo) return;
 
-    const prev = document.body.style.overflow;
+    const prevBodyOverflow = document.body.style.overflow;
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+
     document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
 
     return () => {
-      document.body.style.overflow = prev;
+      document.body.style.overflow = prevBodyOverflow;
+      document.documentElement.style.overflow = prevHtmlOverflow;
     };
   }, [showBackTheBluePromo]);
 
@@ -112,24 +115,22 @@ const HomePage = () => {
       <div
         data-aos-duration="2000"
         ref={heroRef}
-        className="relative isolate w-full h-[100vh] flex items-center justify-center overflow-hidden"
+        className="relative isolate flex h-[100vh] w-full items-center justify-center overflow-hidden"
       >
-        <div className="absolute inset-0 bg-black/50 pointer-events-none" />
-
         <img
           ref={imgRef}
           src={heroImg}
           alt=""
-          className="absolute inset-0 w-full h-[120vh] object-cover will-change-transform blur-xs"
+          className="absolute inset-0 h-[120vh] w-full object-cover will-change-transform blur-xs"
           style={{ top: "-10vh", opacity: 0.27 }}
         />
 
-        <div className="text-white relative z-40 flex flex-col md:flex-row items-center justify-center gap-0">
-          <div className="p-1 mb-2">
+        <div className="relative z-40 flex flex-col items-center justify-center gap-0 text-white md:flex-row">
+          <div className="mb-2 p-1">
             <h1
               data-aos="fade-in"
               data-aos-delay="100"
-              className="text-white font-gin mt-6 mb-3 max-w-[800px] mx-auto text-2xl md:text-3xl lg:text-5xl text-center"
+              className="mx-auto mt-6 mb-3 max-w-[800px] text-center text-2xl text-white md:text-3xl lg:text-5xl font-gin"
             >
               Best Dove Hunting in Brownsville, Texas — Rancho de Paloma Blanca
             </h1>
@@ -137,7 +138,7 @@ const HomePage = () => {
             <p
               data-aos="fade-in"
               data-aos-delay="125"
-              className="text-sm md:text-base text-neutral-100/90 max-w-[560px] mx-auto mb-5 font-acumin px-4"
+              className="mx-auto mb-5 max-w-[560px] px-4 text-sm text-neutral-100/90 md:text-base font-acumin"
             >
               Dove Hunting at <strong>Rancho de Paloma Blanca</strong> in{" "}
               <strong>Brownsville</strong> is perfect for families, friends, and
@@ -151,7 +152,7 @@ const HomePage = () => {
                 data-aos="zoom-in"
                 data-aos-delay="300"
                 href="/book"
-                className="inline-block p-2 font-gin text-[var(--color-background)] bg-white border-[var(--color-background)] border-2 hover:scale-105 text-sm transition duration-300 ease-in-out"
+                className="inline-block border-2 border-[var(--color-background)] bg-white p-2 text-sm text-[var(--color-background)] transition duration-300 ease-in-out hover:scale-105 font-gin"
               >
                 Book Your Hunt
               </a>
@@ -162,13 +163,13 @@ const HomePage = () => {
 
       <Photos />
 
-      <div className="flex flex-col min-h-screen text-[var(--color-text)]">
+      <div className="flex min-h-screen flex-col text-[var(--color-text)]">
         <HeroSection />
         <PartyDeck />
         <PhotosTwo />
       </div>
 
-      {/* Floating teaser after dismiss */}
+      {/* Floating teaser */}
       <AnimatePresence>
         {showPromoTeaser && !showBackTheBluePromo && (
           <motion.button
@@ -178,23 +179,24 @@ const HomePage = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 18, scale: 0.96 }}
             transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed bottom-4 right-4 z-[90] max-w-[320px] rounded-2xl border border-white/10 bg-[var(--color-footer)]/95 px-4 py-3 text-left shadow-2xl backdrop-blur"
+            className="fixed right-4 z-[90] w-[calc(100%-2rem)] max-w-[340px] rounded-2xl border border-white/10 bg-[var(--color-footer)]/95 px-4 py-3 text-left shadow-2xl backdrop-blur bottom-[max(1rem,env(safe-area-inset-bottom))]"
           >
             <div className="flex items-start gap-3">
               <img
                 src={backTheBlueFlyer}
                 alt="Back the Blue event flyer"
-                className="h-14 w-14 rounded-lg object-cover border border-white/10"
+                className="h-14 w-14 rounded-lg border border-white/10 object-cover"
               />
+
               <div className="min-w-0">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-accent-gold)]">
                   October 3rd Event
                 </p>
-                <p className="mt-1 text-sm font-semibold text-white leading-5">
+                <p className="mt-1 text-sm font-semibold leading-5 text-white">
                   Back the Blue Dove Hunt
                 </p>
                 <p className="mt-1 text-xs text-white/70">
-                  View flyer and event details
+                  First responder special event pricing
                 </p>
               </div>
             </div>
@@ -206,108 +208,148 @@ const HomePage = () => {
       <AnimatePresence>
         {showBackTheBluePromo && (
           <motion.div
-            className="fixed inset-0 z-[100] bg-black/75 backdrop-blur-sm px-4"
+            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={dismissPromo}
           >
             <div
-              className="absolute inset-0 flex items-start sm:items-center justify-center px-4 pt-6 sm:pt-0 pb-4 sm:py-8"
+              className="promo-modal-shell absolute inset-0 flex items-start justify-center p-3 sm:p-4 lg:items-center lg:p-6"
               onClick={(e) => e.stopPropagation()}
             >
               <motion.div
-                initial={{ opacity: 0, y: 18, scale: 0.98 }}
+                initial={{ opacity: 0, y: 20, scale: 0.985 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 18, scale: 0.98 }}
+                exit={{ opacity: 0, y: 20, scale: 0.985 }}
                 transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                className="w-full max-w-5xl h-[calc(100vh-40px)] sm:h-auto sm:max-h-[92vh] overflow-hidden rounded-[28px] border border-white/10 bg-[var(--color-footer)] text-white shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
+                className="promo-modal-card relative flex w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[var(--color-footer)] text-white shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
               >
-                <div className="grid h-full lg:grid-cols-[1.05fr_0.95fr]">
-                  <div className="relative bg-[var(--color-dark)] p-3 sm:p-4 lg:p-0">
-                    {/* Mobile / tablet: show full flyer */}
-                    <div className="lg:hidden overflow-hidden rounded-2xl border border-white/10 bg-white/95">
-                      <img
-                        src={backTheBlueFlyer}
-                        alt="2nd Annual Back the Blue Dove Hunt flyer"
-                        className="w-full h-auto max-h-[48vh] object-contain bg-white"
-                      />
+                <button
+                  type="button"
+                  onClick={dismissPromo}
+                  aria-label="Close event modal"
+                  className="absolute right-3 top-3 z-30 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/40 text-lg text-white/70 backdrop-blur transition hover:bg-black/70 hover:text-white hover:scale-105"
+                >
+                  ×
+                </button>
+
+                <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                  {/* Flyer panel */}
+                  <div className="promo-flyer-panel flex min-h-0 flex-col border-b border-white/10 lg:border-r lg:border-b-0">
+                    <div className="promo-flyer-wrap p-3 sm:p-4 md:p-4 lg:px-5 lg:py-4">
+                      <div className="promo-flyer-frame relative mx-auto flex h-full items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-[#f8f8f8] shadow-[0_20px_60px_rgba(0,0,0,0.35)] lg:rounded-[22px]">
+                        {/* subtle glow */}
+                        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />
+
+                        <img
+                          src={backTheBlueFlyer}
+                          alt="2nd Annual Back the Blue Dove Hunt flyer"
+                          className="promo-flyer-image h-full w-full object-contain"
+                        />
+                      </div>
                     </div>
 
-                    {/* Desktop: keep the current immersive cropped panel */}
-                    <div className="hidden lg:block h-full">
-                      <img
-                        src={backTheBlueFlyer}
-                        alt="2nd Annual Back the Blue Dove Hunt flyer"
-                        className="w-full h-full object-cover max-h-[92vh]"
-                      />
+                    <div className="hidden items-center justify-between gap-4 border-t border-white/10 bg-white/[0.03] px-5 py-4 lg:flex">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--color-accent-gold)]">
+                          October 3rd, 2026
+                        </p>
+                        <p className="mt-1 text-sm text-white/75">
+                          Brownsville, Texas
+                        </p>
+                      </div>
                     </div>
                   </div>
 
+                  {/* Right content */}
                   <div className="flex min-h-0 flex-col">
-                    <div className="promo-scroll min-h-0 flex-1 overflow-y-auto p-6 md:p-8 lg:p-10">
+                    <div className="promo-scroll min-h-0 flex-1 overflow-y-auto px-5 pt-14 pb-4 sm:px-6 sm:pt-16 sm:pb-5 md:px-7 md:pb-6 lg:px-7">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-gold)]">
                         Special Event
                       </p>
 
-                      <h2 className="mt-3 text-3xl md:text-4xl font-gin leading-tight text-white">
+                      <h2 className="mt-3 text-[2.1rem] leading-[1.05] text-white sm:text-[2.5rem] md:text-[2.9rem] font-gin tracking-tight">
                         Back the Blue Dove Hunt
                       </h2>
+                      <div className="mt-4 h-[2px] w-14 bg-[var(--color-accent-gold)] rounded-full" />
 
-                      <p className="mt-3 text-sm md:text-base text-white/80 leading-7">
-                        Join Rancho de Paloma Blanca for the October 3rd event
-                        in support of first responders and military families.
+                      <p className="mt-4 max-w-[34ch] text-sm leading-7 text-white/80 md:text-[15px]">
+                        Join Rancho de Paloma Blanca in Brownsville for a
+                        special October 3rd dove hunt created to honor first
+                        responders. When a first responder books the hunt,
+                        everyone in their party—including friends and
+                        family—receives the special event rate of $50 per
+                        hunter.
                       </p>
 
-                      <div className="mt-6 space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4 md:p-5">
-                        <div>
+                      <div className="mt-6 grid gap-3 sm:grid-cols-3 lg:hidden">
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                           <p className="text-[11px] uppercase tracking-[0.18em] text-white/55">
                             Date
                           </p>
-                          <p className="mt-1 text-base font-semibold text-white">
+                          <p className="mt-2 text-sm font-semibold text-white">
                             October 3rd, 2026
                           </p>
                         </div>
 
-                        <div>
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                           <p className="text-[11px] uppercase tracking-[0.18em] text-white/55">
                             Location
                           </p>
-                          <p className="mt-1 text-base font-semibold text-white">
+                          <p className="mt-2 text-sm font-semibold text-white">
                             Brownsville, Texas
                           </p>
                         </div>
 
-                        <div>
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                           <p className="text-[11px] uppercase tracking-[0.18em] text-white/55">
-                            Event Pricing
+                            Special Rate
                           </p>
-                          <p className="mt-1 text-base font-semibold text-white">
-                            $50 per gun
+                          <p className="mt-2 text-sm font-semibold text-white">
+                            $50 per hunter
                           </p>
                         </div>
                       </div>
 
-                      <div className="h-6 sm:h-0" />
+                      <div className="h-6" />
                     </div>
 
-                    <div className="sticky bottom-0 z-10 border-t border-white/10 bg-[var(--color-footer)]/95 px-5 py-4 backdrop-blur md:px-8 lg:px-10">
-                      <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-3">
-                        <button
-                          type="button"
-                          onClick={dismissPromo}
-                          className="w-full sm:w-auto rounded-xl border border-white/15 px-4 py-3 text-sm font-semibold text-white/85 hover:bg-white/5 transition"
-                        >
-                          Maybe later
-                        </button>
+                    <div className="promo-modal-actions border-t border-white/10 bg-gradient-to-t from-black/70 via-[var(--color-footer)]/98 to-[var(--color-footer)]/96 px-4 py-4 backdrop-blur sm:px-6 md:px-8">
+                      <div className="flex flex-col gap-4">
+                        <div className="max-w-[420px]">
+                          <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--color-accent-gold)]/90">
+                            Exclusive first responder event
+                          </p>
 
-                        <button
-                          type="button"
-                          onClick={handleBookEvent}
-                          className="w-full sm:w-auto rounded-xl bg-[var(--color-accent-gold)] px-5 py-3 text-sm font-semibold text-[var(--color-footer)] hover:brightness-105 transition"
-                        >
-                          Book October 3 Event
-                        </button>
+                          <div className="mt-2 flex flex-col gap-1 text-sm text-white/78 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1">
+                            <span className="text-base font-semibold text-white">
+                              $50 per hunter
+                            </span>
+                            <span className="hidden h-1 w-1 rounded-full bg-white/25 sm:inline-block" />
+                            <span className="text-white/72">
+                              Friends & family welcome in the same booking party
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+                          <button
+                            type="button"
+                            onClick={dismissPromo}
+                            className="promo-footer-secondary inline-flex w-full items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold transition sm:w-auto"
+                          >
+                            Maybe later
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleBookEvent}
+                            className="promo-footer-primary inline-flex w-full items-center justify-center rounded-xl px-6 py-3.5 text-sm font-semibold transition sm:w-auto"
+                          >
+                            Reserve your spot
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
