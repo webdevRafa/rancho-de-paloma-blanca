@@ -923,152 +923,328 @@ const ClientDashboard: React.FC = () => {
               </p>
             </div>
           ) : showSuccess && status === "paid" ? (
-            <div className="relative flex flex-col items-center text-center min-h-[360px] py-8">
-              {/* Success emblem */}
-              <div className="relative">
-                <div className="h-24 w-24 rounded-full bg-emerald-600/10 ring-2 ring-emerald-400/50 flex items-center justify-center shadow-lg">
-                  <span className="text-4xl text-emerald-500">✓</span>
+            <div className="space-y-5">
+              <section className="overflow-hidden rounded-2xl border border-black/10 bg-neutral-100 shadow-[0_20px_50px_rgba(0,0,0,0.10)]">
+                <div className="border-b border-black/5 bg-white/70 px-5 py-4 md:px-6">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-footer)]/60">
+                    Payment Confirmed
+                  </p>
+                  <h2 className="mt-1 text-2xl font-acumin text-[var(--color-footer)] md:text-3xl">
+                    Your booking has been secured
+                  </h2>
+                  <p className="mt-1 text-sm text-[var(--color-footer)]/70">
+                    Thank you for your payment. Your reservation is now
+                    confirmed and has been added to your dashboard.
+                  </p>
                 </div>
-                <div
-                  className="absolute -inset-2 rounded-full animate-ping bg-emerald-400/10"
-                  aria-hidden
-                />
-              </div>
 
-              {/* Title + blurb */}
-              <h2 className="mt-5 text-2xl font-gin text-white">
-                Payment Successful
-              </h2>
-              <p className="mt-2 text-sm text-neutral-400 max-w-[42ch]">
-                Thank you for your purchase. Your order has been added to your
-                dashboard.
-              </p>
+                <div className="space-y-5 px-5 py-5 md:px-6 md:py-6">
+                  <section className="overflow-hidden rounded-2xl border border-emerald-200 bg-emerald-50 shadow-[0_10px_30px_rgba(16,185,129,0.08)]">
+                    <div className="border-b border-emerald-200/70 bg-emerald-100/60 px-5 py-4 md:px-6">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-full border border-emerald-300 bg-white text-xl text-emerald-600 shadow-sm">
+                          ✓
+                        </div>
 
-              {/* Body states */}
-              {loadingSuccess ? (
-                <p className="mt-8 text-sm text-neutral-400">
-                  Loading order details…
-                </p>
-              ) : successOrder ? (
-                <div className="mt-8 w-full max-w-xl text-left rounded-2xl border border-white/10 bg-[var(--color-card)]/60 backdrop-blur p-5">
-                  {/* Order header */}
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-xs uppercase tracking-wide text-neutral-400">
-                        Order
-                      </div>
-                      <div className="font-mono text-sm text-white break-all">
-                        #{successOrder.id}
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-900/60">
+                            Reservation Status
+                          </p>
+                          <h3 className="mt-1 text-lg font-acumin text-emerald-950">
+                            Payment received successfully
+                          </h3>
+                        </div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-xs uppercase tracking-wide text-neutral-400">
-                        Total
-                      </div>
-                      <div className="text-lg font-semibold text-white">
-                        ${fmtMoney(successOrder.total)}
-                      </div>
-                    </div>
-                  </div>
 
-                  <hr className="my-4 border-white/10" />
-
-                  {/* Booking */}
-                  {successOrder.booking && (
-                    <div className="grid gap-2">
-                      <div className="text-sm font-medium text-white">
-                        Hunt Booking
-                      </div>
-                      <ul className="ml-4 list-disc space-y-1 text-[13px] text-neutral-300">
-                        <li>
-                          <span className="text-neutral-400">Dates:</span>{" "}
-                          {successOrder.booking.dates
-                            .map(formatFriendlyDateSafe)
-                            .join(", ")}
-                        </li>
-                        <li>
-                          <span className="text-neutral-400">Hunters:</span>{" "}
-                          {successOrder.booking.numberOfHunters}
-                        </li>
-                        {!!successOrder.booking.partyDeckDates?.length && (
-                          <li>
-                            <span className="text-neutral-400">
-                              Party Deck:
-                            </span>{" "}
-                            {successOrder.booking.partyDeckDates
-                              .map(formatFriendlyDateSafe)
-                              .join(", ")}
-                          </li>
-                        )}
-                        {typeof (successOrder as any)?.booking?.price ===
-                          "number" && (
-                          <li>
-                            <span className="text-neutral-400">
-                              Booking Subtotal:
-                            </span>{" "}
-                            ${fmtMoney((successOrder as any).booking.price)}
-                          </li>
-                        )}
-                      </ul>
+                    <div className="px-5 py-5 md:px-6">
+                      <p className="text-sm leading-7 text-emerald-900">
+                        Your order has been recorded and your dates are now
+                        reserved. Please keep this confirmation for your
+                        records.
+                      </p>
                     </div>
+                  </section>
+
+                  {loadingSuccess ? (
+                    <section className="overflow-hidden rounded-2xl border border-black/10 bg-white shadow-[0_10px_30px_rgba(0,0,0,0.05)]">
+                      <div className="px-5 py-10 text-center text-sm text-[var(--color-footer)]/70 md:px-6">
+                        Loading order details…
+                      </div>
+                    </section>
+                  ) : successOrder ? (
+                    <>
+                      <section className="overflow-hidden rounded-2xl border border-black/10 bg-white shadow-[0_10px_30px_rgba(0,0,0,0.05)]">
+                        <div className="border-b border-black/5 bg-neutral-50 px-5 py-4 md:px-6">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-footer)]/60">
+                            Order Overview
+                          </p>
+                          <h3 className="mt-1 text-xl font-acumin text-[var(--color-footer)]">
+                            Confirmation details
+                          </h3>
+                        </div>
+
+                        <div className="px-5 py-5 md:px-6">
+                          <div className="grid gap-4 md:grid-cols-3">
+                            <div className="rounded-xl border border-black/5 bg-neutral-50 p-4">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-footer)]/55">
+                                Order Number
+                              </p>
+                              <p className="mt-2 break-all text-sm font-semibold text-[var(--color-footer)]">
+                                #{successOrder.id}
+                              </p>
+                            </div>
+
+                            <div className="rounded-xl border border-black/5 bg-neutral-50 p-4">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-footer)]/55">
+                                Total Paid
+                              </p>
+                              <p className="mt-2 text-2xl font-bold text-[var(--color-footer)]">
+                                ${fmtMoney(successOrder.total)}
+                              </p>
+                            </div>
+
+                            <div className="rounded-xl border border-black/5 bg-neutral-50 p-4">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-footer)]/55">
+                                Status
+                              </p>
+                              <p className="mt-2 text-base font-semibold text-emerald-700">
+                                Paid
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </section>
+
+                      {successOrder.booking && (
+                        <section className="overflow-hidden rounded-2xl border border-black/10 bg-white shadow-[0_10px_30px_rgba(0,0,0,0.05)]">
+                          <div className="border-b border-black/5 bg-neutral-50 px-5 py-4 md:px-6">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-footer)]/60">
+                              Booking Overview
+                            </p>
+                            <h3 className="mt-1 text-xl font-acumin text-[var(--color-footer)]">
+                              Your hunt details
+                            </h3>
+                          </div>
+
+                          <div className="px-5 py-5 md:px-6">
+                            <div className="grid gap-4 md:grid-cols-2">
+                              <div className="rounded-xl border border-black/5 bg-neutral-50 p-4">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-footer)]/55">
+                                  Hunters
+                                </p>
+                                <p className="mt-2 text-2xl font-bold text-[var(--color-footer)]">
+                                  {successOrder.booking.numberOfHunters}
+                                </p>
+                              </div>
+
+                              <div className="rounded-xl border border-black/5 bg-neutral-50 p-4">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-footer)]/55">
+                                  Selected Dates
+                                </p>
+                                <p className="mt-2 text-base font-semibold text-[var(--color-footer)]">
+                                  {formatDateRange(successOrder.booking.dates)}
+                                </p>
+                              </div>
+                            </div>
+
+                            {successOrder.booking?.dates?.length > 0 && (
+                              <div className="mt-4 flex flex-wrap gap-2">
+                                {successOrder.booking.dates.map((date) => (
+                                  <span
+                                    key={date}
+                                    className="inline-flex items-center rounded-full border border-black/10 bg-white px-3 py-1 text-xs font-medium text-[var(--color-footer)] shadow-sm"
+                                  >
+                                    {formatFriendlyDateSafe(date)}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            {!!successOrder.booking.partyDeckDates?.length && (
+                              <div className="mt-4 rounded-xl border border-[var(--color-accent-gold)]/30 bg-[var(--color-accent-gold)]/10 p-4">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-footer)]/60">
+                                  Party Deck
+                                </p>
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {successOrder.booking.partyDeckDates.map(
+                                    (date) => (
+                                      <span
+                                        key={date}
+                                        className="inline-flex items-center rounded-full border border-[var(--color-accent-gold)]/20 bg-white px-3 py-1 text-xs font-medium text-[var(--color-footer)] shadow-sm"
+                                      >
+                                        {formatFriendlyDateSafe(date)}
+                                      </span>
+                                    )
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </section>
+                      )}
+
+                      {successOrder.booking?.dates?.includes("2026-10-03") && (
+                        <section className="overflow-hidden rounded-2xl border border-blue-200 bg-blue-50 shadow-[0_10px_30px_rgba(37,99,235,0.08)]">
+                          <div className="border-b border-blue-200/70 bg-blue-100/50 px-5 py-4 md:px-6">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-900/60">
+                              Back the Blue
+                            </p>
+                            <h3 className="mt-1 text-lg font-acumin text-blue-950">
+                              Special event booking confirmed
+                            </h3>
+                          </div>
+
+                          <div className="px-5 py-5 md:px-6">
+                            <p className="text-sm leading-7 text-blue-900">
+                              Your order includes the October 3rd, 2026 Back the
+                              Blue event. Proof will still be required at
+                              check-in for this booking.
+                            </p>
+                          </div>
+                        </section>
+                      )}
+
+                      <div className="grid gap-5 lg:grid-cols-2">
+                        <section className="overflow-hidden rounded-2xl border border-black/10 bg-white shadow-[0_10px_30px_rgba(0,0,0,0.05)]">
+                          <div className="border-b border-black/5 bg-neutral-50 px-5 py-4 md:px-6">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-footer)]/60">
+                              Customer Details
+                            </p>
+                            <h3 className="mt-1 text-xl font-acumin text-[var(--color-footer)]">
+                              Contact information
+                            </h3>
+                          </div>
+
+                          <div className="space-y-3 px-5 py-5 text-sm text-[var(--color-footer)] md:px-6">
+                            <div className="flex items-start justify-between gap-4 border-b border-black/5 pb-3">
+                              <span className="text-[var(--color-footer)]/65">
+                                Name
+                              </span>
+                              <span className="text-right font-semibold">
+                                {getCustomerName(successOrder)}
+                              </span>
+                            </div>
+
+                            <div className="flex items-start justify-between gap-4 border-b border-black/5 pb-3">
+                              <span className="text-[var(--color-footer)]/65">
+                                Email
+                              </span>
+                              <span className="break-all text-right font-semibold">
+                                {getCustomerEmail(successOrder)}
+                              </span>
+                            </div>
+
+                            <div className="flex items-start justify-between gap-4">
+                              <span className="text-[var(--color-footer)]/65">
+                                Phone
+                              </span>
+                              <span className="text-right font-semibold">
+                                {getCustomerPhone(successOrder)}
+                              </span>
+                            </div>
+                          </div>
+                        </section>
+
+                        <section className="overflow-hidden rounded-2xl border border-black/10 bg-white shadow-[0_10px_30px_rgba(0,0,0,0.05)]">
+                          <div className="border-b border-black/5 bg-neutral-50 px-5 py-4 md:px-6">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-footer)]/60">
+                              Merchandise
+                            </p>
+                            <h3 className="mt-1 text-xl font-acumin text-[var(--color-footer)]">
+                              Items included
+                            </h3>
+                          </div>
+
+                          <div className="px-5 py-5 md:px-6">
+                            {!!successOrder.merchItems &&
+                            (Array.isArray(successOrder.merchItems) ||
+                              Object.keys(successOrder.merchItems).length >
+                                0) ? (
+                              <div className="space-y-3">
+                                {normalizeMerchItems(
+                                  successOrder.merchItems
+                                ).map((li) => (
+                                  <div
+                                    key={li.id}
+                                    className="flex items-start justify-between gap-4 rounded-xl border border-black/10 bg-neutral-50 px-4 py-4"
+                                  >
+                                    <div>
+                                      <p className="text-sm font-semibold text-[var(--color-footer)]">
+                                        {li.name}
+                                      </p>
+                                      <p className="mt-1 text-xs text-[var(--color-footer)]/60">
+                                        Quantity: {li.quantity}
+                                      </p>
+                                    </div>
+
+                                    <p className="text-sm font-semibold text-[var(--color-footer)]">
+                                      ${fmtMoney(li.price * li.quantity)}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-[var(--color-footer)]/65">
+                                No merchandise was included with this order.
+                              </p>
+                            )}
+                          </div>
+                        </section>
+                      </div>
+
+                      <section className="overflow-hidden rounded-2xl border border-[var(--color-accent-gold)]/30 bg-[var(--color-accent-gold)]/10 shadow-[0_12px_35px_rgba(0,0,0,0.06)]">
+                        <div className="border-b border-[var(--color-footer)]/10 px-5 py-4 md:px-6">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-footer)]/65">
+                            Next Steps
+                          </p>
+                          <h3 className="mt-1 text-xl font-acumin text-[var(--color-footer)]">
+                            What happens next
+                          </h3>
+                        </div>
+
+                        <div className="space-y-3 px-5 py-5 text-sm text-[var(--color-footer)] md:px-6">
+                          <p>
+                            Your reservation has been saved to your dashboard
+                            and can be reviewed anytime.
+                          </p>
+                          <p>
+                            Please arrive prepared for your booked dates and
+                            keep your order number available if you need
+                            support.
+                          </p>
+                          <p className="text-[var(--color-footer)]/70">
+                            If your booking includes a special event or party
+                            deck reservation, those details are reflected above.
+                          </p>
+                        </div>
+                      </section>
+                    </>
+                  ) : (
+                    <section className="overflow-hidden rounded-2xl border border-red-200 bg-red-50 shadow-[0_10px_30px_rgba(239,68,68,0.08)]">
+                      <div className="px-5 py-6 text-center text-sm text-red-700 md:px-6">
+                        Unable to load order details.
+                      </div>
+                    </section>
                   )}
 
-                  {/* Merch */}
-                  {!!successOrder.merchItems &&
-                    (Array.isArray(successOrder.merchItems) ||
-                      Object.keys(successOrder.merchItems).length > 0) && (
-                      <>
-                        <hr className="my-4 border-white/10" />
-                        <div className="grid gap-2">
-                          <div className="text-sm font-medium text-white">
-                            Merch Items
-                          </div>
-                          <ul className="ml-4 list-disc space-y-1 text-[13px] text-neutral-300">
-                            {normalizeMerchItems(successOrder.merchItems).map(
-                              (li) => (
-                                <li key={li.id}>
-                                  {li.name} × {li.quantity} — $
-                                  {fmtMoney(li.price * li.quantity)}
-                                </li>
-                              )
-                            )}
-                          </ul>
-                        </div>
-                      </>
-                    )}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <button
+                      onClick={handleSuccessDismiss}
+                      className="order-2 inline-flex items-center justify-center rounded-md border border-[var(--color-footer)]/15 bg-white px-6 py-3 text-sm font-semibold text-[var(--color-footer)] transition hover:bg-neutral-50 sm:order-1"
+                    >
+                      View My Orders
+                    </button>
 
-                  {/* Total footer */}
-                  <hr className="my-4 border-white/10" />
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs text-neutral-400">
-                      We’ve emailed your receipt.
-                    </div>
-                    <div className="text-base font-semibold text-white">
-                      ${fmtMoney(successOrder.total)}
-                    </div>
+                    <button
+                      onClick={() => navigate("/book")}
+                      className="order-1 inline-flex items-center justify-center rounded-md border border-[var(--color-footer)] bg-[var(--color-footer)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[var(--color-button-hover)] sm:order-2"
+                    >
+                      Book Another Hunt
+                    </button>
                   </div>
                 </div>
-              ) : (
-                <p className="mt-8 text-sm text-red-400">
-                  Unable to load order details.
-                </p>
-              )}
-
-              {/* Actions */}
-              <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-                <button
-                  onClick={handleSuccessDismiss}
-                  className="px-6 py-2 rounded-md bg-[var(--color-button)] text-white hover:bg-[var(--color-button-hover)]"
-                >
-                  View My Orders
-                </button>
-                <button
-                  onClick={() => navigate("/book")}
-                  className="px-6 py-2 rounded-md border border-white/10 text-white/90 hover:bg-white/5"
-                >
-                  Book Another Hunt
-                </button>
-              </div>
+              </section>
             </div>
           ) : loading ? (
             <p className="text-sm text-neutral-400">Loading your data...</p>
