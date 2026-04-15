@@ -169,7 +169,7 @@ const DateSelector = ({
 
   return (
     <div className="flex justify-center">
-      <div className="date-selector touch-manipulation w-full max-w-[500px] px-1 sm:px-3">
+      <div className="date-selector touch-manipulation w-full max-w-[500px] px-1">
         <DayPicker
           mode="multiple"
           month={month}
