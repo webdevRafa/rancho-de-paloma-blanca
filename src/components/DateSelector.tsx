@@ -246,12 +246,12 @@ const DateSelector = ({
               const mergedStyle: CSSProperties = {
                 ...(props.style ?? {}),
                 boxSizing: "border-box",
-                width: "100%",
-                height: "100%",
-                maxWidth: "40px",
-                maxHeight: "40px",
-                minWidth: "40px",
-                minHeight: "40px",
+                width: "36px",
+                height: "36px",
+                minWidth: "36px",
+                minHeight: "36px",
+                maxWidth: "36px",
+                maxHeight: "36px",
                 padding: 0,
                 margin: "0 auto",
                 borderRadius: "10px",
@@ -261,6 +261,7 @@ const DateSelector = ({
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
+                lineHeight: 1,
                 transition:
                   "background-color 150ms ease, border-color 150ms ease, color 150ms ease, transform 150ms ease",
                 ...(isBlueDate && !isSelected && !isDisabled
@@ -285,7 +286,6 @@ const DateSelector = ({
                     }
                   : {}),
               };
-
               return (
                 <button
                   {...props}
