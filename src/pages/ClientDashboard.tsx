@@ -59,30 +59,48 @@ function firstHuntDate(order: Order): string | undefined {
   return [...d].sort()[0]; // YYYY-MM-DD sorts safely
 }
 
-// midnight-local comparison helpers
-function isPast(iso?: string) {
-  if (!iso) return false;
+// Latest hunt date (if any)
+function lastHuntDate(order: Order): string | undefined {
+  const d = order?.booking?.dates;
+  if (!Array.isArray(d) || d.length === 0) return undefined;
+  return [...d].sort()[d.length - 1];
+}
+
+function toLocalMidnight(iso?: string): Date | null {
+  if (!iso) return null;
   try {
     const [y, m, d] = iso.split("-").map(Number);
-    const t = new Date(y, m - 1, d);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    t.setHours(0, 0, 0, 0);
-    return t.getTime() < today.getTime();
+    const dt = new Date(y, m - 1, d);
+    dt.setHours(0, 0, 0, 0);
+    return dt;
   } catch {
-    return false;
+    return null;
   }
 }
 
-// UX stage for the pill beside status (purely visual)
-type Stage = "active" | "completed" | "pending" | "cancelled" | "refunded";
+// UX stage for the first pill = hunt timing, not payment state
+type Stage =
+  | "upcoming"
+  | "in_progress"
+  | "completed"
+  | "cancelled"
+  | "refunded";
+
 function classifyStage(order: Order): Stage {
   if (order.status === "refunded") return "refunded";
   if (order.status === "cancelled") return "cancelled";
-  if (order.status === "pending") return "pending";
-  const first = firstHuntDate(order);
-  if (!first) return "completed";
-  return isPast(first) ? "completed" : "active";
+
+  const first = toLocalMidnight(firstHuntDate(order));
+  const last = toLocalMidnight(lastHuntDate(order));
+
+  if (!first || !last) return "completed";
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  if (today < first) return "upcoming";
+  if (today > last) return "completed";
+  return "in_progress";
 }
 
 /** "Friday, October 4th, 2025" (safe) */
@@ -431,7 +449,7 @@ const ClientDashboard: React.FC = () => {
     () =>
       validOrders.filter((o) => {
         const stage = classifyStage(o);
-        return stage === "active" || stage === "pending";
+        return stage === "upcoming" || stage === "in_progress";
       }),
     [validOrders]
   );
@@ -654,22 +672,34 @@ const ClientDashboard: React.FC = () => {
       toast.error("Could not delete this order.");
     }
   }
-
   const StageChip: React.FC<{ stage: Stage }> = ({ stage }) => {
     const base =
-      "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium border";
+      "inline-flex items-center rounded-full px-2.5 py-[5px] text-[9px] font-semibold uppercase tracking-[0.18em] border";
+
     const by = {
-      active: "border-emerald-300 text-emerald-700 bg-emerald-50",
-      completed: "border-neutral-300 text-neutral-600 bg-neutral-50",
-      pending: "border-amber-300 text-amber-700 bg-amber-50",
-      cancelled: "border-rose-300 text-rose-700 bg-rose-50",
-      refunded: "border-sky-300 text-sky-700 bg-sky-50",
+      upcoming: "border-sky-400/20 bg-sky-400/10 text-sky-200",
+      in_progress: "border-emerald-400/20 bg-emerald-400/12 text-emerald-200",
+      completed: "border-white/12 bg-white/[0.05] text-white/70",
+      cancelled: "border-rose-400/20 bg-rose-400/12 text-rose-200",
+      refunded: "border-sky-400/20 bg-sky-400/12 text-sky-200",
     } as const;
-    return <span className={`${base} ${by[stage]}`}>{stage}</span>;
+
+    const label = {
+      upcoming: "Upcoming",
+      in_progress: "In Progress",
+      completed: "Past",
+      cancelled: "Cancelled",
+      refunded: "Refunded",
+    } as const;
+
+    return <span className={`${base} ${by[stage]}`}>{label[stage]}</span>;
   };
+
   // Single slim order row
   // Replace the whole OrderRow with this version
   const OrderRow: React.FC<{ order: Order }> = ({ order }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+
     const merchLines = normalizeMerchItems(order.merchItems);
     const hasMerch = merchLines.length > 0;
     const hasBooking = Boolean(order?.booking?.dates?.length);
@@ -680,224 +710,428 @@ const ClientDashboard: React.FC = () => {
     const customerName = getCustomerName(order);
     const customerEmail = getCustomerEmail(order);
     const customerPhone = getCustomerPhone(order);
-    const attendeeCount = order.booking?.attendees?.length || 0;
+    const attendees = order.booking?.attendees ?? [];
+    const attendeeCount = attendees.length || 0;
+    const stage = classifyStage(order);
     const huntDateLabel = hasBooking
       ? formatDateRange(order.booking?.dates)
       : "Merchandise only order";
 
+    const allDates = hasBooking ? order.booking?.dates ?? [] : [];
+    const partyDeckDates = order.booking?.partyDeckDates ?? [];
+    const bookingSubtotal =
+      typeof (order.booking as any)?.price === "number"
+        ? (order.booking as any).price
+        : null;
+
     return (
       <li
         key={order.id}
-        className="rounded-3xl border border-white/10 bg-[var(--color-card)]/70 backdrop-blur px-5 py-5 shadow-sm hover:shadow-lg hover:border-white/20 transition-all"
+        className="overflow-hidden rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.028),rgba(255,255,255,0.012))] bg-[#22140b]/96 shadow-[0_18px_40px_rgba(0,0,0,0.26)] transition-all duration-200 hover:border-white/15 hover:shadow-[0_24px_60px_rgba(0,0,0,0.32)]"
       >
-        {/* Top row */}
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <StageChip stage={classifyStage(order)} />
-              <span className="text-[10px] uppercase tracking-[0.2em] text-white/40">
-                {hasBooking ? "Reservation" : "Order"}
-              </span>
+        {/* Collapsed / summary header */}
+        <div className="px-5 py-5 md:px-7 md:py-5.5">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <StageChip stage={stage} />
+                <span className="text-[10px] uppercase tracking-[0.22em] text-white/35">
+                  {hasBooking ? "Reservation" : "Order"}
+                </span>
+
+                {order.status === "paid" && (
+                  <span className="rounded-full border border-emerald-400/18 bg-emerald-400/8 px-2.5 py-[5px] text-[9px] font-semibold uppercase tracking-[0.18em] text-emerald-200/90">
+                    Paid
+                  </span>
+                )}
+
+                {order.status === "pending" && (
+                  <span className="rounded-full border border-amber-400/18 bg-amber-400/8 px-2.5 py-[5px] text-[9px] font-semibold uppercase tracking-[0.18em] text-amber-200/90">
+                    Payment Needed
+                  </span>
+                )}
+              </div>
+
+              <h3 className="mt-3 max-w-4xl font-acumin text-[1.08rem] font-semibold leading-[1.16] tracking-[-0.025em] text-white md:text-[1.48rem]">
+                {huntDateLabel}
+              </h3>
+
+              <div className="mt-4 flex flex-wrap gap-2 text-[10.5px]">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!order.id) {
+                      toast.error("Order ID unavailable.");
+                      return;
+                    }
+
+                    try {
+                      await navigator.clipboard.writeText(order.id);
+                      toast.success("Reference copied.");
+                    } catch (error) {
+                      console.error("Failed to copy order ID:", error);
+                      toast.error("Failed to copy order ID.");
+                    }
+                  }}
+                  disabled={!order.id}
+                  className="inline-flex max-w-[260px] items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-[5px] text-white/68 shadow-[inset_0_1px_0_rgba(255,255,255,0.018)] transition hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <span className="truncate">
+                    Order #{order.id ?? "Unavailable"}
+                  </span>
+
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-3.5 w-3.5 shrink-0 opacity-70"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8 16h8M8 12h8M8 8h8M9 4h6a2 2 0 012 2v14l-5-3-5 3V6a2 2 0 012-2z"
+                    />
+                  </svg>
+                </button>
+
+                {created && (
+                  <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-[5px] text-white/68 shadow-[inset_0_1px_0_rgba(255,255,255,0.018)]">
+                    Placed {created}
+                  </span>
+                )}
+
+                {hasBooking && (
+                  <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-[5px] text-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.018)]">
+                    {order.booking?.numberOfHunters || 0} hunter
+                    {(order.booking?.numberOfHunters || 0) !== 1 ? "s" : ""}
+                  </span>
+                )}
+
+                {hasMerch && (
+                  <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-[5px] text-white/68 shadow-[inset_0_1px_0_rgba(255,255,255,0.018)]">
+                    {merchLines.length} merch item
+                    {merchLines.length !== 1 ? "s" : ""}
+                  </span>
+                )}
+
+                {!!partyDeckDates.length && (
+                  <span className="rounded-full border border-[var(--color-accent-gold)]/20 bg-[var(--color-accent-gold)]/10 px-3 py-1 text-[var(--color-accent-gold)] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                    Party Deck included
+                  </span>
+                )}
+              </div>
             </div>
 
-            <h3 className="mt-3 text-2xl font-acumin text-white leading-snug tracking-tight">
-              {hasBooking ? huntDateLabel : "Merchandise Purchase"}
-            </h3>
+            <div className="flex shrink-0 flex-col gap-3 xl:min-w-[190px] xl:items-end">
+              <div className="rounded-[20px] border border-white/10 bg-white/[0.028] px-5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] xl:min-w-[154px]">
+                <div className="text-[9px] font-semibold uppercase tracking-[0.24em] text-white/40">
+                  Total
+                </div>
+                <div className="mt-1 font-acumin text-[1.72rem] font-semibold leading-none tracking-[-0.035em] text-white">
+                  ${fmtMoney(order.total)}
+                </div>
+              </div>
 
-            <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/70 backdrop-blur">
-                Order #{order.id}
-              </span>
-
-              {created && (
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/70 backdrop-blur">
-                  Placed {created}
+              <button
+                type="button"
+                onClick={() => setIsExpanded((prev) => !prev)}
+                className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-[18px] border border-white/10 bg-white/[0.035] px-4 py-2 text-[12.5px] font-medium text-white/78 transition hover:border-white/16 hover:bg-white/[0.055]"
+                aria-expanded={isExpanded}
+              >
+                {isExpanded ? "Hide details" : "View full order"}
+                <span
+                  className={`inline-block text-[11px] transition-transform ${
+                    isExpanded ? "rotate-180" : ""
+                  }`}
+                >
+                  ▼
                 </span>
-              )}
-
-              {hasBooking && (
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/70 backdrop-blur">
-                  {order.booking?.numberOfHunters || 0} hunter
-                  {(order.booking?.numberOfHunters || 0) !== 1 ? "s" : ""}
-                </span>
-              )}
-
-              {hasBooking && !!order.booking?.partyDeckDates?.length && (
-                <span className="rounded-full border border-[var(--color-accent-gold)]/30 bg-[var(--color-accent-gold)]/10 px-3 py-1 text-[var(--color-accent-gold)]">
-                  Party Deck included
-                </span>
-              )}
-
-              {attendeeCount > 0 && (
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/70 backdrop-blur">
-                  {attendeeCount} attendee{attendeeCount !== 1 ? "s" : ""}
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="shrink-0 lg:text-right">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-white/50">
-              Total
-            </div>
-            <div className="mt-1 text-2xl font-semibold text-white tracking-tight">
-              ${fmtMoney(order.total)}
+              </button>
             </div>
           </div>
         </div>
 
-        <div className="my-6 h-px bg-white/10" />
+        {/* Expanded details */}
+        {isExpanded && (
+          <>
+            <div className="h-px bg-white/7" />
 
-        {/* Main content */}
-        <div className="grid gap-4 lg:grid-cols-3">
-          {/* Trip details */}
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm">
-            <div className="text-[10px] uppercase tracking-[0.2em] text-white/40">
-              Trip Details
-            </div>
-
-            {hasBooking ? (
-              <div className="mt-3 space-y-2 text-sm text-white/85">
-                <div>
-                  <span className="text-white/50">Dates:</span>{" "}
-                  <span className="font-medium">
-                    {order.booking?.dates
-                      ?.map(formatFriendlyDateSafe)
-                      .join(", ")}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="text-white/50">Hunters:</span>{" "}
-                  <span className="font-medium">
-                    {order.booking?.numberOfHunters || 0}
-                  </span>
-                </div>
-
-                {!!order.booking?.partyDeckDates?.length && (
-                  <div>
-                    <span className="text-white/50">Party Deck:</span>{" "}
-                    <span className="font-medium">
-                      {order.booking.partyDeckDates
-                        .map(formatFriendlyDateSafe)
-                        .join(", ")}
-                    </span>
+            <div className="px-5 py-4.5 md:px-6 md:py-5">
+              <div className="grid gap-3.5 xl:grid-cols-3">
+                {/* Reservation details */}
+                <div className="rounded-[24px] border border-white/10 bg-white/[0.045] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/36">
+                      Reservation Details
+                    </div>
+                    {hasBooking && (
+                      <div className="text-xs text-white/45">
+                        {allDates.length} date{allDates.length !== 1 ? "s" : ""}
+                      </div>
+                    )}
                   </div>
-                )}
 
-                {typeof (order.booking as any)?.price === "number" && (
-                  <div>
-                    <span className="text-white/50">Booking subtotal:</span>{" "}
-                    <span className="font-medium">
-                      ${fmtMoney((order.booking as any).price)}
-                    </span>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="mt-3 text-sm text-white/60">
-                No hunt reservation attached to this order.
-              </div>
-            )}
-          </div>
+                  {hasBooking ? (
+                    <div className="mt-3 space-y-2.5 text-[14px] text-white/86">
+                      <div>
+                        <span className="text-white/56">Date range:</span>{" "}
+                        <span className="font-medium">{huntDateLabel}</span>
+                      </div>
 
-          {/* Guest / payer info */}
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm">
-            <div className="text-[10px] uppercase tracking-[0.2em] text-white/40">
-              Guest & Payer Info
-            </div>
+                      <div>
+                        <span className="text-white/56">Hunters:</span>{" "}
+                        <span className="font-medium">
+                          {order.booking?.numberOfHunters || 0}
+                        </span>
+                      </div>
 
-            <div className="mt-3 space-y-2 text-sm text-white/85">
-              <div>
-                <span className="text-white/50">Name:</span>{" "}
-                <span className="font-medium">{customerName}</span>
-              </div>
+                      {bookingSubtotal !== null && (
+                        <div>
+                          <span className="text-white/56">
+                            Booking subtotal:
+                          </span>{" "}
+                          <span className="font-medium">
+                            ${fmtMoney(bookingSubtotal)}
+                          </span>
+                        </div>
+                      )}
 
-              <div className="break-all">
-                <span className="text-white/50">Email:</span>{" "}
-                <span className="font-medium">{customerEmail}</span>
-              </div>
+                      <div>
+                        <div className="mb-2 text-white/50">
+                          Selected dates:
+                        </div>
+                        <div className="order-details-scroll max-h-36 overflow-y-auto pr-1">
+                          <div className="flex flex-wrap gap-2">
+                            {allDates.map((date) => (
+                              <span
+                                key={date}
+                                className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/80"
+                              >
+                                {formatFriendlyDateSafe(date)}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
 
-              <div>
-                <span className="text-white/50">Phone:</span>{" "}
-                <span className="font-medium">{customerPhone}</span>
-              </div>
-
-              {attendeeCount > 0 && (
-                <div>
-                  <span className="text-white/50">Attendees listed:</span>{" "}
-                  <span className="font-medium">{attendeeCount}</span>
+                      {!!partyDeckDates.length && (
+                        <div>
+                          <div className="mb-2 text-white/50">
+                            Party Deck dates:
+                          </div>
+                          <div className="order-details-scroll max-h-28 overflow-y-auto pr-1">
+                            <div className="flex flex-wrap gap-2">
+                              {partyDeckDates.map((date) => (
+                                <span
+                                  key={date}
+                                  className="inline-flex items-center rounded-full border border-[var(--color-accent-gold)]/30 bg-[var(--color-accent-gold)]/10 px-3 py-1 text-xs text-[var(--color-accent-gold)]"
+                                >
+                                  {formatFriendlyDateSafe(date)}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="mt-3 text-sm text-white/60">
+                      No hunt reservation is attached to this order.
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
 
-          {/* Merchandise / actions */}
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm">
-            <div className="text-[10px] uppercase tracking-[0.2em] text-white/40">
-              Merchandise
-            </div>
+                {/* Guest / attendee details */}
+                <div className="rounded-[24px] border border-white/10 bg-white/[0.045] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                  <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/36">
+                    Guest & Attendee Details
+                  </div>
 
-            {hasMerch ? (
-              <ul className="mt-3 space-y-2 text-sm text-white/85">
-                {merchLines.map((li) => (
-                  <li
-                    key={li.id}
-                    className="flex items-start justify-between gap-3"
-                  >
-                    <div className="min-w-0">
-                      <div className="truncate">
-                        {li.name} × {li.quantity}
+                  <div className="mt-3 space-y-2 text-[14px] text-white/86">
+                    <div>
+                      <span className="text-white/56">Booked by:</span>{" "}
+                      <span className="font-medium">{customerName}</span>
+                    </div>
+
+                    <div className="break-all">
+                      <span className="text-white/56">Email:</span>{" "}
+                      <span className="font-medium">{customerEmail}</span>
+                    </div>
+
+                    <div>
+                      <span className="text-white/56">Phone:</span>{" "}
+                      <span className="font-medium">{customerPhone}</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <div className="text-white/56">Attendees</div>
+                      <div className="text-xs text-white/45">
+                        {attendeeCount} listed
                       </div>
                     </div>
-                    <div className="shrink-0 font-medium">
-                      ${fmtMoney(li.price * li.quantity)}
+
+                    {attendeeCount > 0 ? (
+                      <div className="order-details-scroll max-h-40 space-y-2 overflow-y-auto pr-1">
+                        {attendees.map((attendee, idx) => (
+                          <div
+                            key={`${attendee.fullName}-${idx}`}
+                            className="rounded-xl border border-white/10 bg-white/[0.028] px-3 py-2"
+                          >
+                            <div className="text-sm font-medium text-white">
+                              {attendee.fullName || `Attendee ${idx + 1}`}
+                            </div>
+
+                            {attendee.email && (
+                              <div className="mt-1 break-all text-xs text-white/55">
+                                {attendee.email}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-3 py-2.5 text-[13px] text-white/54">
+                        No attendee names were saved on this order.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Payment / merchandise / actions */}
+                <div className="rounded-[24px] border border-white/10 bg-white/[0.045] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                  <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/36">
+                    Order & Payment
+                  </div>
+
+                  <div className="mt-3 space-y-2 text-[14px] text-white/86">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-white/56">Order ID</span>
+
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!order.id) {
+                            toast.error("Order ID unavailable.");
+                            return;
+                          }
+
+                          try {
+                            await navigator.clipboard.writeText(order.id);
+                            toast.success("Reference copied.");
+                          } catch (error) {
+                            console.error("Failed to copy order ID:", error);
+                            toast.error("Failed to copy order ID.");
+                          }
+                        }}
+                        disabled={!order.id}
+                        className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-[12px] text-white/80 transition hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <span className="truncate max-w-[140px]">
+                          #{order.id ?? "Unavailable"}
+                        </span>
+
+                        {/* Clipboard Icon */}
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-3.5 w-3.5 opacity-70"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M8 16h8M8 12h8M8 8h8M9 4h6a2 2 0 012 2v14l-5-3-5 3V6a2 2 0 012-2z"
+                          />
+                        </svg>
+                      </button>
                     </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="mt-3 text-sm text-white/60">
-                No merchandise on this order.
+
+                    {created && (
+                      <div>
+                        <span className="text-white/56">Placed:</span>{" "}
+                        <span className="font-medium">{created}</span>
+                      </div>
+                    )}
+                    <div>
+                      <span className="text-white/56">Payment Status:</span>{" "}
+                      <span className="font-medium capitalize">
+                        {order.status}
+                      </span>
+                    </div>
+                  </div>
+
+                  {hasMerch && (
+                    <div className="mt-4">
+                      <div className="mb-2 text-white/50">Merchandise</div>
+
+                      <div className="order-details-scroll max-h-40 space-y-2 overflow-y-auto pr-1">
+                        {merchLines.map((li) => (
+                          <div
+                            key={li.id}
+                            className="flex items-start justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2"
+                          >
+                            <div className="min-w-0">
+                              <div className="truncate text-sm text-white">
+                                {li.name}
+                              </div>
+                              <div className="text-xs text-white/45">
+                                Qty {li.quantity}
+                              </div>
+                            </div>
+
+                            <div className="shrink-0 text-sm font-medium text-white">
+                              ${fmtMoney(li.price * li.quantity)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
-          </div>
-        </div>
 
-        {/* Footer actions */}
-        <div className="mt-5 flex flex-col gap-3 border-t border-white/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-[11px] text-white/40">
-            Need help? Contact us and reference{" "}
-            <span className="font-mono">#{order.id}</span>.
-          </div>
+              <div className="mt-4 flex flex-col gap-3 border-t border-white/8 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-[12px] text-white/42">
+                  Need help? Contact us and reference{" "}
+                  <span className="font-mono text-white/58">#{order.id}</span>.
+                </div>
 
-          {order.status === "paid" && (
-            <button
-              onClick={() => openCancelConfirm(order)}
-              className="rounded-xl bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-sm"
-            >
-              Cancel{hasBooking ? " & Refund" : ""}
-            </button>
-          )}
+                {order.status === "paid" && (
+                  <button
+                    onClick={() => openCancelConfirm(order)}
+                    className="rounded-2xl border border-red-400/20 bg-red-500/90 px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-red-500"
+                  >
+                    Cancel{hasBooking ? " & Refund" : ""}
+                  </button>
+                )}
 
-          {order.status === "pending" && (
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => openDeleteConfirm(order)}
-                className="text-xs rounded-xl border border-red-400/30 text-red-200 hover:bg-red-500/10 px-3 py-2"
-              >
-                Delete Order
-              </button>
+                {order.status === "pending" && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => openDeleteConfirm(order)}
+                      className="rounded-xl border border-red-400/30 px-3 py-2 text-xs text-red-200 transition hover:bg-red-500/10"
+                    >
+                      Delete Order
+                    </button>
 
-              <button
-                onClick={() => navigate("/checkout")}
-                className="text-xs rounded-xl border border-white/15 text-white/90 hover:bg-white/5 px-3 py-2"
-              >
-                Continue Payment
-              </button>
+                    <button
+                      onClick={() => navigate("/checkout")}
+                      className="rounded-xl border border-white/15 px-3 py-2 text-xs text-white/90 transition hover:bg-white/5"
+                    >
+                      Continue Payment
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-        </div>
+          </>
+        )}
       </li>
     );
   };
@@ -1082,15 +1316,19 @@ const ClientDashboard: React.FC = () => {
                             </div>
 
                             {successOrder.booking?.dates?.length > 0 && (
-                              <div className="mt-4 flex flex-wrap gap-2">
-                                {successOrder.booking.dates.map((date) => (
-                                  <span
-                                    key={date}
-                                    className="inline-flex items-center rounded-full border border-black/10 bg-white px-3 py-1 text-xs font-medium text-[var(--color-footer)] shadow-sm"
-                                  >
-                                    {formatFriendlyDateSafe(date)}
-                                  </span>
-                                ))}
+                              <div className="mt-4 rounded-xl border border-black/5 bg-neutral-50 p-3">
+                                <div className="details-scroll max-h-36 overflow-y-auto pr-1">
+                                  <div className="flex flex-wrap gap-2">
+                                    {successOrder.booking.dates.map((date) => (
+                                      <span
+                                        key={date}
+                                        className="inline-flex items-center rounded-full border border-black/10 bg-white px-3 py-1 text-xs font-medium text-[var(--color-footer)] shadow-sm"
+                                      >
+                                        {formatFriendlyDateSafe(date)}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
                               </div>
                             )}
 
@@ -1099,17 +1337,20 @@ const ClientDashboard: React.FC = () => {
                                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-footer)]/60">
                                   Party Deck
                                 </p>
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                  {successOrder.booking.partyDeckDates.map(
-                                    (date) => (
-                                      <span
-                                        key={date}
-                                        className="inline-flex items-center rounded-full border border-[var(--color-accent-gold)]/20 bg-white px-3 py-1 text-xs font-medium text-[var(--color-footer)] shadow-sm"
-                                      >
-                                        {formatFriendlyDateSafe(date)}
-                                      </span>
-                                    )
-                                  )}
+
+                                <div className="details-scroll mt-2 max-h-36 overflow-y-auto pr-1">
+                                  <div className="flex flex-wrap gap-2">
+                                    {successOrder.booking.partyDeckDates.map(
+                                      (date) => (
+                                        <span
+                                          key={date}
+                                          className="inline-flex items-center rounded-full border border-[var(--color-accent-gold)]/20 bg-white px-3 py-1 text-xs font-medium text-[var(--color-footer)] shadow-sm"
+                                        >
+                                          {formatFriendlyDateSafe(date)}
+                                        </span>
+                                      )
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             )}
@@ -1286,7 +1527,7 @@ const ClientDashboard: React.FC = () => {
               <div className="mb-5 space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
-                    <div className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+                    <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/36">
                       Upcoming
                     </div>
                     <div className="mt-2 text-2xl font-semibold text-white">
@@ -1295,7 +1536,7 @@ const ClientDashboard: React.FC = () => {
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
-                    <div className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+                    <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/36">
                       Past Hunts
                     </div>
                     <div className="mt-2 text-2xl font-semibold text-white">
@@ -1304,7 +1545,7 @@ const ClientDashboard: React.FC = () => {
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
-                    <div className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+                    <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/36">
                       Pending Payment
                     </div>
                     <div className="mt-2 text-2xl font-semibold text-white">
@@ -1313,14 +1554,15 @@ const ClientDashboard: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 p-2">
+                <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
                   <button
                     onClick={() => setOrdersTab("all")}
                     className={
-                      "px-3 py-2 text-xs rounded-lg border transition " +
-                      (ordersTab === "all"
-                        ? "border-white text-white bg-white/5"
-                        : "border-white/15 text-white/65 hover:border-white/30")
+                      "px-3.5 py-2 text-[12px] rounded-xl border font-medium transition " +
+                        ordersTab ===
+                      "all"
+                        ? "border-white/20 bg-white/[0.08] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+                        : "border-white/10 bg-transparent text-white/60 hover:border-white/20 hover:bg-white/[0.04] hover:text-white/85"
                     }
                   >
                     All <span className="opacity-60">({orders.length})</span>
@@ -1329,7 +1571,7 @@ const ClientDashboard: React.FC = () => {
                   <button
                     onClick={() => setOrdersTab("upcoming")}
                     className={
-                      "px-3 py-2 text-xs rounded-lg border transition " +
+                      "px-3.5 py-2 text-[12px] rounded-xl border font-medium transition " +
                       (ordersTab === "upcoming"
                         ? "border-white text-white bg-white/5"
                         : "border-white/15 text-white/65 hover:border-white/30")
@@ -1344,7 +1586,7 @@ const ClientDashboard: React.FC = () => {
                   <button
                     onClick={() => setOrdersTab("past")}
                     className={
-                      "px-3 py-2 text-xs rounded-lg border transition " +
+                      "px-3.5 py-2 text-[12px] rounded-xl border font-medium transition " +
                       (ordersTab === "past"
                         ? "border-white text-white bg-white/5"
                         : "border-white/15 text-white/65 hover:border-white/30")
@@ -1357,7 +1599,7 @@ const ClientDashboard: React.FC = () => {
                   <button
                     onClick={() => setOrdersTab("cancelled")}
                     className={
-                      "px-3 py-2 text-xs rounded-lg border transition " +
+                      "px-3.5 py-2 text-[12px] rounded-xl border font-medium transition " +
                       (ordersTab === "cancelled"
                         ? "border-white text-white bg-white/5"
                         : "border-white/15 text-white/65 hover:border-white/30")
@@ -1381,7 +1623,7 @@ const ClientDashboard: React.FC = () => {
                   </p>
                 </div>
               ) : (
-                <ul className="grid gap-4 grid-cols-1">
+                <ul className="grid grid-cols-1 gap-5">
                   {filteredOrders.map((order) => (
                     <OrderRow key={order.id} order={order} />
                   ))}
