@@ -169,7 +169,7 @@ const DateSelector = ({
 
   return (
     <div className="flex justify-center">
-      <div className="date-selector touch-manipulation w-full max-w-[500px] px-1">
+      <div className="date-selector touch-manipulation w-full max-w-[560px] px-2 sm:px-3">
         <DayPicker
           mode="multiple"
           month={month}
@@ -202,14 +202,14 @@ const DateSelector = ({
             button_next:
               "inline-flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full border border-black/10 bg-white text-[var(--color-footer)] transition hover:border-black/20 hover:bg-neutral-100 disabled:opacity-40",
             month_grid:
-              "w-full table-fixed border-separate border-spacing-x-1 border-spacing-y-2 sm:border-spacing-x-2 sm:border-spacing-y-2.5",
+              "w-full table-fixed border-separate border-spacing-x-1.5 border-spacing-y-2 sm:border-spacing-x-2.5 sm:border-spacing-y-2.5",
             weekdays: "mb-1 sm:mb-2",
             weekday:
               "text-[10px] sm:text-xs font-semibold uppercase tracking-[0.1em] text-[var(--color-footer)]/55",
             week: "",
-            day: "p-0.5 text-center align-middle",
+            day: "p-1 text-center align-middle",
             day_button:
-              "mx-auto h-9 w-9 sm:h-11 sm:w-11 rounded-lg border border-transparent text-sm font-semibold text-[var(--color-footer)] transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-gold)]/50",
+              "mx-auto rounded-xl border border-transparent text-sm font-semibold text-[var(--color-footer)] transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-gold)]/50",
             outside: "text-[var(--color-footer)]/25",
             hidden: "invisible",
           }}
