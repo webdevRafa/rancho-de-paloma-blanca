@@ -169,7 +169,7 @@ const DateSelector = ({
 
   return (
     <div className="flex justify-center">
-      <div className="date-selector touch-manipulation w-full max-w-[420px]">
+      <div className="date-selector touch-manipulation w-full max-w-[420px] px-1 sm:px-0">
         <DayPicker
           mode="multiple"
           month={month}
@@ -193,21 +193,23 @@ const DateSelector = ({
             months: "w-full",
             month: "w-full",
             month_caption:
-              "mb-5 flex items-center justify-between text-[32px] font-acumin font-semibold text-[var(--color-footer)]",
-            caption_label: "text-[32px] font-acumin font-semibold",
-            nav: "flex items-center gap-2",
+              "mb-4 flex items-center justify-between gap-3 text-[var(--color-footer)]",
+            caption_label:
+              "text-[22px] leading-none sm:text-[32px] font-acumin font-semibold",
+            nav: "flex items-center gap-2 shrink-0",
             button_previous:
-              "inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-white text-[var(--color-footer)] transition hover:border-black/20 hover:bg-neutral-100 disabled:opacity-40",
+              "inline-flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full border border-black/10 bg-white text-[var(--color-footer)] transition hover:border-black/20 hover:bg-neutral-100 disabled:opacity-40",
             button_next:
-              "inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-white text-[var(--color-footer)] transition hover:border-black/20 hover:bg-neutral-100 disabled:opacity-40",
-            month_grid: "w-full border-separate border-spacing-2",
-            weekdays: "mb-2",
+              "inline-flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full border border-black/10 bg-white text-[var(--color-footer)] transition hover:border-black/20 hover:bg-neutral-100 disabled:opacity-40",
+            month_grid:
+              "w-full table-fixed border-separate border-spacing-1 sm:border-spacing-2",
+            weekdays: "mb-1 sm:mb-2",
             weekday:
-              "text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-footer)]/55",
+              "text-[11px] sm:text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-footer)]/55",
             week: "",
-            day: "p-0",
+            day: "p-0 text-center align-middle",
             day_button:
-              "h-12 w-12 rounded-md border border-transparent text-sm font-semibold text-[var(--color-footer)] transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-gold)]/50",
+              "h-10 w-10 sm:h-12 sm:w-12 rounded-md border border-transparent text-sm font-semibold text-[var(--color-footer)] transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-gold)]/50",
             outside: "text-[var(--color-footer)]/25",
             hidden: "invisible",
           }}
@@ -244,10 +246,10 @@ const DateSelector = ({
               const mergedStyle: CSSProperties = {
                 ...(props.style ?? {}),
                 boxSizing: "border-box",
-                width: "48px",
-                height: "48px",
-                minWidth: "48px",
-                minHeight: "48px",
+                width: "100%",
+                height: "100%",
+                minWidth: "40px",
+                minHeight: "40px",
                 padding: 0,
                 margin: 0,
                 borderRadius: "8px",
