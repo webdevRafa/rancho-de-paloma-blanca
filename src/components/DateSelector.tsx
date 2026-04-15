@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { db } from "../firebase/firebaseConfig";
 import {
@@ -8,7 +9,7 @@ import {
   documentId,
 } from "firebase/firestore";
 import type { Availability, SeasonConfig } from "../types/Types";
-import { DayPicker, useDayPicker } from "react-day-picker";
+import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
 // react-day-picker dates can behave like UTC calendar dates,
 // so use UTC getters here to avoid the one-day-back bug.
@@ -27,6 +28,8 @@ interface DateSelectorProps {
 }
 
 type AvailabilityDoc = Availability & { id: string };
+
+const BACK_THE_BLUE_DATE = "2026-10-03";
 
 const DateSelector = ({
   onSelect,
@@ -65,6 +68,8 @@ const DateSelector = ({
     const [y, m, d] = iso.split("-").map(Number);
     return new Date(y, m - 1, d);
   };
+  const isBackTheBlueDate = (day: Date) =>
+    dayPickerDateToIso(day) === BACK_THE_BLUE_DATE;
 
   useEffect(() => {
     const sortedSelected = selectedDatesKey ? selectedDatesKey.split("|") : [];
@@ -164,7 +169,7 @@ const DateSelector = ({
 
   return (
     <div className="flex justify-center">
-      <div className="date-selector touch-manipulation">
+      <div className="date-selector touch-manipulation w-full max-w-[420px]">
         <DayPicker
           mode="multiple"
           month={month}
@@ -175,55 +180,111 @@ const DateSelector = ({
           selected={selected}
           onSelect={handleSelect}
           disabled={isDateBlocked}
+          modifiers={{
+            backTheBlue: isBackTheBlueDate,
+          }}
           modifiersClassNames={{
-            selected: "bg-[var(--color-accent-gold)] text-black",
-            disabled: "opacity-40 cursor-not-allowed",
+            selected: "text-black",
+            disabled: "opacity-35 cursor-not-allowed",
             today: "text-[var(--color-accent-gold)]",
           }}
-          className="p-4 rounded"
+          className="w-full"
+          classNames={{
+            months: "w-full",
+            month: "w-full",
+            month_caption:
+              "mb-5 flex items-center justify-between text-[32px] font-acumin font-semibold text-[var(--color-footer)]",
+            caption_label: "text-[32px] font-acumin font-semibold",
+            nav: "flex items-center gap-2",
+            button_previous:
+              "inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-white text-[var(--color-footer)] transition hover:border-black/20 hover:bg-neutral-100 disabled:opacity-40",
+            button_next:
+              "inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-white text-[var(--color-footer)] transition hover:border-black/20 hover:bg-neutral-100 disabled:opacity-40",
+            month_grid: "w-full border-separate border-spacing-2",
+            weekdays: "mb-2",
+            weekday:
+              "text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-footer)]/55",
+            week: "",
+            day: "p-0",
+            day_button:
+              "h-12 w-12 rounded-md border border-transparent text-sm font-semibold text-[var(--color-footer)] transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-gold)]/50",
+            outside: "text-[var(--color-footer)]/25",
+            hidden: "invisible",
+          }}
           navLayout="after"
           components={{
-            Nav: () => {
-              const { previousMonth, nextMonth, goToMonth } = useDayPicker();
+            Chevron: ({ orientation, ...props }) => (
+              <svg
+                {...props}
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                {orientation === "left" ? (
+                  <polyline points="15 18 9 12 15 6" />
+                ) : (
+                  <polyline points="9 18 15 12 9 6" />
+                )}
+              </svg>
+            ),
+            DayButton: (props) => {
+              const iso = dayPickerDateToIso(props.day.date);
+              const isBlueDate = iso === BACK_THE_BLUE_DATE;
+              const isSelected = selected.some(
+                (d) => dayPickerDateToIso(d) === iso
+              );
+              const isDisabled =
+                props.disabled ||
+                props["aria-disabled"] === true ||
+                props["aria-disabled"] === "true";
+
+              const mergedStyle: CSSProperties = {
+                ...(props.style ?? {}),
+                boxSizing: "border-box",
+                width: "48px",
+                height: "48px",
+                minWidth: "48px",
+                minHeight: "48px",
+                padding: 0,
+                margin: 0,
+                borderRadius: "8px",
+                border: "1px solid transparent",
+                backgroundColor: "transparent",
+                color: "var(--color-footer)",
+                transition:
+                  "background-color 150ms ease, border-color 150ms ease, color 150ms ease, transform 150ms ease",
+                ...(isBlueDate && !isSelected && !isDisabled
+                  ? {
+                      border: "1px solid #2563eb",
+                      backgroundColor: "transparent",
+                      color: "#1f2937",
+                    }
+                  : {}),
+                ...(isBlueDate && isSelected && !isDisabled
+                  ? {
+                      backgroundColor: "#2563eb",
+                      color: "#ffffff",
+                      border: "1px solid #2563eb",
+                    }
+                  : {}),
+                ...(!isBlueDate && isSelected && !isDisabled
+                  ? {
+                      backgroundColor: "var(--color-accent-gold)",
+                      color: "#000000",
+                      border: "1px solid var(--color-accent-gold)",
+                    }
+                  : {}),
+              };
+
               return (
-                <div className="flex justify-end items-center gap-2 mt-[-35px] mb-4">
-                  <button
-                    type="button"
-                    disabled={!previousMonth}
-                    onClick={() => previousMonth && goToMonth(previousMonth)}
-                    className="p-1  text-[var(--color-footer)] hover:text-[var(--color-accent-gold)] disabled:opacity-40"
-                    aria-label="Previous month"
-                  >
-                    <svg
-                      width="25"
-                      height="25"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <polyline points="15 18 9 12 15 6" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!nextMonth}
-                    onClick={() => nextMonth && goToMonth(nextMonth)}
-                    className="p-1 text-[var(--color-footer)] hover:text-[var(--color-accent-gold)] disabled:opacity-40"
-                    aria-label="Next month"
-                  >
-                    <svg
-                      width="25"
-                      height="25"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <polyline points="9 18 15 12 9 6" />
-                    </svg>
-                  </button>
-                </div>
+                <button
+                  {...props}
+                  style={mergedStyle}
+                  className={`${props.className ?? ""} shadow-none`}
+                />
               );
             },
           }}

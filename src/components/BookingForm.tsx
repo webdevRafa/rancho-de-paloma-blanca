@@ -697,12 +697,14 @@ const BookingForm = () => {
 
         {step === 2 && (
           <>
-            <div className="text-sm text-[var(--color-footer)] text-center">
-              <DateSelector
-                onSelect={(dates) => setForm((prev) => ({ ...prev, dates }))}
-                seasonConfig={seasonConfig}
-                numberOfHunters={form.numberOfHunters}
-              />
+            <div className="rounded-2xl border border-black/10 bg-white px-4 py-5 shadow-[0_10px_30px_rgba(0,0,0,0.05)] sm:px-6 sm:py-6">
+              <div className="mx-auto max-w-[520px] text-sm text-[var(--color-footer)] text-center">
+                <DateSelector
+                  onSelect={(dates) => setForm((prev) => ({ ...prev, dates }))}
+                  seasonConfig={seasonConfig}
+                  numberOfHunters={form.numberOfHunters}
+                />
+              </div>
             </div>
 
             {seasonConfig && (
@@ -995,43 +997,47 @@ const BookingForm = () => {
           </>
         )}
 
-        <div className="flex justify-between pt-4">
-          {step > 1 && step < 3 && (
-            <button
-              onClick={handlePrevStep}
-              className="text-sm text-[var(--color-button)] font-bold hover:underline"
-            >
-              ← Back
-            </button>
-          )}
-
+        <div className="pt-6">
           {step < 3 ? (
-            <>
-              <button
-                onClick={handleNextStep}
-                className="ml-auto bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white px-6 py-2 text-sm font-semibold"
-              >
-                Continue →
-              </button>
-            </>
-          ) : (
-            <>
-              <div className="mt-2 grid w-full gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {step > 1 ? (
                 <button
                   onClick={handlePrevStep}
                   className="order-2 inline-flex items-center justify-center rounded-md border border-[var(--color-footer)]/15 bg-white px-6 py-3 text-sm font-semibold text-[var(--color-footer)] transition hover:bg-neutral-50 sm:order-1"
                 >
                   ← Back
                 </button>
+              ) : (
+                <div className="hidden sm:block" />
+              )}
 
-                <button
-                  onClick={handleSubmit}
-                  className="order-1 inline-flex items-center justify-center rounded-md border border-[var(--color-footer)] bg-[var(--color-footer)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[var(--color-button-hover)] sm:order-2"
-                >
-                  Checkout
-                </button>
-              </div>
-            </>
+              <button
+                onClick={handleNextStep}
+                className={`inline-flex items-center justify-center rounded-md border px-6 py-3 text-sm font-semibold transition ${
+                  step > 1
+                    ? "order-1 sm:order-2 border-[var(--color-footer)] bg-[var(--color-footer)] text-white hover:bg-[var(--color-button-hover)]"
+                    : "sm:col-start-2 border-[var(--color-footer)] bg-[var(--color-footer)] text-white hover:bg-[var(--color-button-hover)]"
+                }`}
+              >
+                Continue →
+              </button>
+            </div>
+          ) : (
+            <div className="mt-2 grid w-full gap-3 sm:grid-cols-2">
+              <button
+                onClick={handlePrevStep}
+                className="order-2 inline-flex items-center justify-center rounded-md border border-[var(--color-footer)]/15 bg-white px-6 py-3 text-sm font-semibold text-[var(--color-footer)] transition hover:bg-neutral-50 sm:order-1"
+              >
+                ← Back
+              </button>
+
+              <button
+                onClick={handleSubmit}
+                className="order-1 inline-flex items-center justify-center rounded-md border border-[var(--color-footer)] bg-[var(--color-footer)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[var(--color-button-hover)] sm:order-2"
+              >
+                Checkout
+              </button>
+            </div>
           )}
         </div>
       </div>
