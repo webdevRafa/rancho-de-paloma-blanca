@@ -258,7 +258,7 @@ const DateSelector = ({
                   "background-color 150ms ease, border-color 150ms ease, color 150ms ease, transform 150ms ease",
                 ...(isBlueDate && !isSelected && !isDisabled
                   ? {
-                      border: "1px solid #2563eb",
+                      border: "2px solid #2563eb",
                       backgroundColor: "transparent",
                       color: "#1f2937",
                     }
