@@ -169,7 +169,7 @@ const DateSelector = ({
 
   return (
     <div className="flex justify-center">
-      <div className="date-selector touch-manipulation w-full max-w-[420px] px-1 sm:px-0">
+      <div className="date-selector touch-manipulation w-full max-w-[500px] px-1 sm:px-3">
         <DayPicker
           mode="multiple"
           month={month}
@@ -188,12 +188,12 @@ const DateSelector = ({
             disabled: "opacity-35 cursor-not-allowed",
             today: "text-[var(--color-accent-gold)]",
           }}
-          className="w-full"
+          className="w-full rounded-[28px] bg-white px-2 py-4 sm:px-4 sm:py-5"
           classNames={{
             months: "w-full",
             month: "w-full",
             month_caption:
-              "mb-4 flex items-center justify-between gap-3 text-[var(--color-footer)]",
+              "mb-4 flex items-center justify-between gap-3 px-0.5 sm:px-1 text-[var(--color-footer)]",
             caption_label:
               "text-[22px] leading-none sm:text-[32px] font-acumin font-semibold",
             nav: "flex items-center gap-2 shrink-0",
@@ -202,14 +202,14 @@ const DateSelector = ({
             button_next:
               "inline-flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full border border-black/10 bg-white text-[var(--color-footer)] transition hover:border-black/20 hover:bg-neutral-100 disabled:opacity-40",
             month_grid:
-              "w-full table-fixed border-separate border-spacing-1 sm:border-spacing-2",
+              "w-full table-fixed border-separate border-spacing-x-1 border-spacing-y-2 sm:border-spacing-x-2 sm:border-spacing-y-2.5",
             weekdays: "mb-1 sm:mb-2",
             weekday:
-              "text-[11px] sm:text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-footer)]/55",
+              "text-[10px] sm:text-xs font-semibold uppercase tracking-[0.1em] text-[var(--color-footer)]/55",
             week: "",
-            day: "p-0 text-center align-middle",
+            day: "p-0.5 text-center align-middle",
             day_button:
-              "h-10 w-10 sm:h-12 sm:w-12 rounded-md border border-transparent text-sm font-semibold text-[var(--color-footer)] transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-gold)]/50",
+              "mx-auto h-9 w-9 sm:h-11 sm:w-11 rounded-lg border border-transparent text-sm font-semibold text-[var(--color-footer)] transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-gold)]/50",
             outside: "text-[var(--color-footer)]/25",
             hidden: "invisible",
           }}
@@ -248,14 +248,19 @@ const DateSelector = ({
                 boxSizing: "border-box",
                 width: "100%",
                 height: "100%",
+                maxWidth: "40px",
+                maxHeight: "40px",
                 minWidth: "40px",
                 minHeight: "40px",
                 padding: 0,
-                margin: 0,
-                borderRadius: "8px",
+                margin: "0 auto",
+                borderRadius: "10px",
                 border: "1px solid transparent",
                 backgroundColor: "transparent",
                 color: "var(--color-footer)",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
                 transition:
                   "background-color 150ms ease, border-color 150ms ease, color 150ms ease, transform 150ms ease",
                 ...(isBlueDate && !isSelected && !isDisabled
