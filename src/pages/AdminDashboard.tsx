@@ -336,7 +336,7 @@ function MerchOrderModal({
           </div>
         </div>
 
-        <div className="max-h-[60vh] overflow-auto px-5 py-4">
+        <div className="order-details-scroll max-h-[60vh] overflow-auto px-5 py-4 pr-4">
           <table className="w-full min-w-[760px] text-sm">
             <thead className="sticky top-0 bg-[#0f0b09]">
               <tr className="border-b border-white/10 text-left text-white/55">
@@ -679,7 +679,7 @@ export default function AdminDashboard() {
           value={
             <CountUp end={reservedPartyDeckDays} duration={0.7} separator="," />
           }
-          sublabel={`${availablePartyDeckDays} still available in this view`}
+          sublabel={`${availablePartyDeckDays} days still available in this view`}
         />
         <MetricCard
           label="Paid orders"
@@ -706,7 +706,7 @@ export default function AdminDashboard() {
         </div>
 
         <div className="overflow-hidden rounded-2xl border border-white/10">
-          <div className="max-h-[430px] overflow-auto">
+          <div className="order-details-scroll max-h-[430px] overflow-auto pr-1">
             <table className="w-full min-w-[860px] text-sm">
               <thead className="sticky top-0 z-10 bg-[#140d09]">
                 <tr className="border-b border-white/10 text-left text-white/55">
@@ -791,7 +791,7 @@ export default function AdminDashboard() {
         </div>
 
         <div className="overflow-hidden rounded-2xl border border-white/10">
-          <div className="max-h-[520px] overflow-auto">
+          <div className="order-details-scroll max-h-[520px] overflow-auto pr-1">
             <table className="w-full min-w-[1080px] text-sm">
               <thead className="sticky top-0 z-10 bg-[#140d09]">
                 <tr className="border-b border-white/10 text-left text-white/55">
@@ -1008,7 +1008,7 @@ export default function AdminDashboard() {
         </div>
 
         <div className="overflow-hidden rounded-2xl border border-white/10">
-          <div className="max-h-[460px] overflow-auto">
+          <div className="order-details-scroll max-h-[460px] overflow-auto pr-1">
             <table className="w-full min-w-[980px] text-sm">
               <thead className="sticky top-0 z-10 bg-[#140d09]">
                 <tr className="border-b border-white/10 text-left text-white/55">
