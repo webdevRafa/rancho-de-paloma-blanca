@@ -63,20 +63,6 @@ function findDeepId(obj: any, re: RegExp): string | null {
 }
 // ---- Order filters & classification ----
 
-// Earliest hunt date (if any)
-function firstHuntDate(order: Order): string | undefined {
-  const d = order?.booking?.dates;
-  if (!Array.isArray(d) || d.length === 0) return undefined;
-  return [...d].sort()[0]; // YYYY-MM-DD sorts safely
-}
-
-// Latest hunt date (if any)
-function lastHuntDate(order: Order): string | undefined {
-  const d = order?.booking?.dates;
-  if (!Array.isArray(d) || d.length === 0) return undefined;
-  return [...d].sort()[d.length - 1];
-}
-
 function toLocalMidnight(iso?: string): Date | null {
   if (!iso) return null;
   try {
@@ -89,29 +75,43 @@ function toLocalMidnight(iso?: string): Date | null {
   }
 }
 
+function todayLocalIso(): string {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 // UX stage for the first pill = hunt timing, not payment state
-type Stage =
-  | "upcoming"
-  | "in_progress"
-  | "completed"
-  | "cancelled"
-  | "refunded";
+type Stage = "upcoming" | "active" | "completed" | "cancelled" | "refunded";
 
 function classifyStage(order: Order): Stage {
   if (order.status === "refunded") return "refunded";
   if (order.status === "cancelled") return "cancelled";
 
-  const first = toLocalMidnight(firstHuntDate(order));
-  const last = toLocalMidnight(lastHuntDate(order));
+  const dates = Array.isArray(order?.booking?.dates)
+    ? [...order.booking.dates].sort()
+    : [];
+
+  if (dates.length === 0) return "completed";
+
+  const first = toLocalMidnight(dates[0]);
+  const last = toLocalMidnight(dates[dates.length - 1]);
 
   if (!first || !last) return "completed";
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  const todayIso = todayLocalIso();
+  const hasHuntToday = dates.includes(todayIso);
+
   if (today < first) return "upcoming";
   if (today > last) return "completed";
-  return "in_progress";
+  if (hasHuntToday) return "active";
+
+  return "upcoming";
 }
 
 /** "Friday, October 4th, 2025" (safe) */
@@ -285,8 +285,6 @@ class Boundary extends React.Component<
   }
 }
 
-type Tab = "orders" | "cart";
-
 type CancelPreview = {
   order: Order;
   hasBooking: boolean;
@@ -298,10 +296,9 @@ type CancelPreview = {
 const ClientDashboard: React.FC = () => {
   // ---------------- Hooks (fixed order) ----------------
   const { user, checkAndCreateUser } = useAuth();
-  const { isHydrated, booking, merchItems } = useCart();
+  useCart();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<Tab>("orders");
   const [showSuccess, setShowSuccess] = useState(false);
   const [successOrder, setSuccessOrder] = useState<Order | null>(null);
   const [loadingSuccess, setLoadingSuccess] = useState(false);
@@ -434,17 +431,6 @@ const ClientDashboard: React.FC = () => {
     };
   }, [user]);
 
-  // Derived: whether cart has anything
-  const hasCartItems = useMemo(() => {
-    if (!isHydrated) return false;
-    const hasBooking = Boolean(booking);
-    const merchCount = Array.isArray(merchItems)
-      ? (merchItems as any[]).length
-      : merchItems && typeof merchItems === "object"
-      ? Object.keys(merchItems).length
-      : 0;
-    return hasBooking || merchCount > 0;
-  }, [isHydrated, booking, merchItems]);
   const validOrders = useMemo(
     () =>
       orders.filter((o) => o.status !== "cancelled" && o.status !== "refunded"),
@@ -460,7 +446,7 @@ const ClientDashboard: React.FC = () => {
     () =>
       validOrders.filter((o) => {
         const stage = classifyStage(o);
-        return stage === "upcoming" || stage === "in_progress";
+        return stage === "upcoming" || stage === "active";
       }),
     [validOrders]
   );
@@ -619,7 +605,6 @@ const ClientDashboard: React.FC = () => {
     setShowSuccess(false);
     setSuccessOrder(null);
     setLoadingSuccess(false);
-    setActiveTab("orders");
     navigate("/dashboard", { replace: true });
   };
 
@@ -689,7 +674,7 @@ const ClientDashboard: React.FC = () => {
 
     const by = {
       upcoming: "border-sky-400/20 bg-sky-400/10 text-sky-200",
-      in_progress: "border-emerald-400/20 bg-emerald-400/12 text-emerald-200",
+      active: "border-emerald-400/20 bg-emerald-400/12 text-emerald-200",
       completed: "border-white/12 bg-white/[0.05] text-white/70",
       cancelled: "border-rose-400/20 bg-rose-400/12 text-rose-200",
       refunded: "border-sky-400/20 bg-sky-400/12 text-sky-200",
@@ -697,7 +682,7 @@ const ClientDashboard: React.FC = () => {
 
     const label = {
       upcoming: "Upcoming",
-      in_progress: "In Progress",
+      active: "Active",
       completed: "Past",
       cancelled: "Cancelled",
       refunded: "Refunded",
@@ -1167,33 +1152,13 @@ const ClientDashboard: React.FC = () => {
         {/* Sidebar */}
         <aside className="w-full md:w-1/4">
           <nav className="grid grid-cols-2 md:grid-cols-1 gap-3 max-w-[400px]">
-            <button
-              className={`text-left w-full px-4 py-3 rounded-xl border transition-all duration-300 ease-in-out ${
-                activeTab === "orders"
-                  ? "border-white bg-white/5 text-white shadow-sm"
-                  : "border-white/10 text-white/70 hover:border-white/25 hover:bg-white/5"
-              }`}
-              onClick={() => setActiveTab("orders")}
-            >
+            <div className="text-left w-full px-4 py-3 rounded-xl border border-white bg-white/5 text-white shadow-sm">
               <div className="font-medium">My Orders</div>
               <div className="mt-1 text-xs text-white/45">
                 Reservations, purchases, and history
               </div>
-            </button>
+            </div>
 
-            <button
-              className={`text-left w-full px-4 py-3 rounded-xl border transition-all duration-300 ease-in-out ${
-                activeTab === "cart"
-                  ? "border-white bg-white/5 text-white shadow-sm"
-                  : "border-white/10 text-white/70 hover:border-white/25 hover:bg-white/5"
-              }`}
-              onClick={() => setActiveTab("cart")}
-            >
-              <div className="font-medium">Continue Checkout</div>
-              <div className="mt-1 text-xs text-white/45">
-                Resume your active cart
-              </div>
-            </button>
             {!user && (
               <button
                 onClick={checkAndCreateUser}
@@ -1546,94 +1511,95 @@ const ClientDashboard: React.FC = () => {
             </div>
           ) : loading ? (
             <p className="text-sm text-neutral-400">Loading your data...</p>
-          ) : activeTab === "orders" ? (
+          ) : (
             <>
               <div className="mb-5 space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
-                    <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/36">
+                <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                  <div className="rounded-[18px] border border-white/10 bg-white/5 px-3 py-3 sm:rounded-2xl sm:px-4 sm:py-4">
+                    <div className="text-[8px] font-medium uppercase tracking-[0.16em] text-white/36 sm:text-[10px] sm:tracking-[0.18em]">
                       Upcoming
                     </div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
+                    <div className="mt-1.5 text-[1.75rem] font-semibold leading-none text-white sm:mt-2 sm:text-2xl">
                       {upcomingOrders.length}
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
-                    <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/36">
-                      Past Hunts
+                  <div className="rounded-[18px] border border-white/10 bg-white/5 px-3 py-3 sm:rounded-2xl sm:px-4 sm:py-4">
+                    <div className="text-[8px] font-medium uppercase tracking-[0.16em] text-white/36 sm:text-[10px] sm:tracking-[0.18em]">
+                      Past
                     </div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
+                    <div className="mt-1.5 text-[1.75rem] font-semibold leading-none text-white sm:mt-2 sm:text-2xl">
                       {pastOrders.length}
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
-                    <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/36">
-                      Pending Payment
+                  <div className="rounded-[18px] border border-white/10 bg-white/5 px-3 py-3 sm:rounded-2xl sm:px-4 sm:py-4">
+                    <div className="text-[8px] font-medium uppercase tracking-[0.16em] text-white/36 sm:text-[10px] sm:tracking-[0.18em]">
+                      Pending
                     </div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
+                    <div className="mt-1.5 text-[1.75rem] font-semibold leading-none text-white sm:mt-2 sm:text-2xl">
                       {pendingOrders.length}
                     </div>
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
-                  <button
-                    onClick={() => setOrdersTab("all")}
-                    className={
-                      "px-3.5 py-2 text-[12px] rounded-xl border font-medium transition " +
-                        ordersTab ===
-                      "all"
-                        ? "border-white/20 bg-white/[0.08] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
-                        : "border-white/10 bg-transparent text-white/60 hover:border-white/20 hover:bg-white/[0.04] hover:text-white/85"
-                    }
-                  >
-                    All <span className="opacity-60">({orders.length})</span>
-                  </button>
+                <div className="-mx-1 overflow-x-auto px-1 sm:mx-0 sm:overflow-visible sm:px-0">
+                  <div className="flex min-w-max items-center gap-1.5 rounded-[18px] border border-white/8 bg-white/[0.025] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] sm:min-w-0 sm:flex-wrap sm:gap-2 sm:rounded-2xl sm:border-white/10 sm:bg-white/[0.03] sm:p-2 sm:shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
+                    <button
+                      onClick={() => setOrdersTab("all")}
+                      className={
+                        "shrink-0 rounded-[12px] border px-3 py-1.5 text-[11px] font-medium transition sm:rounded-xl sm:px-3.5 sm:py-2 sm:text-[12px] " +
+                        (ordersTab === "all"
+                          ? "border-white/20 bg-white/[0.08] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+                          : "border-white/10 bg-transparent text-white/60 hover:border-white/20 hover:bg-white/[0.04] hover:text-white/85")
+                      }
+                    >
+                      All <span className="opacity-60">({orders.length})</span>
+                    </button>
 
-                  <button
-                    onClick={() => setOrdersTab("upcoming")}
-                    className={
-                      "px-3.5 py-2 text-[12px] rounded-xl border font-medium transition " +
-                      (ordersTab === "upcoming"
-                        ? "border-white text-white bg-white/5"
-                        : "border-white/15 text-white/65 hover:border-white/30")
-                    }
-                  >
-                    Upcoming{" "}
-                    <span className="opacity-60">
-                      ({upcomingOrders.length})
-                    </span>
-                  </button>
+                    <button
+                      onClick={() => setOrdersTab("upcoming")}
+                      className={
+                        "shrink-0 rounded-[12px] border px-3 py-1.5 text-[11px] font-medium transition sm:rounded-xl sm:px-3.5 sm:py-2 sm:text-[12px] " +
+                        (ordersTab === "upcoming"
+                          ? "border-white/20 bg-white/[0.08] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+                          : "border-white/10 bg-transparent text-white/60 hover:border-white/20 hover:bg-white/[0.04] hover:text-white/85")
+                      }
+                    >
+                      Upcoming{" "}
+                      <span className="opacity-60">
+                        ({upcomingOrders.length})
+                      </span>
+                    </button>
 
-                  <button
-                    onClick={() => setOrdersTab("past")}
-                    className={
-                      "px-3.5 py-2 text-[12px] rounded-xl border font-medium transition " +
-                      (ordersTab === "past"
-                        ? "border-white text-white bg-white/5"
-                        : "border-white/15 text-white/65 hover:border-white/30")
-                    }
-                  >
-                    Past{" "}
-                    <span className="opacity-60">({pastOrders.length})</span>
-                  </button>
+                    <button
+                      onClick={() => setOrdersTab("past")}
+                      className={
+                        "shrink-0 rounded-[12px] border px-3 py-1.5 text-[11px] font-medium transition sm:rounded-xl sm:px-3.5 sm:py-2 sm:text-[12px] " +
+                        (ordersTab === "past"
+                          ? "border-white/20 bg-white/[0.08] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+                          : "border-white/10 bg-transparent text-white/60 hover:border-white/20 hover:bg-white/[0.04] hover:text-white/85")
+                      }
+                    >
+                      Past{" "}
+                      <span className="opacity-60">({pastOrders.length})</span>
+                    </button>
 
-                  <button
-                    onClick={() => setOrdersTab("cancelled")}
-                    className={
-                      "px-3.5 py-2 text-[12px] rounded-xl border font-medium transition " +
-                      (ordersTab === "cancelled"
-                        ? "border-white text-white bg-white/5"
-                        : "border-white/15 text-white/65 hover:border-white/30")
-                    }
-                  >
-                    Cancelled / Refunded{" "}
-                    <span className="opacity-60">
-                      ({cancelledOrders.length})
-                    </span>
-                  </button>
+                    <button
+                      onClick={() => setOrdersTab("cancelled")}
+                      className={
+                        "shrink-0 rounded-[12px] border px-3 py-1.5 text-[11px] font-medium transition sm:rounded-xl sm:px-3.5 sm:py-2 sm:text-[12px] " +
+                        (ordersTab === "cancelled"
+                          ? "border-white/20 bg-white/[0.08] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+                          : "border-white/10 bg-transparent text-white/60 hover:border-white/20 hover:bg-white/[0.04] hover:text-white/85")
+                      }
+                    >
+                      Cancelled / Refunded{" "}
+                      <span className="opacity-60">
+                        ({cancelledOrders.length})
+                      </span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -1652,29 +1618,6 @@ const ClientDashboard: React.FC = () => {
                     <OrderRow key={order.id} order={order} />
                   ))}
                 </ul>
-              )}
-            </>
-          ) : (
-            <>
-              <h2 className="text-lg mb-3  text-white font-acumin">
-                Cart Status
-              </h2>
-              {hasCartItems ? (
-                <div className="rounded-lg border border-black/5 p-4 bg-neutral-50">
-                  <p className="mb-2 text-neutral-600">
-                    You have items in your cart.
-                  </p>
-                  <button
-                    onClick={() => navigate("/checkout")}
-                    className="bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white px-6 py-2 rounded"
-                  >
-                    Continue Checkout
-                  </button>
-                </div>
-              ) : (
-                <p className="mb-2 text-neutral-500">
-                  Your cart is currently empty.
-                </p>
               )}
             </>
           )}
