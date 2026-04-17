@@ -32,6 +32,17 @@ function fmtMoney(n: unknown): string {
   return Number.isFinite(num) ? num.toFixed(2) : "0.00";
 }
 
+/** Format whole-dollar display values with commas (ex: 48500 -> 48,500). */
+function fmtWholeMoney(n: unknown): string {
+  const num = typeof n === "number" ? n : Number(n);
+  return Number.isFinite(num)
+    ? new Intl.NumberFormat("en-US", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(num)
+    : "0";
+}
+
 // Deep-search helper to find first matching ID key in a nested object
 function findDeepId(obj: any, re: RegExp): string | null {
   const seen = new Set<any>();
@@ -717,8 +728,8 @@ const ClientDashboard: React.FC = () => {
       ? formatDateRange(order.booking?.dates)
       : "Merchandise only order";
 
-    const allDates = hasBooking ? order.booking?.dates ?? [] : [];
-    const partyDeckDates = order.booking?.partyDeckDates ?? [];
+    const allDates = hasBooking ? [...(order.booking?.dates ?? [])].sort() : [];
+    const partyDeckDates = [...(order.booking?.partyDeckDates ?? [])].sort();
     const bookingSubtotal =
       typeof (order.booking as any)?.price === "number"
         ? (order.booking as any).price
@@ -727,32 +738,20 @@ const ClientDashboard: React.FC = () => {
     return (
       <li
         key={order.id}
-        className="overflow-hidden rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.028),rgba(255,255,255,0.012))] bg-[#22140b]/96 shadow-[0_18px_40px_rgba(0,0,0,0.26)] transition-all duration-200 hover:border-white/15 hover:shadow-[0_24px_60px_rgba(0,0,0,0.32)]"
+        className="overflow-hidden rounded-[26px] border border-white/10  bg-[#22140b]/70 shadow-[0_18px_40px_rgba(0,0,0,0.26)] transition-all duration-200 hover:border-white/15 hover:shadow-[0_24px_60px_rgba(0,0,0,0.32)]"
       >
         {/* Collapsed / summary header */}
         <div className="px-5 py-5 md:px-7 md:py-5.5">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2.5">
                 <StageChip stage={stage} />
-                <span className="text-[10px] uppercase tracking-[0.22em] text-white/35">
+                <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-white/38">
                   {hasBooking ? "Reservation" : "Order"}
                 </span>
-
-                {order.status === "paid" && (
-                  <span className="rounded-full border border-emerald-400/18 bg-emerald-400/8 px-2.5 py-[5px] text-[9px] font-semibold uppercase tracking-[0.18em] text-emerald-200/90">
-                    Paid
-                  </span>
-                )}
-
-                {order.status === "pending" && (
-                  <span className="rounded-full border border-amber-400/18 bg-amber-400/8 px-2.5 py-[5px] text-[9px] font-semibold uppercase tracking-[0.18em] text-amber-200/90">
-                    Payment Needed
-                  </span>
-                )}
               </div>
 
-              <h3 className="mt-3 max-w-4xl font-acumin text-[1.08rem] font-semibold leading-[1.16] tracking-[-0.025em] text-white md:text-[1.48rem]">
+              <h3 className="mt-3 max-w-4xl font-acumin text-[1.08rem] font-semibold leading-[1.16] tracking-[-0.025em] text-white md:text-lg">
                 {huntDateLabel}
               </h3>
 
@@ -825,12 +824,37 @@ const ClientDashboard: React.FC = () => {
             </div>
 
             <div className="flex shrink-0 flex-col gap-3 xl:min-w-[190px] xl:items-end">
-              <div className="rounded-[20px] border border-white/10 bg-white/[0.028] px-5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] xl:min-w-[154px]">
-                <div className="text-[9px] font-semibold uppercase tracking-[0.24em] text-white/40">
+              {order.status === "paid" && (
+                <span className="inline-flex items-center self-start rounded-full border border-emerald-400/18 bg-emerald-400/8 px-3 py-[6px] text-[9px] font-semibold uppercase tracking-[0.18em] text-emerald-200/90 xl:self-end">
+                  Paid
+                </span>
+              )}
+
+              {order.status === "pending" && (
+                <span className="inline-flex items-center self-start rounded-full border border-amber-400/18 bg-amber-400/8 px-3 py-[6px] text-[9px] font-semibold uppercase tracking-[0.18em] text-amber-200/90 xl:self-end">
+                  Payment Needed
+                </span>
+              )}
+
+              {order.status === "cancelled" && (
+                <span className="inline-flex items-center self-start rounded-full border border-rose-400/18 bg-rose-400/8 px-3 py-[6px] text-[9px] font-semibold uppercase tracking-[0.18em] text-rose-200/90 xl:self-end">
+                  Cancelled
+                </span>
+              )}
+
+              {order.status === "refunded" && (
+                <span className="inline-flex items-center self-start rounded-full border border-sky-400/18 bg-sky-400/8 px-3 py-[6px] text-[9px] font-semibold uppercase tracking-[0.18em] text-sky-200/90 xl:self-end">
+                  Refunded
+                </span>
+              )}
+
+              <div className="rounded-[20px] border border-white/10 bg-white/[0.028] px-5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+                <div className="text-[9px] font-semibold uppercase tracking-[0.24em] text-white/80">
                   Total
                 </div>
-                <div className="mt-1 font-acumin text-[1.72rem] font-semibold leading-none tracking-[-0.035em] text-white">
-                  ${fmtMoney(order.total)}
+                <div className="mt-1 font-acumin text-lg  leading-none tracking-[-0.035em] text-white">
+                  <span className="text-white/60 mr-[2px]">$</span>
+                  <span>{fmtWholeMoney(order.total)}</span>
                 </div>
               </div>
 
