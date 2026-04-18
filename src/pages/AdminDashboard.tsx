@@ -15,7 +15,7 @@ import CountUp from "react-countup";
 import { db } from "../firebase/firebaseConfig";
 import { getSeasonConfig } from "../utils/getSeasonConfig";
 import { formatLongDate } from "../utils/formatDate";
-import type { Attendee, SeasonConfig } from "../types/Types";
+import type { Attendee, PricingWindow, SeasonConfig } from "../types/Types";
 
 type AvailabilityDoc = {
   id: string;
@@ -58,7 +58,7 @@ export type OrderDoc = {
   merchItems?: Record<string, MerchItem>;
 };
 
-type RangeKey = "season" | "week" | "month" | "custom";
+type RangeKey = "season" | "custom";
 
 const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
 const toISO = (d: Date) =>
@@ -80,22 +80,7 @@ function endOfDay(d: Date) {
   t.setHours(23, 59, 59, 999);
   return t;
 }
-function startOfWeek(d = new Date()) {
-  const t = startOfDay(d);
-  t.setDate(t.getDate() - t.getDay());
-  return t;
-}
-function endOfWeek(d = new Date()) {
-  const t = startOfWeek(d);
-  t.setDate(t.getDate() + 6);
-  return endOfDay(t);
-}
-function startOfMonth(d = new Date()) {
-  return new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
-}
-function endOfMonth(d = new Date()) {
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
-}
+
 function maxDate(a: Date, b: Date) {
   return a.getTime() > b.getTime() ? a : b;
 }
@@ -157,6 +142,203 @@ function orderHasBookingInRange(
   const dates = order.booking?.dates ?? [];
   return dates.some((d) => d >= fromIso && d <= toIso);
 }
+
+function addDaysLocal(iso: string, days: number) {
+  const base = parseIsoDateLocal(iso);
+  if (!base) return iso;
+  base.setDate(base.getDate() + days);
+  return toISO(base);
+}
+
+function areConsecutiveIsoDates(a: string, b: string) {
+  return addDaysLocal(a, 1) === b;
+}
+
+function getHuntersForOrder(order: OrderDoc) {
+  const explicit = order.booking?.numberOfHunters;
+  if (typeof explicit === "number" && explicit > 0) return explicit;
+
+  const attendeesCount = order.booking?.attendees?.length ?? 0;
+  return attendeesCount;
+}
+
+function getPricingWindowForDate(
+  iso: string,
+  seasonConfig: SeasonConfig
+): PricingWindow | null {
+  const windows = seasonConfig.pricingWindows ?? [];
+  return windows.find((w) => iso >= w.start && iso <= w.end) ?? null;
+}
+
+function getPricingWindowKey(window: PricingWindow | null) {
+  if (!window) return "none";
+  return [
+    window.start,
+    window.end,
+    window.type,
+    window.rate ?? "",
+    window.singleDay ?? "",
+    window.twoConsecutiveDays ?? "",
+    window.threeDayCombo ?? "",
+    window.label ?? "",
+  ].join("|");
+}
+
+function getFallbackSingleDayRate(
+  iso: string,
+  seasonConfig: SeasonConfig
+): number {
+  const date = parseIsoDateLocal(iso);
+  const day = date?.getDay();
+
+  // Fri / Sat / Sun fallback to weekend single-day rate
+  if (day === 5 || day === 6 || day === 0) {
+    return (
+      seasonConfig.weekendRates?.singleDay ?? seasonConfig.weekdayRate ?? 0
+    );
+  }
+
+  return seasonConfig.weekdayRate ?? 0;
+}
+
+function buildPerHunterDailyRateMap(
+  bookingDates: string[],
+  seasonConfig: SeasonConfig
+) {
+  const sorted = [...bookingDates].sort();
+  const rateMap: Record<string, number> = {};
+
+  if (!sorted.length) return rateMap;
+
+  type DateGroup = {
+    dates: string[];
+    window: PricingWindow | null;
+  };
+
+  const groups: DateGroup[] = [];
+  let currentDates: string[] = [];
+  let currentWindow: PricingWindow | null = null;
+
+  for (const iso of sorted) {
+    const nextWindow = getPricingWindowForDate(iso, seasonConfig);
+
+    if (!currentDates.length) {
+      currentDates = [iso];
+      currentWindow = nextWindow;
+      continue;
+    }
+
+    const prevIso = currentDates[currentDates.length - 1];
+    const sameWindow =
+      getPricingWindowKey(currentWindow) === getPricingWindowKey(nextWindow);
+
+    if (sameWindow && areConsecutiveIsoDates(prevIso, iso)) {
+      currentDates.push(iso);
+    } else {
+      groups.push({ dates: currentDates, window: currentWindow });
+      currentDates = [iso];
+      currentWindow = nextWindow;
+    }
+  }
+
+  if (currentDates.length) {
+    groups.push({ dates: currentDates, window: currentWindow });
+  }
+
+  for (const group of groups) {
+    const window = group.window;
+
+    // Flat-rate window or no window → assign a simple day rate per date
+    if (!window || window.type === "flat") {
+      for (const iso of group.dates) {
+        rateMap[iso] =
+          window?.rate ?? getFallbackSingleDayRate(iso, seasonConfig);
+      }
+      continue;
+    }
+
+    // Package window → derive the effective per-day rate from the booked run
+    let i = 0;
+    while (i < group.dates.length) {
+      const remaining = group.dates.length - i;
+
+      if (remaining >= 3 && typeof window.threeDayCombo === "number") {
+        const perDay = window.threeDayCombo / 3;
+        rateMap[group.dates[i]] = perDay;
+        rateMap[group.dates[i + 1]] = perDay;
+        rateMap[group.dates[i + 2]] = perDay;
+        i += 3;
+        continue;
+      }
+
+      if (remaining >= 2 && typeof window.twoConsecutiveDays === "number") {
+        const perDay = window.twoConsecutiveDays / 2;
+        rateMap[group.dates[i]] = perDay;
+        rateMap[group.dates[i + 1]] = perDay;
+        i += 2;
+        continue;
+      }
+
+      const singleDayRate =
+        window.singleDay ??
+        window.rate ??
+        getFallbackSingleDayRate(group.dates[i], seasonConfig);
+
+      rateMap[group.dates[i]] = singleDayRate;
+      i += 1;
+    }
+  }
+
+  return rateMap;
+}
+
+function computeBookingRevenueInRange(
+  order: OrderDoc,
+  fromIso: string,
+  toIso: string,
+  seasonConfig: SeasonConfig
+) {
+  const bookingDates = order.booking?.dates ?? [];
+  if (!bookingDates.length) return 0;
+
+  const hunters = getHuntersForOrder(order);
+  if (!hunters) return 0;
+
+  const perHunterRateMap = buildPerHunterDailyRateMap(
+    bookingDates,
+    seasonConfig
+  );
+
+  let subtotal = bookingDates
+    .filter((iso) => iso >= fromIso && iso <= toIso)
+    .reduce((sum, iso) => {
+      return sum + (perHunterRateMap[iso] ?? 0) * hunters;
+    }, 0);
+
+  const partyDeckDaysInRange = (order.booking?.partyDeckDates ?? []).filter(
+    (iso) => iso >= fromIso && iso <= toIso
+  ).length;
+
+  subtotal += partyDeckDaysInRange * (seasonConfig.partyDeckRatePerDay ?? 0);
+
+  const refunded =
+    typeof order.amountRefunded === "number"
+      ? order.amountRefunded
+      : typeof order.refundedAmount === "number"
+      ? order.refundedAmount
+      : 0;
+
+  const bookingTotal =
+    typeof order.booking?.price === "number" ? order.booking.price : 0;
+
+  if (refunded > 0 && bookingTotal > 0 && subtotal > 0) {
+    const proportionalRefund = refunded * (subtotal / bookingTotal);
+    subtotal = Math.max(0, subtotal - proportionalRefund);
+  }
+
+  return subtotal;
+}
+
 function computeRange(
   key: RangeKey,
   seasonConfig: SeasonConfig | null,
@@ -171,40 +353,22 @@ function computeRange(
   let from = seasonStart;
   let to = seasonEnd;
 
-  if (key === "week") {
-    const weekFrom = startOfWeek(now);
-    const weekTo = endOfWeek(now);
-    from = maxDate(weekFrom, seasonStart);
-    to = minDate(weekTo, seasonEnd);
-    if (from > to) {
-      from = seasonStart;
-      to = seasonEnd;
-    }
-  } else if (key === "month") {
-    const monthFrom = startOfMonth(now);
-    const monthTo = endOfMonth(now);
-    from = maxDate(monthFrom, seasonStart);
-    to = minDate(monthTo, seasonEnd);
-    if (from > to) {
-      from = seasonStart;
-      to = seasonEnd;
-    }
-  } else if (key === "custom") {
+  if (key === "custom") {
     const customFrom = parseIsoDateLocal(cf) ?? seasonStart;
     const customTo = endOfDay(
       parseIsoDateLocal(ct) ?? parseIsoDateLocal(cf) ?? seasonEnd
     );
     from = maxDate(customFrom, seasonStart);
     to = minDate(customTo, seasonEnd);
-    if (from > to) {
-      from = seasonStart;
-      to = seasonEnd;
-    }
+  }
+
+  if (from > to) {
+    from = seasonStart;
+    to = seasonEnd;
   }
 
   return { from, to, fromIso: toISO(from), toIso: toISO(to) };
 }
-
 function MetricCard({
   label,
   value,
@@ -215,8 +379,8 @@ function MetricCard({
   sublabel?: string;
 }) {
   return (
-    <div className="rounded-[28px] border border-white/10 bg-[rgba(255,255,255,0.06)] backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.28)] p-5 md:p-6">
-      <div className="text-[11px] uppercase tracking-[0.24em] text-white/55">
+    <div className="rounded-[28px] border border-white/10 bg-[rgba(255,255,255,0.03)] backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.28)] p-5 md:p-6">
+      <div className="text-[11px] lg:text-[13px] uppercase tracking-[0.24em] text-white/55">
         {label}
       </div>
       <div className="mt-3 text-3xl md:text-4xl font-semibold text-white">
@@ -500,25 +664,23 @@ export default function AdminDashboard() {
 
       let revenue = 0;
       let count = 0;
+
       for (const order of docs) {
-        const created = getCreatedDate(order);
-        if (!created || created < from || created > to) continue;
+        const hasBookingInRange = orderHasBookingInRange(order, fromIso, toIso);
+        if (!hasBookingInRange) continue;
 
-        const amountPaid =
-          typeof order.amountPaid === "number"
-            ? order.amountPaid
-            : ["paid", "refunded", "cancelled"].includes(order.status ?? "")
-            ? order.total ?? 0
-            : 0;
+        const isPaidLike = ["paid", "refunded"].includes(order.status ?? "");
+        if (!isPaidLike) continue;
 
-        const amountRefunded =
-          typeof order.amountRefunded === "number"
-            ? order.amountRefunded
-            : order.refundedAmount ?? 0;
+        count += 1;
 
-        if (amountPaid > 0) {
-          count += 1;
-          revenue += Math.max(0, amountPaid - amountRefunded);
+        if (seasonConfig) {
+          revenue += computeBookingRevenueInRange(
+            order,
+            fromIso,
+            toIso,
+            seasonConfig
+          );
         }
       }
       setPaidCount(count);
@@ -594,45 +756,43 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="mx-auto min-h-screen max-w-[1800px] px-4 pb-16 pt-28 text-white md:px-8">
+    <div className="mx-auto min-h-screen max-w-[1600px] px-4 pb-16 pt-28 text-white md:px-8">
       <div className="mb-8 rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(255,215,120,0.12),transparent_28%),rgba(255,255,255,0.04)] px-5 py-6 shadow-[0_25px_90px_rgba(0,0,0,0.28)] md:px-8 md:py-8">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <h1 className="mt-4 text-3xl font-acumin font-semibold tracking-tight ">
-              Admin dashboard
+              Admin Dashboard
             </h1>
-            <p className="mt-3 max-w-3xl text-sm text-white/65 md:text-base">
-              Cleaner seasonal visibility for bookings, hunters, party deck
-              usage, merch fulfillment, and waiver tracking.
-            </p>
+
             <div className="mt-4 flex flex-wrap gap-2 text-sm text-white/60">
               <StatusPill>
-                Season: {formatLongDate(seasonConfig?.seasonStart ?? fromIso)} →{" "}
-                {formatLongDate(seasonConfig?.seasonEnd ?? toIso)}
+                <span className="lg:text-lg">
+                  {" "}
+                  Season: {formatLongDate(
+                    seasonConfig?.seasonStart ?? fromIso
+                  )}{" "}
+                  → {formatLongDate(seasonConfig?.seasonEnd ?? toIso)}
+                </span>
               </StatusPill>
-              <StatusPill>{availability.length} day view</StatusPill>
-              <StatusPill>{maxHuntersPerDay} max hunters / day</StatusPill>
+              <StatusPill>
+                <span className="lg:text-lg">
+                  {availability.length} day view
+                </span>
+              </StatusPill>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-            {(["season", "week", "month"] as RangeKey[]).map((key) => (
-              <button
-                key={key}
-                onClick={() => setRange(key)}
-                className={`rounded-xl border px-3.5 py-2 text-sm transition ${
-                  range === key
-                    ? "border-[var(--color-accent-gold)] bg-[var(--color-accent-gold)] text-black"
-                    : "border-white/10 bg-white/5 text-white/75 hover:bg-white/10"
-                }`}
-              >
-                {key === "season"
-                  ? "Season"
-                  : key === "week"
-                  ? "This Week"
-                  : "This Month"}
-              </button>
-            ))}
+            <button
+              onClick={() => setRange("season")}
+              className={`rounded-xl border px-3.5 py-2 text-sm transition ${
+                range === "season"
+                  ? "border-[var(--color-accent-gold)] bg-[var(--color-accent-gold)] text-black"
+                  : "border-white/10 bg-white/5 text-white/75 hover:bg-white/10"
+              }`}
+            >
+              Season
+            </button>
             <button
               onClick={() => setRange("custom")}
               className={`rounded-xl border px-3.5 py-2 text-sm transition ${
@@ -683,13 +843,13 @@ export default function AdminDashboard() {
         />
         <MetricCard
           label="Paid orders"
-          value={<CountUp end={paidCount} duration={0.7} separator="," />}
-          sublabel="Created within selected range"
+          value={<CountUp end={paidCount} duration={0.6} />}
+          sublabel=""
         />
         <MetricCard
           label="Revenue"
           value={currency(paidRevenue)}
-          sublabel="Net of refunds when present"
+          sublabel="Booking revenue attributable to selected dates"
         />
       </div>
 

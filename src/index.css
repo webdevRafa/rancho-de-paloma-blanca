@@ -314,3 +314,15 @@ h1, h2, h3, span.broadsheet, .hero-btn {
     rgba(143, 162, 122, 1) 100%
   );
 }
+
+/* Make native date picker icon white for dark UI */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.8;
+  cursor: pointer;
+}
+
+/* Optional: slightly brighter on hover */
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
