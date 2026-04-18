@@ -94,6 +94,38 @@ function currency(n = 0) {
     maximumFractionDigits: 0,
   }).format(n);
 }
+
+function getRevenueDateLabel(fromIso: string, toIso: string) {
+  const fromDate = parseIsoDateLocal(fromIso);
+  const toDate = parseIsoDateLocal(toIso);
+
+  if (!fromDate || !toDate) return "For selected dates";
+
+  const sameDay = fromIso === toIso;
+  const sameMonth = fromDate.getMonth() === toDate.getMonth();
+  const sameYear = fromDate.getFullYear() === toDate.getFullYear();
+
+  const fromMonth = fromDate.toLocaleDateString("en-US", { month: "long" });
+  const fromDay = fromDate.getDate();
+  const toMonth = toDate.toLocaleDateString("en-US", { month: "long" });
+  const toDay = toDate.getDate();
+  const fromYear = fromDate.getFullYear();
+  const toYear = toDate.getFullYear();
+
+  if (sameDay) {
+    return `For ${fromMonth} ${fromDay}, ${fromYear}`;
+  }
+
+  if (sameMonth && sameYear) {
+    return `For ${fromMonth} ${fromDay}–${toDay}, ${fromYear}`;
+  }
+
+  if (sameYear) {
+    return `For ${fromMonth} ${fromDay} – ${toMonth} ${toDay}, ${fromYear}`;
+  }
+
+  return `For ${fromMonth} ${fromDay}, ${fromYear} – ${toMonth} ${toDay}, ${toYear}`;
+}
 function shortId(id: string) {
   if (!id) return "—";
   return id.length <= 12 ? id : `${id.slice(0, 6)}…${id.slice(-4)}`;
@@ -849,7 +881,7 @@ export default function AdminDashboard() {
         <MetricCard
           label="Revenue"
           value={currency(paidRevenue)}
-          sublabel="Booking revenue for selected dates"
+          sublabel={getRevenueDateLabel(fromIso, toIso)}
         />
       </div>
 
