@@ -849,7 +849,7 @@ export default function AdminDashboard() {
         <MetricCard
           label="Revenue"
           value={currency(paidRevenue)}
-          sublabel="Booking revenue attributable to selected dates"
+          sublabel="Booking revenue for selected dates"
         />
       </div>
 
