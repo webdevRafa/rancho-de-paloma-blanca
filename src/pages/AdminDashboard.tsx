@@ -889,7 +889,7 @@ function BookingOrderDetailsModal({
                       <tr className="border-b border-white/10 text-left text-white/58">
                         <th className="w-12 px-5 py-3.5">#</th>
                         <th className="px-5 py-3.5">Name</th>
-                        <th className="px-5 py-3.5">Email</th>
+
                         <th className="w-48 px-5 py-3.5">Waiver</th>
                       </tr>
                     </thead>
@@ -918,10 +918,6 @@ function BookingOrderDetailsModal({
                                 {attendee.waiverSigned ? "Signed" : "Pending"}
                               </span>
                             </div>
-                          </td>
-
-                          <td className="px-5 py-4 text-white/70">
-                            {attendee.email ?? "—"}
                           </td>
 
                           <td className="px-5 py-4">
@@ -1134,6 +1130,7 @@ export default function AdminDashboard() {
   const [paidCount, setPaidCount] = useState(0);
   const [merchOrders, setMerchOrders] = useState<OrderDoc[]>([]);
   const [bookingOrders, setBookingOrders] = useState<OrderDoc[]>([]);
+
   const [selectedMerch, setSelectedMerch] = useState<OrderDoc | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<OrderDoc | null>(null);
 
@@ -1485,53 +1482,85 @@ export default function AdminDashboard() {
               </thead>
               <tbody>
                 {availability.map((day) => {
+                  const huntersCount = day.huntersBooked ?? 0;
+                  const hasHunters = huntersCount > 0;
                   const remaining = Math.max(
-                    maxHuntersPerDay - (day.huntersBooked ?? 0),
+                    maxHuntersPerDay - huntersCount,
                     0
                   );
+
                   return (
-                    <>
-                      <tr
-                        key={day.id}
-                        className="border-b border-white/5 bg-white/[0.02] hover:bg-white/[0.05]"
+                    <tr
+                      key={day.id}
+                      className={
+                        hasHunters
+                          ? "border-b border-white/5 bg-white/[0.02] transition-colors hover:bg-white/[0.05]"
+                          : "border-b border-white/[0.04] bg-white/[0.01] text-white/45 transition-colors hover:bg-white/[0.02]"
+                      }
+                    >
+                      <td className="px-4 py-3 align-top">
+                        <div
+                          className={
+                            hasHunters
+                              ? "font-medium text-white"
+                              : "font-medium text-white/55"
+                          }
+                        >
+                          {formatLongDate(day.id, { weekday: true })}
+                        </div>
+                      </td>
+
+                      <td
+                        className={
+                          hasHunters
+                            ? "px-4 py-3 align-top text-white"
+                            : "px-4 py-3 align-top text-white/45"
+                        }
                       >
-                        <td className="px-4 py-3 align-top">
-                          <div className="font-medium">
-                            {formatLongDate(day.id, { weekday: true })}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 align-top">
-                          {day.huntersBooked ?? 0}
-                        </td>
-                        <td className="px-4 py-3 align-top">
-                          {remaining} left
-                        </td>
-                        <td className="px-4 py-3 align-top">
-                          <StatusPill
-                            tone={day.partyDeckBooked ? "warning" : "success"}
+                        {huntersCount}
+                      </td>
+
+                      <td
+                        className={
+                          hasHunters
+                            ? "px-4 py-3 align-top text-white"
+                            : "px-4 py-3 align-top text-white/45"
+                        }
+                      >
+                        {remaining} left
+                      </td>
+
+                      <td className="px-4 py-3 align-top">
+                        <StatusPill
+                          tone={day.partyDeckBooked ? "warning" : "success"}
+                        >
+                          {day.partyDeckBooked ? "Reserved" : "Available"}
+                        </StatusPill>
+                      </td>
+
+                      <td className="px-4 py-3 align-top">
+                        <StatusPill
+                          tone={day.isOffSeason ? "neutral" : "success"}
+                        >
+                          {day.isOffSeason ? "Off-season" : "In-season"}
+                        </StatusPill>
+                      </td>
+
+                      <td className="px-4 py-3 text-right align-top">
+                        <div className="flex justify-end gap-2">
+                          <Link
+                            to={`/admin/day/${day.id}`}
+                            className={
+                              hasHunters
+                                ? "rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 hover:bg-white/10"
+                                : "rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-xs text-white/50 hover:bg-white/[0.06]"
+                            }
                           >
-                            {day.partyDeckBooked ? "Reserved" : "Available"}
-                          </StatusPill>
-                        </td>
-                        <td className="px-4 py-3 align-top">
-                          <StatusPill
-                            tone={day.isOffSeason ? "neutral" : "success"}
-                          >
-                            {day.isOffSeason ? "Off-season" : "In-season"}
-                          </StatusPill>
-                        </td>
-                        <td className="px-4 py-3 text-right align-top">
-                          <div className="flex justify-end gap-2">
-                            <Link
-                              to={`/admin/day/${day.id}`}
-                              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 hover:bg-white/10"
-                            >
-                              View day
-                            </Link>
-                          </div>
-                        </td>
-                      </tr>
-                    </>
+                            View day
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
                   );
                 })}
               </tbody>
