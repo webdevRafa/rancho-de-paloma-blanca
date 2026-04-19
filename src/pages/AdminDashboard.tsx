@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   collection,
   doc,
+  getDoc,
   onSnapshot,
   orderBy,
   query,
@@ -48,13 +49,19 @@ export type MerchItem = {
 
 export type OrderDoc = {
   id: string;
+  userId?: string;
   status?: "pending" | "paid" | "cancelled" | "refunded";
   createdAt?: any;
   total?: number;
   amountPaid?: number;
   amountRefunded?: number;
   refundedAmount?: number;
-  customer?: { firstName?: string; lastName?: string; email?: string };
+  customer?: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+  };
   booking?: Booking;
   merchItems?: Record<string, MerchItem>;
 };
@@ -167,6 +174,115 @@ function getWaiverCounts(order: OrderDoc) {
     label: `${signed} / ${attendees.length} signed`,
   };
 }
+
+function formatCreatedAt(value: any) {
+  if (!value) return "—";
+
+  let dt: Date | null = null;
+
+  if (value?.toDate && typeof value.toDate === "function") {
+    dt = value.toDate();
+  } else if (value instanceof Date) {
+    dt = value;
+  } else if (typeof value === "string" || typeof value === "number") {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) dt = parsed;
+  } else if (typeof value === "object" && typeof value.seconds === "number") {
+    dt = new Date(value.seconds * 1000);
+  }
+
+  if (!dt || Number.isNaN(dt.getTime())) return "—";
+
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(dt);
+}
+
+function formatPhone(phone?: string) {
+  const raw = String(phone ?? "").replace(/\D/g, "");
+  if (!raw) return "—";
+
+  if (raw.length === 11 && raw.startsWith("1")) {
+    const p = raw.slice(1);
+    return `(${p.slice(0, 3)}) ${p.slice(3, 6)}-${p.slice(6)}`;
+  }
+
+  if (raw.length === 10) {
+    return `(${raw.slice(0, 3)}) ${raw.slice(3, 6)}-${raw.slice(6)}`;
+  }
+
+  return phone ?? "—";
+}
+
+function normalizeOrderStatus(status?: string) {
+  const s = String(status ?? "paid")
+    .trim()
+    .toLowerCase();
+  if (s === "cancelled" || s === "canceled") return "cancelled";
+  if (s === "pending") return "pending";
+  if (s === "refunded") return "refunded";
+  return "paid";
+}
+
+function getOrderStatusClasses(status?: string) {
+  const normalized = normalizeOrderStatus(status);
+
+  if (normalized === "paid") {
+    return "border-emerald-400/20 bg-emerald-400/15 text-emerald-200";
+  }
+  if (normalized === "pending") {
+    return "border-amber-400/20 bg-amber-400/15 text-amber-200";
+  }
+  if (normalized === "refunded") {
+    return "border-sky-400/20 bg-sky-400/15 text-sky-200";
+  }
+
+  return "border-rose-400/20 bg-rose-400/15 text-rose-200";
+}
+
+function extractPartyNames(order: OrderDoc): string[] {
+  const names: string[] = [];
+  const booking = order.booking;
+
+  if (!booking) return names;
+
+  const pushName = (value?: string) => {
+    const next = String(value ?? "").trim();
+    if (next) names.push(next);
+  };
+
+  for (const attendee of booking.attendees ?? []) {
+    pushName(attendee.fullName);
+  }
+
+  const customerName = getCustomerName(order);
+  if (
+    customerName &&
+    customerName !== "—" &&
+    !names.some((name) => name.toLowerCase() === customerName.toLowerCase())
+  ) {
+    names.unshift(customerName);
+  }
+
+  const partySize = booking.numberOfHunters ?? names.length;
+  while (names.length < partySize) {
+    names.push(`Guest ${names.length + 1}`);
+  }
+
+  const seen = new Set<string>();
+  return names.filter((name) => {
+    const key = name.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function orderHasBookingInRange(
   order: OrderDoc,
   fromIso: string,
@@ -449,6 +565,416 @@ function StatusPill({
   );
 }
 
+function BookingOrderDetailsModal({
+  order,
+  onClose,
+  onToggleWaiver,
+}: {
+  order: OrderDoc;
+  onClose: () => void;
+  onToggleWaiver: (
+    order: OrderDoc,
+    attendeeIndex: number,
+    next: boolean
+  ) => Promise<void>;
+}) {
+  const names = extractPartyNames(order);
+  const [rows, setRows] = useState<Attendee[]>(order.booking?.attendees ?? []);
+  const [fallbackPhone, setFallbackPhone] = useState("");
+
+  useEffect(() => {
+    setRows(order.booking?.attendees ?? []);
+  }, [order]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadFallbackPhone() {
+      setFallbackPhone("");
+
+      const bookingPhone = String(order.customer?.phone ?? "").trim();
+      if (bookingPhone) return;
+
+      const uid = String(order.userId ?? "").trim();
+      if (!uid) return;
+
+      try {
+        const userSnap = await getDoc(doc(db, "users", uid));
+        if (!isMounted || !userSnap.exists()) return;
+
+        const userData = userSnap.data() as { phone?: string };
+        const accountPhone = String(userData?.phone ?? "").trim();
+
+        if (accountPhone) {
+          setFallbackPhone(accountPhone);
+        }
+      } catch (error) {
+        console.error("Failed to load fallback customer phone:", error);
+      }
+    }
+
+    loadFallbackPhone();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [order.id, order.userId, order.customer?.phone]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  const waiver = getWaiverCounts(order);
+  const customerName = getCustomerName(order);
+  const createdLabel = formatCreatedAt(order.createdAt);
+  const rawDisplayPhone =
+    String(order.customer?.phone ?? "").trim() || fallbackPhone;
+
+  const displayPhone = formatPhone(rawDisplayPhone);
+  const bookedDates = order.booking?.dates ?? [];
+  const hunterCount = order.booking?.numberOfHunters ?? rows.length ?? 0;
+  const normalizedStatus = normalizeOrderStatus(order.status);
+  const hasPartyDeck = !!order.booking?.partyDeckDates?.length;
+
+  async function initializeAttendees() {
+    const attendees: Attendee[] = names.map((fullName) => ({
+      fullName,
+      waiverSigned: false,
+    }));
+
+    await updateDoc(doc(db, "orders", order.id), {
+      "booking.attendees": attendees,
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-start justify-center px-4 py-8 md:px-6 md:py-12">
+      <div
+        className="absolute inset-0 bg-black/75 backdrop-blur-[3px]"
+        onClick={onClose}
+      />
+
+      <div className="relative z-10 w-full max-w-6xl overflow-hidden rounded-[32px] border border-white/10 bg-[#16100c] text-white shadow-[0_35px_90px_rgba(0,0,0,0.5)]">
+        <div className="sticky top-0 z-10 border-b border-white/10 bg-[#16100c]/95 backdrop-blur-xl">
+          <div className="flex items-start justify-between gap-4 px-5 py-5 md:px-6">
+            <div className="min-w-0 flex-1">
+              <div className="text-[11px] uppercase tracking-[0.26em] text-white/45">
+                Booking record
+              </div>
+
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <h2 className="text-[2rem] font-acumin tracking-tight text-white md:text-[2.15rem]">
+                  Order Details
+                </h2>
+
+                <span
+                  className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${getOrderStatusClasses(
+                    normalizedStatus
+                  )}`}
+                >
+                  {normalizedStatus}
+                </span>
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-white/60">
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 font-mono">
+                  {order.id}
+                </span>
+
+                <button
+                  onClick={() => navigator.clipboard.writeText(order.id)}
+                  className="rounded-full border border-white/10 bg-white/5 px-3 py-1 transition hover:bg-white/10"
+                >
+                  Copy ID
+                </button>
+
+                {order.customer?.email && (
+                  <button
+                    onClick={() =>
+                      navigator.clipboard.writeText(order.customer?.email ?? "")
+                    }
+                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1 transition hover:bg-white/10"
+                  >
+                    Copy Email
+                  </button>
+                )}
+
+                {rawDisplayPhone && (
+                  <button
+                    onClick={() =>
+                      navigator.clipboard.writeText(rawDisplayPhone)
+                    }
+                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1 transition hover:bg-white/10"
+                  >
+                    Copy Phone
+                  </button>
+                )}
+              </div>
+
+              <div className="mt-3 text-[13px] text-white/52">
+                Created <span className="mx-1 text-white/28">•</span>
+                <span className="text-white/74">{createdLabel}</span>
+              </div>
+            </div>
+
+            <button
+              onClick={onClose}
+              className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white/85 transition hover:bg-white/10 hover:text-white"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+
+        <div className="order-details-scroll max-h-[70vh] overflow-y-auto">
+          <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-4 md:gap-4 md:p-6">
+            <div className="rounded-[22px] border border-white/10 bg-white/[0.035] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+              <div className="text-[11px] uppercase tracking-[0.22em] text-white/45">
+                Customer
+              </div>
+              <div className="mt-3 text-lg font-semibold leading-[1.15] text-white ">
+                {customerName}
+              </div>
+              <div className="mt-3 space-y-1.5 text-sm text-white/72">
+                <div>{order.customer?.email || "—"}</div>
+                <div>{displayPhone}</div>
+              </div>
+            </div>
+
+            <div className="rounded-[22px] border border-white/10 bg-white/[0.035] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+              <div className="text-[11px] uppercase tracking-[0.22em] text-white/45">
+                Total
+              </div>
+              <div className="mt-3 text-lg font-semibold leading-none tracking-tight text-white ">
+                {currency(order.total ?? 0)}
+              </div>
+              <div className="mt-4">
+                <span
+                  className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${getOrderStatusClasses(
+                    normalizedStatus
+                  )}`}
+                >
+                  {normalizedStatus}
+                </span>
+              </div>
+            </div>
+
+            <div className="rounded-[22px] border border-white/10 bg-white/[0.035] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+              <div className="text-[11px] uppercase tracking-[0.22em] text-white/45">
+                Booked Dates
+              </div>
+
+              {bookedDates.length > 0 ? (
+                <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-black/10">
+                  <div className="order-details-scroll max-h-[188px] overflow-y-auto pr-1">
+                    <div className="divide-y divide-white/10">
+                      {bookedDates.map((date, idx) => (
+                        <div
+                          key={`${order.id}-booked-date-${idx}`}
+                          className="flex gap-0.5 items-center justify-between px-3 py-2.5 hover:bg-white/[0.025]"
+                        >
+                          <span className="text-sm text-white/60">
+                            Day {idx + 1}
+                          </span>
+                          <span className="text-sm font-semibold text-white">
+                            {formatLongDate(date)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-3 text-[1.1rem] font-medium text-white/70">
+                  —
+                </div>
+              )}
+
+              <div className="mt-3 flex items-center justify-between text-sm text-white/60">
+                <span>Total booked</span>
+                <span className="font-medium text-white/80">
+                  {bookedDates.length} day{bookedDates.length === 1 ? "" : "s"}
+                </span>
+              </div>
+            </div>
+
+            <div className="rounded-[22px] border border-white/10 bg-white/[0.035] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+              <div className="text-[11px] uppercase tracking-[0.22em] text-white/45">
+                Party / Waivers
+              </div>
+
+              <div className="mt-3 text-lg font-semibold leading-[1.15] text-white">
+                {hunterCount} hunter{hunterCount === 1 ? "" : "s"}
+              </div>
+
+              <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-black/10">
+                <div className="divide-y divide-white/10 text-sm">
+                  <div className="flex items-center justify-between px-3 py-2.5">
+                    <span className="text-white/60">Party Deck</span>
+                    <span className="font-medium text-white">
+                      {hasPartyDeck ? "Yes" : "No"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between px-3 py-2.5">
+                    <span className="text-white/60">Waivers signed</span>
+                    <span className="font-medium text-white">
+                      {waiver.signed}/{waiver.total}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-white/10 px-5 py-5 md:px-6 md:py-6">
+            <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.24em] text-white/42">
+                  Attendance roster
+                </div>
+                <h3 className="mt-1 text-[1.8rem] font-acumin leading-none text-white">
+                  Attendees & Waivers
+                </h3>
+                <p className="mt-2 text-sm text-white/52">
+                  Track signature status for each hunter on this booking.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${
+                    waiver.total === 0
+                      ? "border-white/10 bg-white/5 text-white/60"
+                      : waiver.signed === waiver.total
+                      ? "border-emerald-400/20 bg-emerald-400/15 text-emerald-200"
+                      : "border-amber-400/20 bg-amber-400/15 text-amber-200"
+                  }`}
+                >
+                  {waiver.total === 0
+                    ? "Not started"
+                    : waiver.signed === waiver.total
+                    ? "All signed"
+                    : `${waiver.total - waiver.signed} remaining`}
+                </span>
+
+                {rows.length === 0 && names.length > 0 && (
+                  <button
+                    onClick={initializeAttendees}
+                    className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/85 transition hover:bg-white/10"
+                  >
+                    Initialize for waivers
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {rows.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm text-white/60">
+                No structured attendee records yet. Click{" "}
+                <span className="font-semibold text-white/80">
+                  Initialize for waivers
+                </span>{" "}
+                to create them from the party list.
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.025] shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+                <div className="order-details-scroll max-h-[380px] overflow-auto pr-1">
+                  <table className="w-full min-w-[760px] text-sm text-white">
+                    <thead className="sticky top-0 z-[1] bg-[#1a120d]/95 backdrop-blur-xl">
+                      <tr className="border-b border-white/10 text-left text-white/58">
+                        <th className="w-12 px-5 py-3.5">#</th>
+                        <th className="px-5 py-3.5">Name</th>
+                        <th className="px-5 py-3.5">Email</th>
+                        <th className="w-48 px-5 py-3.5">Waiver</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((attendee, index) => (
+                        <tr
+                          key={`${order.id}-attendee-${index}`}
+                          className="border-b border-white/5 transition hover:bg-white/[0.025]"
+                        >
+                          <td className="px-5 py-4 text-white/65">
+                            {index + 1}
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-medium text-white">
+                                {attendee.fullName}
+                              </span>
+                              <span
+                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                  attendee.waiverSigned
+                                    ? "bg-emerald-400/15 text-emerald-200"
+                                    : "bg-white/10 text-white/65"
+                                }`}
+                              >
+                                {attendee.waiverSigned ? "Signed" : "Pending"}
+                              </span>
+                            </div>
+                          </td>
+
+                          <td className="px-5 py-4 text-white/70">
+                            {attendee.email ?? "—"}
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <label className="inline-flex items-center gap-2.5 text-white/85">
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4 rounded border-white/20 bg-transparent accent-[var(--color-accent-gold)]"
+                                checked={!!attendee.waiverSigned}
+                                onChange={async (e) => {
+                                  const next = e.currentTarget.checked;
+
+                                  setRows((prev) =>
+                                    prev.map((row, rowIndex) =>
+                                      rowIndex === index
+                                        ? { ...row, waiverSigned: next }
+                                        : row
+                                    )
+                                  );
+
+                                  try {
+                                    await onToggleWaiver(order, index, next);
+                                  } catch {
+                                    setRows((prev) =>
+                                      prev.map((row, rowIndex) =>
+                                        rowIndex === index
+                                          ? { ...row, waiverSigned: !next }
+                                          : row
+                                      )
+                                    );
+                                  }
+                                }}
+                              />
+                              <span className="text-sm text-white/84">
+                                {attendee.waiverSigned
+                                  ? "Signed"
+                                  : "Mark signed"}
+                              </span>
+                            </label>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MerchOrderModal({
   order,
   onClose,
@@ -609,9 +1135,7 @@ export default function AdminDashboard() {
   const [merchOrders, setMerchOrders] = useState<OrderDoc[]>([]);
   const [bookingOrders, setBookingOrders] = useState<OrderDoc[]>([]);
   const [selectedMerch, setSelectedMerch] = useState<OrderDoc | null>(null);
-  const [expandedBookingId, setExpandedBookingId] = useState<string | null>(
-    null
-  );
+  const [selectedBooking, setSelectedBooking] = useState<OrderDoc | null>(null);
 
   useEffect(() => {
     if (!authReady || !isAdmin) return;
@@ -1058,173 +1582,86 @@ export default function AdminDashboard() {
                   </tr>
                 )}
                 {bookingOrders.map((order) => {
-                  const expanded = expandedBookingId === order.id;
                   const waiver = getWaiverCounts(order);
-                  return (
-                    <>
-                      <tr
-                        key={order.id}
-                        className="border-b border-white/5 bg-white/[0.02] hover:bg-white/[0.05]"
-                      >
-                        <td className="px-4 py-3 align-top">
-                          <button
-                            onClick={() =>
-                              navigator.clipboard?.writeText(order.id)
-                            }
-                            className="font-mono text-white/80 hover:text-white"
-                          >
-                            {shortId(order.id)}
-                          </button>
-                          <div className="mt-1 text-xs text-white/35">
-                            {order.id}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 align-top">
-                          <div className="font-medium">
-                            {getCustomerName(order)}
-                          </div>
-                          <div className="mt-1 text-xs text-white/45">
-                            {order.customer?.email ?? "—"}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 align-top">
-                          {getBookingDateSummary(order.booking?.dates ?? [])}
-                        </td>
-                        <td className="px-4 py-3 align-top">
-                          {order.booking?.numberOfHunters ?? 0}
-                        </td>
-                        <td className="px-4 py-3 align-top">
-                          <StatusPill
-                            tone={
-                              waiver.total > 0 && waiver.signed === waiver.total
-                                ? "success"
-                                : "warning"
-                            }
-                          >
-                            {waiver.label}
-                          </StatusPill>
-                        </td>
-                        <td className="px-4 py-3 align-top">
-                          {currency(order.total ?? 0)}
-                        </td>
-                        <td className="px-4 py-3 align-top">
-                          <StatusPill
-                            tone={
-                              order.status === "paid"
-                                ? "success"
-                                : order.status === "pending"
-                                ? "warning"
-                                : order.status === "refunded"
-                                ? "danger"
-                                : "neutral"
-                            }
-                          >
-                            {order.status ?? "—"}
-                          </StatusPill>
-                        </td>
-                        <td className="px-4 py-3 text-right align-top">
-                          <button
-                            onClick={() =>
-                              setExpandedBookingId(expanded ? null : order.id)
-                            }
-                            className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 hover:bg-white/10"
-                          >
-                            {expanded ? "Collapse" : "Expand"}
-                          </button>
-                        </td>
-                      </tr>
-                      {expanded && (
-                        <tr className="border-b border-white/5 bg-black/20">
-                          <td colSpan={8} className="px-4 py-4">
-                            <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
-                              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                  <div className="text-sm font-medium text-white/80">
-                                    Booking breakdown
-                                  </div>
-                                  <StatusPill>
-                                    {(order.booking?.dates ?? []).length} day(s)
-                                  </StatusPill>
-                                </div>
-                                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                                  {(order.booking?.dates ?? []).map((date) => (
-                                    <div
-                                      key={date}
-                                      className="rounded-xl border border-white/10 bg-black/20 px-3 py-3"
-                                    >
-                                      <div className="text-sm font-medium">
-                                        {formatLongDate(date, {
-                                          weekday: true,
-                                        })}
-                                      </div>
-                                      <div className="mt-1 text-xs text-white/45">
-                                        {date}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                                {!!order.booking?.partyDeckDates?.length && (
-                                  <div className="mt-4 rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 py-3 text-sm text-amber-100">
-                                    Party deck reserved for:{" "}
-                                    {order.booking.partyDeckDates
-                                      .map((date) => formatLongDate(date))
-                                      .join(", ")}
-                                  </div>
-                                )}
-                              </div>
 
-                              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                                <div className="text-sm font-medium text-white/80">
-                                  Waiver status
-                                </div>
-                                <div className="mt-3 space-y-2">
-                                  {(order.booking?.attendees ?? []).length >
-                                  0 ? (
-                                    (order.booking?.attendees ?? []).map(
-                                      (attendee, index) => (
-                                        <div
-                                          key={`${attendee.fullName}-${index}`}
-                                          className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-3 py-2.5"
-                                        >
-                                          <div>
-                                            <div className="font-medium">
-                                              {attendee.fullName}
-                                            </div>
-                                            <div className="text-xs text-white/45">
-                                              Hunter {index + 1}
-                                            </div>
-                                          </div>
-                                          <label className="flex items-center gap-2 text-sm text-white/75">
-                                            <input
-                                              type="checkbox"
-                                              checked={!!attendee.waiverSigned}
-                                              onChange={(e) =>
-                                                toggleAttendeeWaiver(
-                                                  order,
-                                                  index,
-                                                  e.currentTarget.checked
-                                                )
-                                              }
-                                              className="h-4 w-4 accent-[var(--color-accent-gold)]"
-                                            />
-                                            Signed
-                                          </label>
-                                        </div>
-                                      )
-                                    )
-                                  ) : (
-                                    <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3 text-sm text-white/45">
-                                      No attendee names saved yet. Hunter count:{" "}
-                                      {order.booking?.numberOfHunters ?? 0}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </>
+                  return (
+                    <tr
+                      key={order.id}
+                      className="border-b border-white/5 bg-white/[0.02] hover:bg-white/[0.05]"
+                    >
+                      <td className="px-4 py-3 align-top">
+                        <button
+                          onClick={() =>
+                            navigator.clipboard?.writeText(order.id)
+                          }
+                          className="font-mono text-white/80 hover:text-white"
+                        >
+                          {shortId(order.id)}
+                        </button>
+                        <div className="mt-1 text-xs text-white/35">
+                          {order.id}
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3 align-top">
+                        <div className="font-medium">
+                          {getCustomerName(order)}
+                        </div>
+                        <div className="mt-1 text-xs text-white/45">
+                          {order.customer?.email ?? "—"}
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3 align-top">
+                        {getBookingDateSummary(order.booking?.dates ?? [])}
+                      </td>
+
+                      <td className="px-4 py-3 align-top">
+                        {order.booking?.numberOfHunters ?? 0}
+                      </td>
+
+                      <td className="px-4 py-3 align-top">
+                        <StatusPill
+                          tone={
+                            waiver.total > 0 && waiver.signed === waiver.total
+                              ? "success"
+                              : "warning"
+                          }
+                        >
+                          {waiver.label}
+                        </StatusPill>
+                      </td>
+
+                      <td className="px-4 py-3 align-top">
+                        {currency(order.total ?? 0)}
+                      </td>
+
+                      <td className="px-4 py-3 align-top">
+                        <StatusPill
+                          tone={
+                            normalizeOrderStatus(order.status) === "paid"
+                              ? "success"
+                              : normalizeOrderStatus(order.status) === "pending"
+                              ? "warning"
+                              : normalizeOrderStatus(order.status) ===
+                                "refunded"
+                              ? "danger"
+                              : "neutral"
+                          }
+                        >
+                          {normalizeOrderStatus(order.status)}
+                        </StatusPill>
+                      </td>
+
+                      <td className="px-4 py-3 text-right align-top">
+                        <button
+                          onClick={() => setSelectedBooking(order)}
+                          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 hover:bg-white/10"
+                        >
+                          View details
+                        </button>
+                      </td>
+                    </tr>
                   );
                 })}
               </tbody>
@@ -1348,6 +1785,14 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+
+      {selectedBooking && (
+        <BookingOrderDetailsModal
+          order={selectedBooking}
+          onClose={() => setSelectedBooking(null)}
+          onToggleWaiver={toggleAttendeeWaiver}
+        />
+      )}
 
       {selectedMerch && (
         <MerchOrderModal

@@ -75,6 +75,10 @@ const BookingForm = () => {
     return d;
   };
 
+  const hasValidPhone = (value: string) => {
+    return value.replace(/\D/g, "").length === 10;
+  };
+
   // 2) Prefill once from Firestore if we have a saved phone and the form is empty
   useEffect(() => {
     if (!user || form.phone) return; // don’t overwrite what the user already typed
@@ -466,6 +470,13 @@ const BookingForm = () => {
   const handleNextStep = () => {
     commitHunters();
 
+    if (step === 1) {
+      if (!hasValidPhone(form.phone)) {
+        alert("Please enter a valid 10-digit phone number before continuing.");
+        return;
+      }
+    }
+
     if (step === 2) {
       if (form.dates.length === 0) {
         alert("Please select at least one date.");
@@ -606,6 +617,12 @@ const BookingForm = () => {
     // Ensure hunters is committed before building the booking
     commitHunters();
 
+    if (!hasValidPhone(form.phone)) {
+      setStep(1);
+      alert("Please enter a valid 10-digit phone number before submitting.");
+      return;
+    }
+
     // Enforce attendee names before proceeding
     if (blockIfNamesMissing()) return;
 
@@ -659,18 +676,23 @@ const BookingForm = () => {
           <>
             <label className="flex flex-col mt-4">
               <span className="mb-1 text-sm text-[var(--color-footer)]">
-                Phone Number
+                Phone Number <span className="text-red-600">*</span>
               </span>
               <input
                 name="phone"
                 type="tel"
                 inputMode="numeric"
+                autoComplete="tel"
                 maxLength={12}
+                required
                 value={form.phone}
                 onChange={handlePhoneChange}
                 className="bg-neutral-200 text-[var(--color-footer)] px-4 py-3 rounded-md placeholder:text-[var(--color-footer)]/40 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-gold)]"
                 placeholder="e.g. 444-444-4444"
               />
+              <span className="mt-1 text-xs text-[var(--color-footer)]/80">
+                Required. Enter a 10-digit phone number.
+              </span>
             </label>
 
             <label className="flex flex-col">
