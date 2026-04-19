@@ -668,7 +668,7 @@ function BookingOrderDetailsModal({
               </div>
 
               <div className="mt-2 flex flex-wrap items-center gap-3">
-                <h2 className="text-[2rem] font-acumin tracking-tight text-white md:text-[2.15rem]">
+                <h2 className="text-3xl font-acumin tracking-tight text-white ">
                   Order Details
                 </h2>
 
@@ -1131,6 +1131,7 @@ export default function AdminDashboard() {
   const [paidCount, setPaidCount] = useState(0);
   const [merchOrders, setMerchOrders] = useState<OrderDoc[]>([]);
   const [bookingOrders, setBookingOrders] = useState<OrderDoc[]>([]);
+  const [phoneMap, setPhoneMap] = useState<Record<string, string>>({});
 
   const [selectedMerch, setSelectedMerch] = useState<OrderDoc | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<OrderDoc | null>(null);
@@ -1333,6 +1334,48 @@ export default function AdminDashboard() {
     showOnlyBookedDays,
     visibleAvailabilityDayIds,
   ]);
+
+  useEffect(() => {
+    if (!bookingOrders.length) {
+      setPhoneMap({});
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      const entries = await Promise.all(
+        bookingOrders.map(async (order) => {
+          let resolved = order.customer?.phone?.trim() || "";
+
+          if (order.userId) {
+            try {
+              const userSnap = await getDoc(doc(db, "users", order.userId));
+              const userPhone = userSnap.exists()
+                ? String((userSnap.data() as any)?.phone ?? "").trim()
+                : "";
+
+              if (userPhone) {
+                resolved = userPhone;
+              }
+            } catch {
+              // keep fallback from order.customer.phone
+            }
+          }
+
+          return [order.id, resolved] as const;
+        })
+      );
+
+      if (!cancelled) {
+        setPhoneMap(Object.fromEntries(entries));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bookingOrders]);
 
   const reservedPartyDeckDays = useMemo(
     () => availability.filter((day) => day.partyDeckBooked).length,
@@ -1699,6 +1742,17 @@ export default function AdminDashboard() {
                         <div className="mt-1 text-xs text-white/45">
                           {order.customer?.email ?? "—"}
                         </div>
+                        {(() => {
+                          const resolvedPhone =
+                            phoneMap[order.id] || order.customer?.phone || "";
+                          if (!resolvedPhone) return null;
+
+                          return (
+                            <div className="mt-1 text-xs text-white/45">
+                              {formatPhone(resolvedPhone)}
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       <td className="px-4 py-3 align-top">

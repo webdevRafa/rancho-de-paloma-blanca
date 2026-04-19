@@ -101,6 +101,17 @@ function formatLongDate(iso: string) {
     year: "numeric",
   }).format(dt);
 }
+
+function formatHeaderDate(iso: string) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(y, (m ?? 1) - 1, d ?? 1);
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(dt);
+}
+
 function formatCreatedAt(value: any) {
   if (!value) return "—";
 
@@ -363,7 +374,7 @@ function OrderDetailsModal({
               </div>
 
               <div className="mt-2 flex flex-wrap items-center gap-3">
-                <h2 className="text-[2rem] font-acumin tracking-tight text-white md:text-[2.15rem]">
+                <h2 className="font-acumin tracking-tight text-white text-3xl">
                   Order Details
                 </h2>
 
@@ -441,7 +452,7 @@ function OrderDetailsModal({
               <div className="text-[11px] uppercase tracking-[0.22em] text-white/45">
                 Customer
               </div>
-              <div className="mt-3 text-[1.35rem] font-semibold leading-[1.15] text-white md:text-[1.5rem]">
+              <div className="mt-3  font-semibold leading-[1.15] text-white text-lg">
                 {customerName}
               </div>
               <div className="mt-3 space-y-1.5 text-sm text-white/72">
@@ -452,9 +463,9 @@ function OrderDetailsModal({
 
             <div className="rounded-[22px] border border-white/10 bg-white/[0.035] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
               <div className="text-[11px] uppercase tracking-[0.22em] text-white/45">
-                Totals
+                Total
               </div>
-              <div className="mt-3 text-[2rem] font-semibold leading-none tracking-tight text-white md:text-[2.2rem]">
+              <div className="mt-3  font-semibold leading-none tracking-tight text-white text-lg">
                 {currency(order.total ?? 0)}
               </div>
               <div className="mt-4">
@@ -539,10 +550,7 @@ function OrderDetailsModal({
           <div className="border-t border-white/10 px-5 py-5 md:px-6 md:py-6">
             <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
-                <div className="text-[11px] uppercase tracking-[0.24em] text-white/42">
-                  Attendance roster
-                </div>
-                <h3 className="mt-1 text-[1.8rem] font-acumin leading-none text-white">
+                <h3 className="mt-1 text-lg font-acumin leading-none text-white">
                   Attendees & Waivers
                 </h3>
                 <p className="mt-2 text-sm text-white/52">
@@ -594,7 +602,7 @@ function OrderDetailsModal({
                       <tr className="border-b border-white/10 text-left text-white/58">
                         <th className="w-12 px-5 py-3.5">#</th>
                         <th className="px-5 py-3.5">Name</th>
-                        <th className="px-5 py-3.5">Email</th>
+
                         <th className="w-48 px-5 py-3.5">Waiver</th>
                       </tr>
                     </thead>
@@ -628,10 +636,6 @@ function OrderDetailsModal({
                                 </span>
                               )}
                             </div>
-                          </td>
-
-                          <td className="px-4 py-3 text-white/70">
-                            {a.email ?? "—"}
                           </td>
 
                           <td className="px-5 py-4">
@@ -704,6 +708,7 @@ export default function DayDetail() {
   const [phoneMap, setPhoneMap] = useState<Record<string, string>>({});
 
   const nice = useMemo(() => (id ? friendlyDay(id) : ""), [id]);
+  const headerDate = useMemo(() => (id ? formatHeaderDate(id) : ""), [id]);
 
   // availability/{id}
   useEffect(() => {
@@ -836,7 +841,7 @@ export default function DayDetail() {
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h1 className="mt-4 text-4xl font-acumin tracking-tight text-white md:text-5xl">
-              {nice} Day Overview
+              {headerDate}
             </h1>
             <p className="mt-3 max-w-2xl text-base text-white/60">
               Booking breakdown, customer contact details, attendee visibility,
@@ -870,14 +875,12 @@ export default function DayDetail() {
 
           <div className="rounded-[28px] border border-white/10 bg-white/[0.05] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.24)] backdrop-blur-xl">
             <div className="text-[11px] uppercase tracking-[0.24em] text-white/50">
-              Confirmed bookings
+              Paid orders
             </div>
             <div className="mt-3 text-4xl font-semibold text-white">
               <CountUp end={confirmedOrders.length} duration={0.6} />
             </div>
-            <div className="mt-3 text-sm text-white/70">
-              Paid bookings scheduled for this date
-            </div>
+            <div className="mt-3 text-sm text-white/70">For this day</div>
             <div className="mt-1 text-sm text-white/50">
               {totalHuntersFromOrders} confirmed hunter
               {totalHuntersFromOrders === 1 ? "" : "s"}
@@ -953,7 +956,7 @@ export default function DayDetail() {
           <div className="flex flex-col gap-3 border-b border-white/10 px-5 py-5 md:flex-row md:items-end md:justify-between md:px-6">
             <div>
               <h2 className="mt-1 font-acumin text-2xl text-white">
-                Confirmed bookings for {nice}
+                Bookings for this day
               </h2>
             </div>
 
