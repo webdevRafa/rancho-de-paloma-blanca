@@ -9,7 +9,7 @@ import AOS from "aos";
 import "aos/dist/aos.css"; // Import AOS styles
 import DayDetail from "./pages/DayDetail"; // <-- add this import
 import ScrollToTop from "./components/ScrollToTop";
-
+import AdminRoute from "./components/AdminRoute";
 import BookingPage from "./pages/BookingPage";
 import DevSeed from "./pages/DevSeed";
 import MerchandisePage from "./pages/MerchandisePage";
@@ -56,8 +56,22 @@ function App() {
           <Route path="/merch" element={<MerchandisePage />} />
           <Route path="/book" element={<BookingPage />} />
           <Route path="/about" element={<AboutPage />} />
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/admin/day/:id" element={<DayDetail />} />
+          <Route
+            path="/admin"
+            element={
+              <AdminRoute>
+                <AdminDashboard />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/day/:id"
+            element={
+              <AdminRoute>
+                <DayDetail />
+              </AdminRoute>
+            }
+          />
           <Route path="/videos" element={<VideoGallery />} />
           <Route path="/setup-profile" element={<SetupProfile />} />
           <Route path="/refunds" element={<RefundPage />} />

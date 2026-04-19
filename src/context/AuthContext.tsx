@@ -33,13 +33,25 @@ const getFriendlyError = (code: string): string => {
   }
 };
 
+type AppUserDoc = {
+  uid?: string;
+  name?: string;
+  email?: string;
+  avatarUrl?: string;
+  role?: "client" | "admin";
+  createdAt?: unknown;
+};
+
 interface AuthContextType {
   user: User | null;
+  userDoc: AppUserDoc | null;
+  isAdmin: boolean;
+  authReady: boolean;
   login: () => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   emailLogin: (email: string, password: string) => Promise<void>;
   emailSignup: (email: string, password: string) => Promise<void>;
-  resetPassword: (email: string) => Promise<void>; // ✅ Add this
+  resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAndCreateUser: () => Promise<void>;
   authError: string | null;
@@ -49,33 +61,78 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
+  userDoc: null,
+  isAdmin: false,
+  authReady: false,
   login: async () => {},
   loginWithGoogle: async () => {},
   emailLogin: async () => {},
   emailSignup: async () => {},
-  resetPassword: async () => {}, // ✅ default value
+  resetPassword: async () => {},
   setAuthError: async () => {},
   logout: async () => {},
   checkAndCreateUser: async () => {},
   authError: null,
   loading: false,
 });
-
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [userDoc, setUserDoc] = useState<AppUserDoc | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isSignedOut, setIsSignedOut] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (isSignedOut) {
         setIsSignedOut(false);
+        setAuthReady(true);
         return;
       }
+
       setUser(firebaseUser);
+
+      if (!firebaseUser) {
+        setUserDoc(null);
+        setAuthReady(true);
+        return;
+      }
+
+      try {
+        const userRef = doc(db, "users", firebaseUser.uid);
+        const userSnap = await getDoc(userRef);
+
+        if (!userSnap.exists()) {
+          const fallbackUserDoc = {
+            uid: firebaseUser.uid,
+            name: firebaseUser.displayName || "",
+            email: firebaseUser.email || "",
+            avatarUrl: firebaseUser.photoURL || "",
+            role: "client" as const,
+            createdAt: serverTimestamp(),
+          };
+
+          await setDoc(userRef, fallbackUserDoc);
+          setUserDoc({
+            uid: firebaseUser.uid,
+            name: firebaseUser.displayName || "",
+            email: firebaseUser.email || "",
+            avatarUrl: firebaseUser.photoURL || "",
+            role: "client",
+          });
+        } else {
+          setUserDoc(userSnap.data() as AppUserDoc);
+        }
+      } catch (error) {
+        console.error("Failed to load Firestore user doc:", error);
+        setUserDoc(null);
+      } finally {
+        setAuthReady(true);
+      }
     });
+
     return () => unsubscribe();
   }, [isSignedOut]);
 
@@ -173,6 +230,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       localStorage.removeItem("rdp_cart");
       localStorage.removeItem("rdp_order_id");
       setUser(null);
+      setUserDoc(null);
+      setAuthReady(false);
       setIsSignedOut(true);
       navigate("/");
     } catch (error) {
@@ -185,15 +244,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await createUserDoc(user);
   };
 
+  const isAdmin = userDoc?.role === "admin";
+
   return (
     <AuthContext.Provider
       value={{
         user,
+        userDoc,
+        isAdmin,
+        authReady,
         login,
         loginWithGoogle,
         emailLogin,
         emailSignup,
-        resetPassword, // ✅ Make sure this is returned
+        resetPassword,
         logout,
         setAuthError,
         checkAndCreateUser,

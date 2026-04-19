@@ -16,6 +16,7 @@ import { db } from "../firebase/firebaseConfig";
 import { getSeasonConfig } from "../utils/getSeasonConfig";
 import { formatLongDate } from "../utils/formatDate";
 import type { Attendee, PricingWindow, SeasonConfig } from "../types/Types";
+import { useAuth } from "../context/AuthContext";
 
 type AvailabilityDoc = {
   id: string;
@@ -591,6 +592,8 @@ function MerchOrderModal({
 }
 
 export default function AdminDashboard() {
+  const { isAdmin, authReady } = useAuth();
+
   const [range, setRange] = useState<RangeKey>("season");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -611,7 +614,10 @@ export default function AdminDashboard() {
   );
 
   useEffect(() => {
+    if (!authReady || !isAdmin) return;
+
     let mounted = true;
+
     (async () => {
       try {
         const config = await getSeasonConfig();
@@ -625,18 +631,19 @@ export default function AdminDashboard() {
         if (mounted) setSeasonLoading(false);
       }
     })();
+
     return () => {
       mounted = false;
     };
-  }, []);
-
+  }, [authReady, isAdmin]);
   const { from, to, fromIso, toIso } = useMemo(
     () => computeRange(range, seasonConfig, customFrom, customTo),
     [range, seasonConfig, customFrom, customTo]
   );
 
   useEffect(() => {
-    if (!seasonConfig) return;
+    if (!authReady || !isAdmin || !seasonConfig) return;
+
     const qAvail = query(
       collection(db, "availability"),
       where("id", ">=", fromIso),
@@ -680,14 +687,17 @@ export default function AdminDashboard() {
     });
 
     return () => unsub();
-  }, [from, to, fromIso, toIso, seasonConfig]);
+  }, [authReady, isAdmin, from, to, fromIso, toIso, seasonConfig]);
 
   useEffect(() => {
+    if (!authReady || !isAdmin) return;
+
     const qOrders = query(
       collection(db, "orders"),
       orderBy("createdAt", "desc"),
       limit(500)
     );
+
     const unsub = onSnapshot(qOrders, (snap) => {
       const docs = snap.docs.map((d) => ({
         id: d.id,
@@ -715,6 +725,7 @@ export default function AdminDashboard() {
           );
         }
       }
+
       setPaidCount(count);
       setPaidRevenue(revenue);
 
@@ -723,14 +734,18 @@ export default function AdminDashboard() {
         const hasMerch =
           !!order.merchItems && Object.keys(order.merchItems).length > 0;
         if (!hasMerch) return false;
+
         const created = getCreatedDate(order);
         if (!created || created < from || created > to) return false;
+
         if (!merchTerm) return true;
+
         return (
           order.id.toLowerCase().includes(merchTerm) ||
           getCustomerName(order).toLowerCase().includes(merchTerm)
         );
       });
+
       setMerchOrders(filteredMerch.slice(0, 200));
 
       const bookingTerm = bookingSearch.trim().toLowerCase();
@@ -738,16 +753,29 @@ export default function AdminDashboard() {
         if (!order.booking?.dates?.length) return false;
         if (!orderHasBookingInRange(order, fromIso, toIso)) return false;
         if (!bookingTerm) return true;
+
         return (
           order.id.toLowerCase().includes(bookingTerm) ||
           getCustomerName(order).toLowerCase().includes(bookingTerm) ||
           (order.customer?.email ?? "").toLowerCase().includes(bookingTerm)
         );
       });
+
       setBookingOrders(filteredBookings.slice(0, 200));
     });
+
     return () => unsub();
-  }, [from, to, fromIso, toIso, merchSearch, bookingSearch]);
+  }, [
+    authReady,
+    isAdmin,
+    from,
+    to,
+    fromIso,
+    toIso,
+    merchSearch,
+    bookingSearch,
+    seasonConfig,
+  ]);
 
   const huntersBooked = useMemo(
     () => availability.reduce((sum, day) => sum + (day.huntersBooked ?? 0), 0),
@@ -777,6 +805,27 @@ export default function AdminDashboard() {
     await updateDoc(doc(db, "orders", order.id), {
       "booking.attendees": attendees,
     });
+  }
+
+  if (!authReady) {
+    return (
+      <div className="min-h-screen px-6 py-20 text-white">
+        Checking admin access…
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen px-6 py-20 text-white">
+        <div className="mx-auto max-w-2xl rounded-[28px] border border-white/10 bg-white/5 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.22)]">
+          <h1 className="text-2xl font-acumin font-semibold">Access denied</h1>
+          <p className="mt-3 text-white/70">
+            You do not have permission to view the admin dashboard.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   if (seasonLoading) {
