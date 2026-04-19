@@ -1119,6 +1119,7 @@ export default function AdminDashboard() {
   const [range, setRange] = useState<RangeKey>("season");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+  const [showOnlyBookedDays, setShowOnlyBookedDays] = useState(false);
   const [merchSearch, setMerchSearch] = useState("");
   const [bookingSearch, setBookingSearch] = useState("");
 
@@ -1210,6 +1211,25 @@ export default function AdminDashboard() {
     return () => unsub();
   }, [authReady, isAdmin, from, to, fromIso, toIso, seasonConfig]);
 
+  const visibleAvailability = useMemo(() => {
+    if (!showOnlyBookedDays) return availability;
+    return availability.filter((day) => (day.huntersBooked ?? 0) > 0);
+  }, [availability, showOnlyBookedDays]);
+
+  const visibleAvailabilityDayIds = useMemo(
+    () => new Set(visibleAvailability.map((day) => day.id)),
+    [visibleAvailability]
+  );
+
+  const huntersBooked = useMemo(
+    () =>
+      visibleAvailability.reduce(
+        (sum, day) => sum + (day.huntersBooked ?? 0),
+        0
+      ),
+    [visibleAvailability]
+  );
+
   useEffect(() => {
     if (!authReady || !isAdmin) return;
 
@@ -1229,19 +1249,33 @@ export default function AdminDashboard() {
       let count = 0;
 
       for (const order of docs) {
-        const hasBookingInRange = orderHasBookingInRange(order, fromIso, toIso);
-        if (!hasBookingInRange) continue;
+        const bookingDates = order.booking?.dates ?? [];
+        const matchingDates = bookingDates.filter(
+          (iso) =>
+            iso >= fromIso &&
+            iso <= toIso &&
+            (!showOnlyBookedDays || visibleAvailabilityDayIds.has(iso))
+        );
 
-        const isPaidLike = ["paid", "refunded"].includes(order.status ?? "");
+        if (!matchingDates.length) continue;
+
+        const isPaidLike = ["paid", "refunded"].includes(
+          String(order.status ?? "")
+            .trim()
+            .toLowerCase()
+        );
         if (!isPaidLike) continue;
 
         count += 1;
 
         if (seasonConfig) {
+          const metricFromIso = matchingDates[0];
+          const metricToIso = matchingDates[matchingDates.length - 1];
+
           revenue += computeBookingRevenueInRange(
             order,
-            fromIso,
-            toIso,
+            metricFromIso,
+            metricToIso,
             seasonConfig
           );
         }
@@ -1296,16 +1330,15 @@ export default function AdminDashboard() {
     merchSearch,
     bookingSearch,
     seasonConfig,
+    showOnlyBookedDays,
+    visibleAvailabilityDayIds,
   ]);
 
-  const huntersBooked = useMemo(
-    () => availability.reduce((sum, day) => sum + (day.huntersBooked ?? 0), 0),
-    [availability]
-  );
   const reservedPartyDeckDays = useMemo(
     () => availability.filter((day) => day.partyDeckBooked).length,
     [availability]
   );
+
   const availablePartyDeckDays = Math.max(
     availability.length - reservedPartyDeckDays,
     0
@@ -1441,7 +1474,7 @@ export default function AdminDashboard() {
           value={
             <CountUp end={reservedPartyDeckDays} duration={0.7} separator="," />
           }
-          sublabel={`${availablePartyDeckDays} days still available in this view`}
+          sublabel={`${availablePartyDeckDays} days still available`}
         />
         <MetricCard
           label="Paid orders"
@@ -1456,15 +1489,30 @@ export default function AdminDashboard() {
       </div>
 
       <div className="mb-8 rounded-[28px] border border-white/10 bg-[rgba(255,255,255,0.05)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.22)]">
-        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-xl font-acumin font-semibold md:text-2xl">
               Season day availability
             </h2>
           </div>
-          <StatusPill>
-            {fromIso} → {toIso}
-          </StatusPill>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80">
+              <input
+                type="checkbox"
+                checked={showOnlyBookedDays}
+                onChange={(e) => setShowOnlyBookedDays(e.target.checked)}
+                className="h-4 w-4 rounded border-white/20 bg-transparent accent-[var(--color-accent-gold)]"
+              />
+              <span>Show only booked days</span>
+            </label>
+
+            <StatusPill>{visibleAvailability.length} shown</StatusPill>
+
+            <StatusPill>
+              {fromIso} → {toIso}
+            </StatusPill>
+          </div>
         </div>
 
         <div className="overflow-hidden rounded-2xl border border-white/10">
@@ -1481,7 +1529,19 @@ export default function AdminDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {availability.map((day) => {
+                {visibleAvailability.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="px-4 py-10 text-center text-white/45"
+                    >
+                      {showOnlyBookedDays
+                        ? "No booked days found in this date window."
+                        : "No availability found in this date window."}
+                    </td>
+                  </tr>
+                )}
+                {visibleAvailability.map((day) => {
                   const huntersCount = day.huntersBooked ?? 0;
                   const hasHunters = huntersCount > 0;
                   const remaining = Math.max(
