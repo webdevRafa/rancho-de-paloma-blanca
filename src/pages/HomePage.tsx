@@ -8,6 +8,7 @@ import Photos from "../components/Photos";
 import PhotosTwo from "../components/PhotosTwo";
 import PartyDeck from "../components/PartyDeck";
 import backTheBlueFlyer from "../assets/images/btb_2026.png";
+import huntHero from "../assets/images/hunthero.webp";
 
 const BACK_THE_BLUE_PROMO_STORAGE_KEY = "rdpb-back-the-blue-promo-seen-2026";
 const HERO_PARALLAX_STRENGTH = 0.85;
@@ -142,26 +143,30 @@ const HomePage = () => {
           style={{ top: "-10vh", opacity: HERO_BASE_OPACITY }}
         />
 
-        <div className="relative z-40 flex flex-col items-center justify-center gap-0 text-white md:flex-row">
+        <section
+          className="relative z-40 flex flex-col items-center justify-center gap-0 text-white md:flex-row"
+          aria-labelledby="hero-heading"
+        >
           <div className="mb-2 p-1">
             <h1
+              id="hero-heading"
               data-aos="fade-in"
               data-aos-delay="100"
-              className="mx-auto mt-6 mb-3 max-w-[800px] text-center text-2xl text-white md:text-3xl lg:text-5xl font-gin"
+              className="mx-auto mt-6 mb-3 max-w-[800px] text-center text-2xl text-white md:text-3xl lg:text-4xl font-gin"
             >
-              Best Dove Hunting in Brownsville, Texas — Rancho de Paloma Blanca
+              Brownsville, Texas Dove Hunting at Rancho de Paloma Blanca
             </h1>
 
             <p
               data-aos="fade-in"
               data-aos-delay="125"
-              className="mx-auto mb-5 max-w-[560px] px-4 text-sm text-neutral-100/90 md:text-base font-acumin"
+              className="mx-auto mb-5 max-w-[640px] px-4 text-sm text-neutral-100/90 md:text-base font-acumin"
             >
-              Dove Hunting at <strong>Rancho de Paloma Blanca</strong> in{" "}
-              <strong>Brownsville</strong> is perfect for families, friends, and
-              larger groups. Choose flexible single-day hunts or weekend
-              packages, add the exclusive Party Deck, and enjoy seamless online
-              booking—everything you need for a memorable South Texas hunt.
+              Experience dove hunting in Brownsville, Texas at{" "}
+              <strong>Rancho de Paloma Blanca</strong>. We offer single-day
+              hunts, weekend hunt packages, and access to our exclusive Party
+              Deck for families, friends, and larger groups looking for a
+              memorable South Texas hunting experience with easy online booking.
             </p>
 
             <div className="flex flex-col items-center justify-center gap-4">
@@ -170,8 +175,9 @@ const HomePage = () => {
                 data-aos-delay="300"
                 href="/book"
                 className="inline-block border-2 border-[var(--color-background)] bg-white p-2 text-sm text-[var(--color-background)] transition duration-300 ease-in-out hover:scale-105 font-gin"
+                aria-label="Book your dove hunt in Brownsville, Texas"
               >
-                Book Your Hunt
+                Book Your Dove Hunt
               </a>
 
               {showPromoTeaser && !showBackTheBluePromo && (
@@ -182,12 +188,13 @@ const HomePage = () => {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 14, scale: 0.98 }}
                   transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-                  className="md:hidden w-full max-w-[340px]  border border-[var(--color-accent-gold)] bg-[var(--color-footer)]/95 px-4 py-3 text-left shadow-2xl backdrop-blur"
+                  className="md:hidden w-full max-w-[340px] border border-[var(--color-accent-gold)] bg-[var(--color-footer)]/95 px-4 py-3 text-left shadow-2xl backdrop-blur"
+                  aria-label="Learn more about the Back the Blue Dove Hunt event"
                 >
                   <div className="flex items-start gap-3">
                     <img
                       src={backTheBlueFlyer}
-                      alt="Back the Blue event flyer"
+                      alt="Back the Blue Dove Hunt event flyer for October 3rd"
                       className="h-14 w-14 rounded-lg border border-white/10 object-cover"
                     />
 
@@ -207,7 +214,17 @@ const HomePage = () => {
               )}
             </div>
           </div>
-        </div>
+
+          <div className="hidden lg:block max-h-[700px] overflow-hidden">
+            <img
+              className="max-w-[600px]"
+              src={huntHero}
+              alt="Dove hunter in a South Texas field at Rancho de Paloma Blanca in Brownsville, Texas"
+              loading="eager"
+              fetchPriority="high"
+            />
+          </div>
+        </section>
       </div>
 
       <Photos />

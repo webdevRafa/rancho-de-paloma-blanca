@@ -228,7 +228,7 @@ const PartyDeck = () => {
                 data-aos="fade-up"
                 data-aos-delay="150"
               >
-                <h3 className="text-white font-medium mb-1">
+                <h3 className="text-white font-acumin font-semibold mb-1">
                   Cooking & Refreshments
                 </h3>
                 <ul className="text-neutral-200/90 text-sm space-y-1.5 list-disc pl-5">
@@ -247,7 +247,7 @@ const PartyDeck = () => {
                 data-aos="fade-up"
                 data-aos-delay="200"
               >
-                <h3 className="text-white font-medium mb-1">
+                <h3 className="text-white font-acumin font-semibold mb-1">
                   Comfort & Utilities
                 </h3>
                 <ul className="text-neutral-200/90 text-sm space-y-1.5 list-disc pl-5">
@@ -266,7 +266,7 @@ const PartyDeck = () => {
                 data-aos="fade-up"
                 data-aos-delay="250"
               >
-                <h3 className="text-white font-medium mb-1">
+                <h3 className="text-white font-acumin font-semibold mb-1">
                   Hunt-Ready Storage
                 </h3>
                 <ul className="text-neutral-200/90 text-sm space-y-1.5 list-disc pl-5">
@@ -288,8 +288,8 @@ const PartyDeck = () => {
               data-aos-delay="300"
             >
               Note: The Party Deck is available as an optional add-on during
-              checkout and may be reserved on a per-day basis. Availability is
-              limited—first come, first served.
+              checkout and may be reserved on a per-hunt, per-day basis.
+              Availability is limited—first come, first served.
             </motion.p>
           </div>
         </div>
