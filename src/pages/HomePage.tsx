@@ -144,7 +144,7 @@ const HomePage = () => {
         />
 
         <section
-          className="relative z-40 flex flex-col items-center justify-center gap-0 text-white md:flex-row"
+          className="relative z-40 flex flex-col items-center justify-center gap-0 text-white md:flex-row px-4 md:px-0"
           aria-labelledby="hero-heading"
         >
           <div className="mb-2 p-1">
@@ -152,7 +152,7 @@ const HomePage = () => {
               id="hero-heading"
               data-aos="fade-in"
               data-aos-delay="100"
-              className="mx-auto mt-6 mb-3 max-w-[800px] text-center text-2xl text-white md:text-3xl lg:text-4xl font-gin"
+              className="mx-auto mt-6 mb-3  text-center text-2xl text-white md:text-3xl font-gin max-w-[600px]"
             >
               Brownsville, Texas Dove Hunting at Rancho de Paloma Blanca
             </h1>
@@ -245,7 +245,7 @@ const HomePage = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 18, scale: 0.96 }}
             transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-            className="hidden md:block fixed right-4 z-[90] w-[calc(100%-2rem)] cursor-pointer border-2 border-[var(--color-accent-gold)]/30 max-w-[340px] bg-[var(--color-footer)]  px-4 py-3 text-left shadow-2xl backdrop-blur bottom-[max(1rem,env(safe-area-inset-bottom))]"
+            className="hidden md:block fixed right-4 z-[90] w-[calc(100%-2rem)] cursor-pointer border-2 border-[var(--color-accent-gold)]/30 max-w-[295px] bg-[var(--color-footer)]  px-1.5 py-1.5 text-left shadow-2xl backdrop-blur bottom-[max(1rem,env(safe-area-inset-bottom))]"
           >
             <div className="flex items-start gap-3">
               <img

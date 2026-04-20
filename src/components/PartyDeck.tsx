@@ -119,6 +119,32 @@ const PartyDeck = () => {
     <section className="w-full py-10">
       <div className="mx-auto w-full max-w-[1600px] px-4 md:px-8">
         <div className="flex flex-col md:flex-row items-start justify-center gap-6 md:gap-10 md:items-stretch">
+          <motion.h1
+            className="md:hidden text-2xl md:text-4xl font-gin text-white mb-1 "
+            initial={{ opacity: 0, y: 10 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.4 }}
+            transition={{ duration: 0.5, ease, delay: 0.05 }}
+          >
+            Elevate your hunt with the Party Deck
+          </motion.h1>
+
+          <motion.p
+            className="text-neutral-200/90 leading-relaxed  md:hidden"
+            initial={{ opacity: 0, y: 10 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.4 }}
+            transition={{ duration: 0.5, ease, delay: 0.12 }}
+            data-aos="fade-up"
+            data-aos-delay="100"
+          >
+            Our <span className="font-semibold">two-story</span> Party Deck
+            overlooks the fields— perfect for regrouping between flights,
+            grilling after a great morning, or hosting friends and family in
+            comfort. Power, shade, and airflow are all handled so you can focus
+            on a good time.
+          </motion.p>
+
           {/* LEFT: Hero image + previews */}
           <div className="w-full md:max-w-[860px] md:flex-1">
             {/* Hero */}
@@ -193,17 +219,17 @@ const PartyDeck = () => {
           {/* RIGHT: Content */}
           <div className="w-full md:max-w-2xl md:flex-1">
             <motion.h1
-              className="text-3xl md:text-4xl font-gin text-white mb-3"
+              className="text-3xl md:text-4xl font-gin text-white mb-3 hidden md:block "
               initial={{ opacity: 0, y: 10 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.4 }}
               transition={{ duration: 0.5, ease, delay: 0.05 }}
             >
-              Party Deck
+              Elevate your hunt with the Party Deck
             </motion.h1>
 
             <motion.p
-              className="text-neutral-200/90 leading-relaxed mb-5"
+              className="text-neutral-200/90 leading-relaxed mb-5 hidden md:block"
               initial={{ opacity: 0, y: 10 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.4 }}
