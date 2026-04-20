@@ -228,7 +228,7 @@ const HomePage = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 18, scale: 0.96 }}
             transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-            className="hidden md:block fixed right-4 z-[90] w-[calc(100%-2rem)] cursor-pointer border-2 border-[var(--color-accent-gold)] max-w-[340px] bg-[var(--color-footer)]  px-4 py-3 text-left shadow-2xl backdrop-blur bottom-[max(1rem,env(safe-area-inset-bottom))]"
+            className="hidden md:block fixed right-4 z-[90] w-[calc(100%-2rem)] cursor-pointer border-2 border-[var(--color-accent-gold)]/30 max-w-[340px] bg-[var(--color-footer)]  px-4 py-3 text-left shadow-2xl backdrop-blur bottom-[max(1rem,env(safe-area-inset-bottom))]"
           >
             <div className="flex items-start gap-3">
               <img

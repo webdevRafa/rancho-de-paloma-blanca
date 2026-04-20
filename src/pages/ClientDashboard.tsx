@@ -295,7 +295,7 @@ type CancelPreview = {
 
 const ClientDashboard: React.FC = () => {
   // ---------------- Hooks (fixed order) ----------------
-  const { user, checkAndCreateUser } = useAuth();
+  const { user } = useAuth();
   useCart();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1149,29 +1149,13 @@ const ClientDashboard: React.FC = () => {
   return (
     <Boundary>
       <div className="max-w-[1400px] mx-auto text-[var(--color-text)] py-6 min-h-[600px] px-6 flex flex-col md:flex-row gap-8 mt-20 md:mt-36">
-        {/* Sidebar */}
-        <aside className="w-full md:w-1/4">
-          <nav className="grid grid-cols-2 md:grid-cols-1 gap-3 max-w-[400px]">
-            <div className="text-left w-full px-4 py-3 rounded-xl border border-white bg-white/5 text-white shadow-sm">
-              <div className="font-medium">My Orders</div>
-              <div className="mt-1 text-xs text-white/45">
-                Reservations, purchases, and history
-              </div>
-            </div>
-
-            {!user && (
-              <button
-                onClick={checkAndCreateUser}
-                className="mt-1 text-xs underline text-neutral-500 hover:text-[var(--color-accent-gold)]"
-              >
-                Create My Account
-              </button>
-            )}
-          </nav>
-        </aside>
-
         {/* Main */}
         <section className="flex-1  w-full  backdrop-blur p-5 md:p-6 rounded-xl border border-black/5">
+          <div className="mb-5">
+            <h1 className="font-acumin text-2xl">{user?.displayName}</h1>
+            <p className="text-sm">{user?.email}</p>
+          </div>
+
           {!user ? (
             <div className="text-center py-10">
               <p className="text-neutral-600">
