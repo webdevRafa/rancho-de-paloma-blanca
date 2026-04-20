@@ -10,12 +10,16 @@ import PartyDeck from "../components/PartyDeck";
 import backTheBlueFlyer from "../assets/images/btb_2026.png";
 
 const BACK_THE_BLUE_PROMO_STORAGE_KEY = "rdpb-back-the-blue-promo-seen-2026";
+const HERO_PARALLAX_STRENGTH = 0.85;
+const HERO_BASE_OPACITY = 0.2;
+const HERO_FADE_END_FACTOR = 0.8;
 
 const HomePage = () => {
   const navigate = useNavigate();
 
   const heroRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
+  const currentHeroOpacityRef = useRef(HERO_BASE_OPACITY);
 
   const [showBackTheBluePromo, setShowBackTheBluePromo] = useState(false);
   const [showPromoTeaser, setShowPromoTeaser] = useState(false);
@@ -23,15 +27,17 @@ const HomePage = () => {
   useEffect(() => {
     let raf = 0;
 
-    const parallaxStrength = 0.85;
-    const baseOpacity = 0.6;
-    const fadeEndFactor = 0.8;
+    const parallaxStrength = HERO_PARALLAX_STRENGTH;
+    const baseOpacity = HERO_BASE_OPACITY;
+    const fadeEndFactor = HERO_FADE_END_FACTOR;
+
+    currentHeroOpacityRef.current = baseOpacity;
 
     const onScroll = () => {
       if (raf) return;
 
       raf = requestAnimationFrame(() => {
-        const y = window.scrollY;
+        const y = Math.max(0, window.scrollY);
 
         if (imgRef.current) {
           imgRef.current.style.transform = `translate3d(0, ${
@@ -41,11 +47,22 @@ const HomePage = () => {
 
         const heroH = heroRef.current?.offsetHeight || window.innerHeight;
         const fadeEnd = heroH * fadeEndFactor;
-        const progress = Math.min(1, Math.max(0, y / fadeEnd));
-        const op = (1 - progress) * baseOpacity;
+        const progress = Math.min(1, y / fadeEnd);
+        const nextOpacity = (1 - progress) * baseOpacity;
+
+        const smoothing = 0.14;
+        const targetOpacity = nextOpacity;
+
+        currentHeroOpacityRef.current =
+          currentHeroOpacityRef.current +
+          (targetOpacity - currentHeroOpacityRef.current) * smoothing;
+
+        if (Math.abs(targetOpacity - currentHeroOpacityRef.current) < 0.001) {
+          currentHeroOpacityRef.current = targetOpacity;
+        }
 
         if (imgRef.current) {
-          imgRef.current.style.opacity = String(op);
+          imgRef.current.style.opacity = String(currentHeroOpacityRef.current);
         }
 
         raf = 0;
@@ -122,7 +139,7 @@ const HomePage = () => {
           src={heroImg}
           alt=""
           className="absolute inset-0 h-[120vh] w-full object-cover will-change-transform blur-xs"
-          style={{ top: "-10vh", opacity: 0.27 }}
+          style={{ top: "-10vh", opacity: HERO_BASE_OPACITY }}
         />
 
         <div className="relative z-40 flex flex-col items-center justify-center gap-0 text-white md:flex-row">
