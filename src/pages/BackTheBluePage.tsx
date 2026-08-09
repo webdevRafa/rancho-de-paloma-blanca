@@ -60,7 +60,7 @@ const BackTheBluePage = () => {
 
             <div className="mt-6 space-y-4 text-[15px] leading-relaxed text-white/90">
               <p>
-                On <strong>Friday, October 11th</strong>, Rancho de Paloma
+                On <strong>Saturday, October 3rd, 2026</strong>, Rancho de Paloma
                 Blanca is proud to host our{" "}
                 <strong>First Annual Back the Blue Dove Hunt</strong>. This
                 special event is dedicated to first responders — police, fire,
@@ -69,17 +69,17 @@ const BackTheBluePage = () => {
               <p>
                 Enjoy a full day of world-class South Texas dove hunting at a{" "}
                 <strong className="text-[var(--color-accent-gold,#f5c26b)]">
-                  special rate of only $50 per gun, per day
+                  special rate of only $50 per hunter
                 </strong>{" "}
                 for first responders.
               </p>
 
               <ul className="mt-2 space-y-2 rounded-xl border border-white/10 bg-white/5 p-4">
                 <li>
-                  🗓 <strong>Date:</strong> Friday, October 11th
+                  🗓 <strong>Date:</strong> Saturday, October 3rd, 2026
                 </li>
                 <li>
-                  🎯 <strong>Rate:</strong> $50 per gun (first responders only)
+                  🎯 <strong>Rate:</strong> $50 per hunter (first responders only)
                 </li>
                 <li>
                   👥 <strong>Who:</strong> Law enforcement, firefighters, EMS,

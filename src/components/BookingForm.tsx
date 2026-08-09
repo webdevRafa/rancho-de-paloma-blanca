@@ -5,7 +5,6 @@ import { doc, getDoc } from "firebase/firestore";
 import type {
   NewBooking,
   SeasonConfig,
-  PricingWindow,
   Availability,
 } from "../types/Types";
 import gsignup from "../assets/google-signup.png";
@@ -18,6 +17,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import PartyDeck from "./PartyDeck";
 import { MdOutlinePreview } from "react-icons/md";
 import backTheBlueFlyer from "../assets/images/btb_2026.png";
+import {
+  BACK_THE_BLUE_DATE,
+  calculateBookingPricing,
+} from "../utils/huntPricing";
 
 const BookingForm = () => {
   const { user, login } = useAuth();
@@ -28,7 +31,6 @@ const BookingForm = () => {
   const [step, setStep] = useState(1);
   const [seasonConfig, setSeasonConfig] = useState<SeasonConfig | null>(null);
   const [showPartyDeck, setShowPartyDeck] = useState(false);
-  const BACK_THE_BLUE_DATE = "2026-10-03";
 
   const [showBackTheBlueDisclaimer, setShowBackTheBlueDisclaimer] =
     useState(false);
@@ -410,40 +412,14 @@ const BookingForm = () => {
     return (b.getTime() - a.getTime()) / 86400000 === 1;
   };
 
-  const inRange = (iso: string, startIso: string, endIso: string) => {
-    const t = new Date(`${iso}T00:00:00`).getTime();
-    const s = new Date(`${startIso}T00:00:00`).getTime();
-    const e = new Date(`${endIso}T00:00:00`).getTime();
-    return t >= s && t <= e;
-  };
-
-  const getPricingWindowForDate = (
-    iso: string,
-    cfg: SeasonConfig | null
-  ): PricingWindow | null => {
-    if (!cfg) return null;
-    const windows = cfg.pricingWindows ?? [];
-    return windows.find((w) => inRange(iso, w.start, w.end)) ?? null;
-  };
-
-  const samePricingWindow = (
-    a: PricingWindow | null,
-    b: PricingWindow | null
-  ): boolean => {
-    if (!a || !b) return false;
-    return a.start === b.start && a.end === b.end && a.type === b.type;
-  };
-
-  const isDateInActiveSeason = (
-    iso: string,
-    cfg: SeasonConfig | null
-  ): boolean => {
-    if (!cfg?.seasonStart || !cfg?.seasonEnd) return false;
-    return inRange(iso, cfg.seasonStart, cfg.seasonEnd);
-  };
-
   const getInvalidSelectedDates = (): string[] => {
-    return form.dates.filter((iso) => !isDateInActiveSeason(iso, seasonConfig));
+    if (!seasonConfig) return [...form.dates];
+    return calculateBookingPricing({
+      dates: form.dates,
+      hunters: form.numberOfHunters || 1,
+      partyDeckDates: form.partyDeckDates,
+      config: seasonConfig,
+    }).invalidDates;
   };
 
   const backTheBlueWindow = seasonConfig?.pricingWindows?.find(
@@ -505,80 +481,21 @@ const BookingForm = () => {
 
   const calculateHuntSubtotal = (): number => {
     if (!seasonConfig) return 0;
-
-    const validDates = sortIsoDates(
-      form.dates.filter((iso) => isDateInActiveSeason(iso, seasonConfig))
-    );
-
-    const hunters = form.numberOfHunters || 1;
-    let bookingTotal = 0;
-
-    for (let i = 0; i < validDates.length; ) {
-      const d0 = validDates[i];
-      const d1 = validDates[i + 1];
-      const d2 = validDates[i + 2];
-
-      const w0 = getPricingWindowForDate(d0, seasonConfig);
-      const w1 = d1 ? getPricingWindowForDate(d1, seasonConfig) : null;
-      const w2 = d2 ? getPricingWindowForDate(d2, seasonConfig) : null;
-
-      if (w0?.type === "package") {
-        const canUseThreeDay =
-          !!d0 &&
-          !!d1 &&
-          !!d2 &&
-          !!w1 &&
-          !!w2 &&
-          samePricingWindow(w0, w1) &&
-          samePricingWindow(w1, w2) &&
-          isConsecutive(d0, d1) &&
-          isConsecutive(d1, d2);
-
-        if (canUseThreeDay) {
-          bookingTotal += (w0.threeDayCombo ?? 450) * hunters;
-          i += 3;
-          continue;
-        }
-
-        const canUseTwoDay =
-          !!d0 &&
-          !!d1 &&
-          !!w1 &&
-          samePricingWindow(w0, w1) &&
-          isConsecutive(d0, d1);
-
-        if (canUseTwoDay) {
-          bookingTotal += (w0.twoConsecutiveDays ?? 350) * hunters;
-          i += 2;
-          continue;
-        }
-
-        bookingTotal += (w0.singleDay ?? 200) * hunters;
-        i += 1;
-        continue;
-      }
-
-      if (w0?.type === "flat") {
-        bookingTotal += (w0.rate ?? seasonConfig.weekdayRate ?? 150) * hunters;
-        i += 1;
-        continue;
-      }
-
-      bookingTotal += (seasonConfig.weekdayRate ?? 150) * hunters;
-      i += 1;
-    }
-
-    return bookingTotal;
+    return calculateBookingPricing({
+      dates: form.dates,
+      hunters: form.numberOfHunters || 1,
+      config: seasonConfig,
+    }).huntSubtotal;
   };
 
   const calculateTotalPrice = (): number => {
     if (!seasonConfig) return 0;
-
-    const huntSubtotal = calculateHuntSubtotal();
-    const partyDeckCost =
-      (seasonConfig.partyDeckRatePerDay ?? 500) * form.partyDeckDates.length;
-
-    return huntSubtotal + partyDeckCost;
+    return calculateBookingPricing({
+      dates: form.dates,
+      hunters: form.numberOfHunters || 1,
+      partyDeckDates: form.partyDeckDates,
+      config: seasonConfig,
+    }).bookingTotal;
   };
 
   const blockIfNamesMissing = (): boolean => {
@@ -1258,7 +1175,7 @@ const BookingForm = () => {
                                 Pricing
                               </span>
                               <span className="font-semibold text-right">
-                                $50 per gun
+                                $50 per hunter
                               </span>
                             </div>
                           </div>

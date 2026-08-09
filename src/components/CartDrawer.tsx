@@ -8,48 +8,11 @@ import { db } from "../firebase/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import { getSeasonConfig } from "../utils/getSeasonConfig";
 import { formatLongDate } from "../utils/formatDate";
-import type { PricingWindow, SeasonConfig } from "../types/Types";
+import type { SeasonConfig } from "../types/Types";
 import { RiShoppingCartFill } from "react-icons/ri";
+import { calculateBookingPricing } from "../utils/huntPricing";
 
 type AvailabilityDoc = { huntersBooked?: number; partyDeckBooked?: boolean };
-function sortIsoDates(dates: string[]) {
-  return [...dates].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-}
-
-function isConsecutive(d0: string, d1: string): boolean {
-  const a = new Date(`${d0}T00:00:00`);
-  const b = new Date(`${d1}T00:00:00`);
-  return (b.getTime() - a.getTime()) / 86400000 === 1;
-}
-
-function inRange(iso: string, startIso: string, endIso: string) {
-  const t = new Date(`${iso}T00:00:00`).getTime();
-  const s = new Date(`${startIso}T00:00:00`).getTime();
-  const e = new Date(`${endIso}T00:00:00`).getTime();
-  return t >= s && t <= e;
-}
-
-function getPricingWindowForDate(
-  iso: string,
-  cfg: SeasonConfig | null
-): PricingWindow | null {
-  if (!cfg) return null;
-  const windows = cfg.pricingWindows ?? [];
-  return windows.find((w) => inRange(iso, w.start, w.end)) ?? null;
-}
-
-function samePricingWindow(
-  a: PricingWindow | null,
-  b: PricingWindow | null
-): boolean {
-  if (!a || !b) return false;
-  return a.start === b.start && a.end === b.end && a.type === b.type;
-}
-
-function isDateInActiveSeason(iso: string, cfg: SeasonConfig | null): boolean {
-  if (!cfg?.seasonStart || !cfg?.seasonEnd) return false;
-  return inRange(iso, cfg.seasonStart, cfg.seasonEnd);
-}
 
 const CartDrawer = () => {
   const { booking, merchItems, setBooking, addOrUpdateMerchItem, clearCart } =
@@ -128,81 +91,14 @@ const CartDrawer = () => {
     setBooking({ ...booking, numberOfHunters: draftHuntersNum });
   };
 
-  // ---- Pricing driven by seasonConfig (no hardcoded $200 anymore) ----
-  const computePerPersonTotal = (isoDates: string[]) => {
-    if (!seasonConfig || !isoDates.length) return 0;
-
-    const validDates = sortIsoDates(
-      isoDates.filter((iso) => isDateInActiveSeason(iso, seasonConfig))
-    );
-
-    let total = 0;
-
-    for (let i = 0; i < validDates.length; ) {
-      const d0 = validDates[i];
-      const d1 = validDates[i + 1];
-      const d2 = validDates[i + 2];
-
-      const w0 = getPricingWindowForDate(d0, seasonConfig);
-      const w1 = d1 ? getPricingWindowForDate(d1, seasonConfig) : null;
-      const w2 = d2 ? getPricingWindowForDate(d2, seasonConfig) : null;
-
-      if (w0?.type === "package") {
-        const canUseThreeDay =
-          !!d0 &&
-          !!d1 &&
-          !!d2 &&
-          !!w1 &&
-          !!w2 &&
-          samePricingWindow(w0, w1) &&
-          samePricingWindow(w1, w2) &&
-          isConsecutive(d0, d1) &&
-          isConsecutive(d1, d2);
-
-        if (canUseThreeDay) {
-          total += w0.threeDayCombo ?? 450;
-          i += 3;
-          continue;
-        }
-
-        const canUseTwoDay =
-          !!d0 &&
-          !!d1 &&
-          !!w1 &&
-          samePricingWindow(w0, w1) &&
-          isConsecutive(d0, d1);
-
-        if (canUseTwoDay) {
-          total += w0.twoConsecutiveDays ?? 350;
-          i += 2;
-          continue;
-        }
-
-        total += w0.singleDay ?? 200;
-        i += 1;
-        continue;
-      }
-
-      if (w0?.type === "flat") {
-        total += w0.rate ?? seasonConfig.weekdayRate ?? 150;
-        i += 1;
-        continue;
-      }
-
-      total += seasonConfig.weekdayRate ?? 150;
-      i += 1;
-    }
-
-    return total;
-  };
-
   const bookingTotal = useMemo(() => {
-    if (!hasBooking) return 0;
-    const perPerson = computePerPersonTotal(booking!.dates);
-    const partyDeckDays = booking!.partyDeckDates || [];
-    const partyDeckCost =
-      (seasonConfig?.partyDeckRatePerDay ?? 500) * (partyDeckDays?.length || 0);
-    return perPerson * (booking!.numberOfHunters || 0) + partyDeckCost;
+    if (!hasBooking || !seasonConfig) return 0;
+    return calculateBookingPricing({
+      dates: booking!.dates,
+      hunters: booking!.numberOfHunters || 0,
+      partyDeckDates: booking!.partyDeckDates,
+      config: seasonConfig,
+    }).bookingTotal;
   }, [
     hasBooking,
     booking?.dates,
