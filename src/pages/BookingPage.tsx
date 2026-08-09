@@ -28,9 +28,9 @@ import BookingForm from "../components/BookingForm";
 import EditBookingDatesModal from "../components/EditBookingDatesModal";
 import { formatLongDate } from "../utils/formatDate";
 import { useCart } from "../context/CartContext";
-import dove from "../assets/images/IMG_20250920_191824.webp";
+import hunter from "../assets/images/IMG_5574.webp";
 import { PackagesBrochure } from "../components/PackagesBrochure";
-import partyDeck from "../assets/images/1000024260.webp";
+import hunters from "../assets/images/IMG_5547.webp";
 const BookingPage = () => {
   const navigate = useNavigate();
   const { user, loginWithGoogle } = useAuth();
@@ -91,8 +91,8 @@ const BookingPage = () => {
       <section className="relative min-h-screen overflow-hidden pt-30">
         {/* Hero background */}
         <div
-          className="fixed inset-0 bg-center bg-cover opacity-70"
-          style={{ backgroundImage: `url(${dove})` }}
+          className="fixed inset-0 bg-center bg-cover opacity-90"
+          style={{ backgroundImage: `url(${hunter})` }}
           aria-hidden="true"
         />
         {/* Subtle vignette + readability overlay */}
@@ -161,12 +161,12 @@ const BookingPage = () => {
       <div
         className="fixed inset-0 z-0"
         style={{
-          backgroundImage: `url(${partyDeck})`,
+          backgroundImage: `url(${hunters})`,
           backgroundSize: "cover",
-          backgroundPosition: "center",
+          backgroundPosition: "top",
           backgroundRepeat: "no-repeat",
           backgroundAttachment: isIOS ? "scroll" : "fixed",
-          opacity: 0.4,
+          opacity: 0.8,
         }}
         aria-hidden="true"
       />

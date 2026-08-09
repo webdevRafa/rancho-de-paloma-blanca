@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import HeroSection from "../components/HeroSection";
-import heroImg from "../assets/images/three.webp";
 import Photos from "../components/Photos";
 import PhotosTwo from "../components/PhotosTwo";
 import PartyDeck from "../components/PartyDeck";
@@ -12,7 +11,7 @@ import huntHero from "../assets/images/hunthero.webp";
 
 const BACK_THE_BLUE_PROMO_STORAGE_KEY = "rdpb-back-the-blue-promo-seen-2026";
 const HERO_PARALLAX_STRENGTH = 0.85;
-const HERO_BASE_OPACITY = 0.2;
+const HERO_BASE_OPACITY = 0.5;
 const HERO_FADE_END_FACTOR = 0.8;
 
 const HomePage = () => {
@@ -133,13 +132,13 @@ const HomePage = () => {
       <div
         data-aos-duration="2000"
         ref={heroRef}
-        className="relative isolate flex h-[100vh] w-full items-center justify-center overflow-hidden"
+        className="relative isolate flex h-[100vh] w-full items-center justify-center overflow-hidden saturate-150"
       >
         <img
           ref={imgRef}
-          src={heroImg}
+          src={huntHero}
           alt=""
-          className="absolute inset-0 h-[120vh] w-full object-cover will-change-transform blur-xs"
+          className="absolute inset-0 h-[120vh] w-full object-cover will-change-transform "
           style={{ top: "-10vh", opacity: HERO_BASE_OPACITY }}
         />
 
@@ -152,7 +151,7 @@ const HomePage = () => {
               id="hero-heading"
               data-aos="fade-in"
               data-aos-delay="100"
-              className="mx-auto mt-6 mb-3  text-center text-2xl text-white md:text-3xl font-gin max-w-[600px]"
+              className="mx-auto mt-6 mb-3  text-center  text-2xl lg:text-5xl! text-white md:text-3xl font-gin max-w-[800px]"
             >
               Brownsville, Texas Dove Hunting at Rancho de Paloma Blanca
             </h1>
@@ -214,25 +213,19 @@ const HomePage = () => {
               )}
             </div>
           </div>
-
-          <div className="hidden lg:block max-h-[700px] overflow-hidden">
-            <img
-              className="max-w-[600px]"
-              src={huntHero}
-              alt="Dove hunter in a South Texas field at Rancho de Paloma Blanca in Brownsville, Texas"
-              loading="eager"
-              fetchPriority="high"
-            />
-          </div>
         </section>
       </div>
 
-      <Photos />
+      <div className="hidden">
+        <Photos />
+      </div>
 
+      <HeroSection />
       <div className="flex min-h-screen flex-col text-[var(--color-text)]">
-        <HeroSection />
         <PartyDeck />
-        <PhotosTwo />
+        <div className="hidden">
+          <PhotosTwo />
+        </div>
       </div>
 
       {/* Floating teaser */}
