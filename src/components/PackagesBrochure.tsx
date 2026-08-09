@@ -84,7 +84,7 @@ const windowToCard = (window: PricingWindow): RateCard => {
     key: `${window.start}-${window.end}-flat`,
     title: window.label || (special ? "Back the Blue" : "Standard Hunt Rate"),
     price: formatCurrency(window.rate),
-    unit: special ? "per hunter" : "per hunter, per hunt day",
+    unit: special ? "per hunter, per day" : "per hunter, per hunt day",
     details: special
       ? "Special first-responder event. Proof of eligibility is required at check-in."
       : `${dateLabel}. The same rate applies to every hunter on each selected date.`,
