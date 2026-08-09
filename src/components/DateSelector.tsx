@@ -10,6 +10,7 @@ import {
 } from "firebase/firestore";
 import type { Availability, SeasonConfig } from "../types/Types";
 import { DayPicker } from "react-day-picker";
+import { BACK_THE_BLUE_DATE } from "../utils/huntPricing";
 import "react-day-picker/dist/style.css";
 // react-day-picker dates can behave like UTC calendar dates,
 // so use UTC getters here to avoid the one-day-back bug.
@@ -28,8 +29,6 @@ interface DateSelectorProps {
 }
 
 type AvailabilityDoc = Availability & { id: string };
-
-const BACK_THE_BLUE_DATE = "2026-10-03";
 
 const DateSelector = ({
   onSelect,

@@ -15,7 +15,11 @@ import CustomerInfoForm from "../components/CustomerInfoForm";
 import { getSeasonConfig } from "../utils/getSeasonConfig";
 import toIsoAlpha3 from "../utils/toIsoAlpha3";
 import { formatLongDate } from "../utils/formatDate";
-import type { Attendee, PricingWindow, SeasonConfig } from "../types/Types";
+import type { Attendee, SeasonConfig } from "../types/Types";
+import {
+  BACK_THE_BLUE_DATE,
+  calculateBookingPricing,
+} from "../utils/huntPricing";
 import grass from "../assets/images/group.webp";
 type EPApi = {
   init: (jwt: string, config: Record<string, any>) => any;
@@ -209,15 +213,6 @@ async function waitForEmbeddedPayments(timeoutMs = 8000): Promise<EPApi> {
   );
 }
 
-function isConsecutive(d0: string, d1: string): boolean {
-  const a = new Date(`${d0}T00:00:00`);
-  const b = new Date(`${d1}T00:00:00`);
-  return (b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24) === 1;
-}
-function sortIsoDates(dates: string[]) {
-  return [...dates].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-}
-
 /**
  * Inject custom styles for the Deluxe embedded panel.  The default layout
  * positions the panel flush left and includes a blank square next to each
@@ -338,13 +333,6 @@ function ensureEmbeddedStyles() {
     }
   `;
 }
-function inRange(iso: string, startIso: string, endIso: string) {
-  const t = new Date(`${iso}T00:00:00`).getTime();
-  const s = new Date(`${startIso}T00:00:00`).getTime();
-  const e = new Date(`${endIso}T00:00:00`).getTime();
-  return t >= s && t <= e;
-}
-
 /**
  * Group an array of ISO dates into consecutive ranges.  Returns an array of
  * objects with `start` and `end` ISO dates.  If a single day has no
@@ -455,7 +443,7 @@ function buildProductsForJwt(args: {
       Math.round((bookingSubtotal - partySubtotal) / hunters)
     );
     products.push({
-      name: "Dove Hunt Package",
+      name: "Dove Hunt Booking",
       skuCode: "HUNT",
       quantity: hunters,
       // Convert the computed unit into a proper money value.  Using toMoney
@@ -498,28 +486,6 @@ function buildProductsForJwt(args: {
   return products;
 }
 
-function getPricingWindowForDate(
-  iso: string,
-  cfg: SeasonConfig | null
-): PricingWindow | null {
-  if (!cfg) return null;
-  const windows = cfg.pricingWindows ?? [];
-  return windows.find((w) => inRange(iso, w.start, w.end)) ?? null;
-}
-
-function samePricingWindow(
-  a: PricingWindow | null,
-  b: PricingWindow | null
-): boolean {
-  if (!a || !b) return false;
-  return a.start === b.start && a.end === b.end && a.type === b.type;
-}
-
-function isDateInActiveSeason(iso: string, cfg: SeasonConfig | null): boolean {
-  if (!cfg?.seasonStart || !cfg?.seasonEnd) return false;
-  return inRange(iso, cfg.seasonStart, cfg.seasonEnd);
-}
-
 function calculateTotals(args: {
   booking: BookingLine | null;
   merchItems: MerchItem[];
@@ -528,80 +494,18 @@ function calculateTotals(args: {
   const { booking, merchItems, cfg } = args;
   const merchTotal = merchItems.reduce((sum, m) => sum + m.price * m.qty, 0);
 
-  let bookingTotal = 0;
-  const invalidDates: string[] = [];
-
-  if (booking && booking.dates.length > 0) {
-    const allDates = sortIsoDates(booking.dates);
-    const hunters = booking.numberOfHunters || 1;
-
-    for (const iso of allDates) {
-      if (!isDateInActiveSeason(iso, cfg)) {
-        invalidDates.push(iso);
-      }
-    }
-
-    const validDates = allDates.filter((iso) => isDateInActiveSeason(iso, cfg));
-
-    for (let i = 0; i < validDates.length; ) {
-      const d0 = validDates[i];
-      const d1 = validDates[i + 1];
-      const d2 = validDates[i + 2];
-
-      const w0 = getPricingWindowForDate(d0, cfg);
-      const w1 = d1 ? getPricingWindowForDate(d1, cfg) : null;
-      const w2 = d2 ? getPricingWindowForDate(d2, cfg) : null;
-
-      if (w0?.type === "package") {
-        const canUseThreeDay =
-          !!d0 &&
-          !!d1 &&
-          !!d2 &&
-          !!w1 &&
-          !!w2 &&
-          samePricingWindow(w0, w1) &&
-          samePricingWindow(w1, w2) &&
-          isConsecutive(d0, d1) &&
-          isConsecutive(d1, d2);
-
-        if (canUseThreeDay) {
-          bookingTotal += (w0.threeDayCombo ?? 450) * hunters;
-          i += 3;
-          continue;
-        }
-
-        const canUseTwoDay =
-          !!d0 &&
-          !!d1 &&
-          !!w1 &&
-          samePricingWindow(w0, w1) &&
-          isConsecutive(d0, d1);
-
-        if (canUseTwoDay) {
-          bookingTotal += (w0.twoConsecutiveDays ?? 350) * hunters;
-          i += 2;
-          continue;
-        }
-
-        bookingTotal += (w0.singleDay ?? 200) * hunters;
-        i += 1;
-        continue;
-      }
-
-      if (w0?.type === "flat") {
-        bookingTotal += (w0.rate ?? cfg?.weekdayRate ?? 150) * hunters;
-        i += 1;
-        continue;
-      }
-
-      bookingTotal += (cfg?.weekdayRate ?? 150) * hunters;
-      i += 1;
-    }
-
-    const partyDays = booking.partyDeckDates?.length || 0;
-    const partyRate = cfg?.partyDeckRatePerDay ?? 500;
-    bookingTotal += partyDays * partyRate;
-  }
+  const pricing =
+    booking && cfg
+      ? calculateBookingPricing({
+          dates: booking.dates,
+          hunters: booking.numberOfHunters || 1,
+          partyDeckDates: booking.partyDeckDates,
+          config: cfg,
+        })
+      : null;
+  const bookingTotal = pricing?.bookingTotal ?? 0;
+  const invalidDates =
+    pricing?.invalidDates ?? (booking?.dates ? [...booking.dates] : []);
 
   const amount = bookingTotal + merchTotal;
   return { bookingTotal, merchTotal, amount, invalidDates };
@@ -906,7 +810,8 @@ export default function CheckoutPage() {
   const amount = totals.amount;
   const invalidBookingDates = totals.invalidDates ?? [];
   const hasInvalidBookingDates = invalidBookingDates.length > 0;
-  const backTheBlueSelected = booking?.dates?.includes("2026-10-03") ?? false;
+  const backTheBlueSelected =
+    booking?.dates?.includes(BACK_THE_BLUE_DATE) ?? false;
   const backTheBlueNeedsAck =
     backTheBlueSelected && !booking?.backTheBlueAccepted;
 
@@ -1018,7 +923,7 @@ export default function CheckoutPage() {
             })),
             lineItems: [
               {
-                description: "Hunt package",
+                description: "Dove hunt booking",
                 quantity: booking.numberOfHunters,
                 price: 0,
                 skuCode: "HUNT",

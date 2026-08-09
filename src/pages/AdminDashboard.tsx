@@ -14,10 +14,14 @@ import {
 import { Link } from "react-router-dom";
 import CountUp from "react-countup";
 import { db } from "../firebase/firebaseConfig";
-import { getSeasonConfig } from "../utils/getSeasonConfig";
+import {
+  getArchivedSeasonConfig,
+  getSeasonConfig,
+} from "../utils/getSeasonConfig";
 import { formatLongDate } from "../utils/formatDate";
-import type { Attendee, PricingWindow, SeasonConfig } from "../types/Types";
+import type { Attendee, SeasonConfig } from "../types/Types";
 import { useAuth } from "../context/AuthContext";
+import { buildPerHunterDailyRateMap } from "../utils/huntPricing";
 
 type AvailabilityDoc = {
   id: string;
@@ -31,6 +35,7 @@ type Booking = {
   numberOfHunters?: number;
   partyDeckDates?: string[];
   price?: number;
+  seasonConfig?: SeasonConfig;
   attendees?: Attendee[];
   notes?: string;
   backTheBlueAccepted?: boolean;
@@ -292,17 +297,6 @@ function orderHasBookingInRange(
   return dates.some((d) => d >= fromIso && d <= toIso);
 }
 
-function addDaysLocal(iso: string, days: number) {
-  const base = parseIsoDateLocal(iso);
-  if (!base) return iso;
-  base.setDate(base.getDate() + days);
-  return toISO(base);
-}
-
-function areConsecutiveIsoDates(a: string, b: string) {
-  return addDaysLocal(a, 1) === b;
-}
-
 function getHuntersForOrder(order: OrderDoc) {
   const explicit = order.booking?.numberOfHunters;
   if (typeof explicit === "number" && explicit > 0) return explicit;
@@ -311,141 +305,12 @@ function getHuntersForOrder(order: OrderDoc) {
   return attendeesCount;
 }
 
-function getPricingWindowForDate(
-  iso: string,
-  seasonConfig: SeasonConfig
-): PricingWindow | null {
-  const windows = seasonConfig.pricingWindows ?? [];
-  return windows.find((w) => iso >= w.start && iso <= w.end) ?? null;
-}
-
-function getPricingWindowKey(window: PricingWindow | null) {
-  if (!window) return "none";
-  return [
-    window.start,
-    window.end,
-    window.type,
-    window.rate ?? "",
-    window.singleDay ?? "",
-    window.twoConsecutiveDays ?? "",
-    window.threeDayCombo ?? "",
-    window.label ?? "",
-  ].join("|");
-}
-
-function getFallbackSingleDayRate(
-  iso: string,
-  seasonConfig: SeasonConfig
-): number {
-  const date = parseIsoDateLocal(iso);
-  const day = date?.getDay();
-
-  // Fri / Sat / Sun fallback to weekend single-day rate
-  if (day === 5 || day === 6 || day === 0) {
-    return (
-      seasonConfig.weekendRates?.singleDay ?? seasonConfig.weekdayRate ?? 0
-    );
-  }
-
-  return seasonConfig.weekdayRate ?? 0;
-}
-
-function buildPerHunterDailyRateMap(
-  bookingDates: string[],
-  seasonConfig: SeasonConfig
-) {
-  const sorted = [...bookingDates].sort();
-  const rateMap: Record<string, number> = {};
-
-  if (!sorted.length) return rateMap;
-
-  type DateGroup = {
-    dates: string[];
-    window: PricingWindow | null;
-  };
-
-  const groups: DateGroup[] = [];
-  let currentDates: string[] = [];
-  let currentWindow: PricingWindow | null = null;
-
-  for (const iso of sorted) {
-    const nextWindow = getPricingWindowForDate(iso, seasonConfig);
-
-    if (!currentDates.length) {
-      currentDates = [iso];
-      currentWindow = nextWindow;
-      continue;
-    }
-
-    const prevIso = currentDates[currentDates.length - 1];
-    const sameWindow =
-      getPricingWindowKey(currentWindow) === getPricingWindowKey(nextWindow);
-
-    if (sameWindow && areConsecutiveIsoDates(prevIso, iso)) {
-      currentDates.push(iso);
-    } else {
-      groups.push({ dates: currentDates, window: currentWindow });
-      currentDates = [iso];
-      currentWindow = nextWindow;
-    }
-  }
-
-  if (currentDates.length) {
-    groups.push({ dates: currentDates, window: currentWindow });
-  }
-
-  for (const group of groups) {
-    const window = group.window;
-
-    // Flat-rate window or no window → assign a simple day rate per date
-    if (!window || window.type === "flat") {
-      for (const iso of group.dates) {
-        rateMap[iso] =
-          window?.rate ?? getFallbackSingleDayRate(iso, seasonConfig);
-      }
-      continue;
-    }
-
-    // Package window → derive the effective per-day rate from the booked run
-    let i = 0;
-    while (i < group.dates.length) {
-      const remaining = group.dates.length - i;
-
-      if (remaining >= 3 && typeof window.threeDayCombo === "number") {
-        const perDay = window.threeDayCombo / 3;
-        rateMap[group.dates[i]] = perDay;
-        rateMap[group.dates[i + 1]] = perDay;
-        rateMap[group.dates[i + 2]] = perDay;
-        i += 3;
-        continue;
-      }
-
-      if (remaining >= 2 && typeof window.twoConsecutiveDays === "number") {
-        const perDay = window.twoConsecutiveDays / 2;
-        rateMap[group.dates[i]] = perDay;
-        rateMap[group.dates[i + 1]] = perDay;
-        i += 2;
-        continue;
-      }
-
-      const singleDayRate =
-        window.singleDay ??
-        window.rate ??
-        getFallbackSingleDayRate(group.dates[i], seasonConfig);
-
-      rateMap[group.dates[i]] = singleDayRate;
-      i += 1;
-    }
-  }
-
-  return rateMap;
-}
-
 function computeBookingRevenueInRange(
   order: OrderDoc,
   fromIso: string,
   toIso: string,
-  seasonConfig: SeasonConfig
+  seasonConfig: SeasonConfig,
+  archivedSeasonConfig: SeasonConfig | null
 ) {
   const bookingDates = order.booking?.dates ?? [];
   if (!bookingDates.length) return 0;
@@ -453,9 +318,11 @@ function computeBookingRevenueInRange(
   const hunters = getHuntersForOrder(order);
   if (!hunters) return 0;
 
+  const pricingConfig =
+    order.booking?.seasonConfig ?? archivedSeasonConfig ?? seasonConfig;
   const perHunterRateMap = buildPerHunterDailyRateMap(
     bookingDates,
-    seasonConfig
+    pricingConfig
   );
 
   let subtotal = bookingDates
@@ -468,7 +335,7 @@ function computeBookingRevenueInRange(
     (iso) => iso >= fromIso && iso <= toIso
   ).length;
 
-  subtotal += partyDeckDaysInRange * (seasonConfig.partyDeckRatePerDay ?? 0);
+  subtotal += partyDeckDaysInRange * (pricingConfig.partyDeckRatePerDay ?? 0);
 
   const refunded =
     typeof order.amountRefunded === "number"
@@ -1124,6 +991,8 @@ export default function AdminDashboard() {
   const [bookingSearch, setBookingSearch] = useState("");
 
   const [seasonConfig, setSeasonConfig] = useState<SeasonConfig | null>(null);
+  const [archivedSeasonConfig, setArchivedSeasonConfig] =
+    useState<SeasonConfig | null>(null);
   const [seasonLoading, setSeasonLoading] = useState(true);
 
   const [availability, setAvailability] = useState<AvailabilityDoc[]>([]);
@@ -1143,9 +1012,13 @@ export default function AdminDashboard() {
 
     (async () => {
       try {
-        const config = await getSeasonConfig();
+        const [config, archivedConfig] = await Promise.all([
+          getSeasonConfig(),
+          getArchivedSeasonConfig(),
+        ]);
         if (!mounted) return;
         setSeasonConfig(config);
+        setArchivedSeasonConfig(archivedConfig);
         setCustomFrom(config.seasonStart);
         setCustomTo(config.seasonEnd);
       } catch (error) {
@@ -1277,7 +1150,8 @@ export default function AdminDashboard() {
             order,
             metricFromIso,
             metricToIso,
-            seasonConfig
+            seasonConfig,
+            archivedSeasonConfig
           );
         }
       }
@@ -1330,6 +1204,7 @@ export default function AdminDashboard() {
     toIso,
     merchSearch,
     bookingSearch,
+    archivedSeasonConfig,
     seasonConfig,
     showOnlyBookedDays,
     visibleAvailabilityDayIds,

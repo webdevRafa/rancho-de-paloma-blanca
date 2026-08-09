@@ -17,6 +17,7 @@ export interface NewBooking {
   numberOfHunters: number;
   partyDeckDates: string[];
   backTheBlueAccepted?: boolean;
+  seasonConfig?: SeasonConfig;
   price: number;
   status: BookingStatus;
   notes?: string;

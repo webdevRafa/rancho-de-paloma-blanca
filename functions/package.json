@@ -19,6 +19,7 @@
   "scripts": {
     "build": "tsc -p .",
     "serve": "firebase emulators:start --only functions",
-    "deploy": "npm run build && firebase deploy --only functions"
+    "deploy": "npm run build && firebase deploy --only functions",
+    "pricing:migrate": "npm run build && node lib/migrations/applyFlatPricing.js"
   }
 }

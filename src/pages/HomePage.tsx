@@ -163,10 +163,10 @@ const HomePage = () => {
               className="mx-auto mb-5 max-w-[640px] px-4 text-sm text-neutral-100/90 md:text-base font-acumin"
             >
               Experience dove hunting in Brownsville, Texas at{" "}
-              <strong>Rancho de Paloma Blanca</strong>. We offer single-day
-              hunts, weekend hunt packages, and access to our exclusive Party
-              Deck for families, friends, and larger groups looking for a
-              memorable South Texas hunting experience with easy online booking.
+              <strong>Rancho de Paloma Blanca</strong>. We offer straightforward
+              per-hunter hunt pricing and access to our exclusive Party Deck for
+              families, friends, and larger groups looking for a memorable South
+              Texas hunting experience with easy online booking.
             </p>
 
             <div className="flex flex-col items-center justify-center gap-4">
