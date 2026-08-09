@@ -12,13 +12,13 @@ const HeroSection = () => {
   }, []);
 
   return (
-    <section className="relative text-[var(--color-text)] h-[600px]  flex items-center justify-center overflow-hidden">
+    <section className="relative text-[var(--color-text)] h-[100vh]  flex items-center justify-center overflow-hidden">
       {/* Background Videos */}
       <div
         data-aos="fade-in"
         data-aos-delay="1500"
         data-aos-duration="1000"
-        className="absolute w-[90%] mx-auto inset-0 overflow-hidden"
+        className="absolute w-full mx-auto inset-0 overflow-hidden"
       >
         {/* Desktop Horizontal Video */}
         <video
