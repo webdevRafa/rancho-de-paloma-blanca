@@ -40,7 +40,14 @@ import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
 import crypto from "crypto";
 import { Resend } from "resend";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
-import { renderOrderPlacedEmail, renderOrderPaidEmail, renderRefundEmail } from "./email/templates.js";
+import { onSchedule } from "firebase-functions/v2/scheduler";
+import {
+  type OrderEmailDetails,
+  renderAdminOrderPaidEmail,
+  renderOrderPaidEmail,
+  renderPendingOrderEmail,
+  renderRefundEmail,
+} from "./email/templates.js";
 
 import { setGlobalOptions, logger } from "firebase-functions/v2";
 import { onRequest } from "firebase-functions/v2/https";
@@ -74,11 +81,15 @@ const DELUXE_EMBEDDED_SECRET = defineSecret("DELUXE_EMBEDDED_SECRET"); // HS256 
 const RESEND_API_KEY = defineSecret("RESEND_API_KEY");
 const RESEND_FROM_EMAIL = defineSecret("RESEND_FROM_EMAIL");
 const NOTIFY_ADMIN_EMAIL = defineSecret("NOTIFY_ADMIN_EMAIL");
+const SITE_URL = "https://rancho-de-paloma-blanca.vercel.app";
+const PENDING_REMINDER_DELAY_MINUTES = 20;
+const PENDING_REMINDER_CLAIM_TIMEOUT_MINUTES = 15;
 
 async function sendEmail(args: {
   to: string | string[];
   subject: string;
   html: string;
+  text?: string;
   cc?: string | string[];
   bcc?: string | string[];
 }) {
@@ -89,6 +100,7 @@ async function sendEmail(args: {
     subject: args.subject,
     html: args.html,
   };
+  if (args.text) payload.text = args.text;
   if (args.cc) payload.cc = args.cc;
   if (args.bcc) payload.bcc = args.bcc;
   const r = await client.emails.send(payload);
@@ -165,10 +177,11 @@ type Level3Item = {
 type OrderDoc = {
   id?: string;
   userId?: string;
-  status?: "pending" | "paid" | "cancelled";
+  status?: "pending" | "paid" | "cancelled" | "refunded";
   total: number;
   currency?: "USD" | "CAD";
   createdAt?: Timestamp;
+  capacityCommitted?: boolean;
   level3?: Level3Item[];
   customer?: {
     firstName?: string;
@@ -178,18 +191,39 @@ type OrderDoc = {
     phone?: string;
     billingAddress?: {
       address?: string;
+      line1?: string;
+      line2?: string;
       city?: string;
       state?: string;
       zipCode?: string;
+      postalCode?: string;
       countryCode?: string;
+      country?: string;
     };
   };
   booking?: {
     dates: string[]; // YYYY-MM-DD
     numberOfHunters: number;
     partyDeckDates?: string[];
+    attendees?: Array<{
+      fullName?: string;
+      email?: string;
+      waiverSigned?: boolean;
+    }>;
+    seasonConfig?: {
+      partyDeckRatePerDay?: number;
+    };
   };
-  merchItems?: Record<string, { skuCode?: string; name?: string; price?: number; quantity?: number }>;
+  merchItems?:
+    | Record<string, { skuCode?: string; name?: string; price?: number; quantity?: number }>
+    | Array<{ skuCode?: string; name?: string; price?: number; quantity?: number }>;
+  emailNotifications?: {
+    pendingReminderDueAt?: Timestamp;
+    pendingReminderClaimedAt?: Timestamp;
+    pendingReminderSentAt?: Timestamp;
+    pendingReminderSkippedAt?: Timestamp;
+    pendingReminderSkipReason?: string;
+  };
   paymentLink?: {
     paymentLinkId?: string;
     paymentUrl?: string;
@@ -197,6 +231,28 @@ type OrderDoc = {
   };
   deluxe?: Record<string, unknown>;
 };
+
+function buildOrderEmailDetails(orderId: string, order: OrderDoc): OrderEmailDetails {
+  return {
+    orderId,
+    total: Number(order.total || 0),
+    currency: order.currency || "USD",
+    createdAt: order.createdAt?.toDate().toISOString(),
+    dashboardUrl: `${SITE_URL}/dashboard`,
+    adminUrl: `${SITE_URL}/admin`,
+    customer: order.customer,
+    booking: order.booking
+      ? {
+          dates: order.booking.dates,
+          numberOfHunters: order.booking.numberOfHunters,
+          partyDeckDates: order.booking.partyDeckDates,
+          partyDeckRatePerDay: order.booking.seasonConfig?.partyDeckRatePerDay,
+          attendees: order.booking.attendees,
+        }
+      : undefined,
+    merchItems: order.merchItems,
+  };
+}
 
 function splitName(name?: string): { firstName: string; lastName: string } {
   if (!name?.trim()) return { firstName: "Guest", lastName: "User" };
@@ -442,32 +498,146 @@ async function incrementCapacityFromOrder(
 export const emailOnOrderCreated = onDocumentCreated(
   {
     document: "orders/{orderId}",
-    secrets: [RESEND_API_KEY, RESEND_FROM_EMAIL, NOTIFY_ADMIN_EMAIL],
   },
   async (event) => {
-    const data = event.data?.data() as any | undefined;
-    if (!data) return;
+    const snapshot = event.data;
+    const data = snapshot?.data() as OrderDoc | undefined;
+    if (!snapshot || !data || data.status !== "pending") return;
 
-    const orderId = event.params.orderId;
-    const to = data.customer?.email || NOTIFY_ADMIN_EMAIL.value();
-    const subject = `Order received — ${orderId}`;
-    const html = renderOrderPlacedEmail({
-      firstName: data.customer?.firstName,
-      orderId,
-      total: Number(data.total || 0),
-      dates: data.booking?.dates,
-      hunters: data.booking?.numberOfHunters,
+    const pendingReminderDueAt = Timestamp.fromMillis(
+      Date.now() + PENDING_REMINDER_DELAY_MINUTES * 60 * 1000
+    );
+
+    await snapshot.ref.set(
+      {
+        emailNotifications: {
+          ...(data.emailNotifications || {}),
+          pendingReminderDueAt,
+        },
+      },
+      { merge: true }
+    );
+
+    logger.info("Pending-order reminder scheduled", {
+      orderId: event.params.orderId,
+      dueAt: pendingReminderDueAt.toDate().toISOString(),
     });
+  }
+);
 
-    try {
-      await sendEmail({
-        to,
-        subject,
-        html,
-        bcc: NOTIFY_ADMIN_EMAIL.value() || undefined,
+function timestampMillis(value: unknown): number | null {
+  if (value instanceof Timestamp) return value.toMillis();
+  if (
+    value &&
+    typeof value === "object" &&
+    "toMillis" in value &&
+    typeof (value as { toMillis?: unknown }).toMillis === "function"
+  ) {
+    return (value as { toMillis: () => number }).toMillis();
+  }
+  return null;
+}
+
+export const emailPendingOrderReminders = onSchedule(
+  {
+    schedule: "every 5 minutes",
+    timeZone: "America/Chicago",
+    retryCount: 1,
+    secrets: [RESEND_API_KEY, RESEND_FROM_EMAIL],
+  },
+  async () => {
+    const now = Timestamp.now();
+    const staleClaimBefore =
+      now.toMillis() - PENDING_REMINDER_CLAIM_TIMEOUT_MINUTES * 60 * 1000;
+    const pendingOrders = await db
+      .collection("orders")
+      .where("emailNotifications.pendingReminderDueAt", "<=", now)
+      .limit(100)
+      .get();
+
+    for (const orderSnapshot of pendingOrders.docs) {
+      const orderRef = orderSnapshot.ref;
+      const claimedOrder = await db.runTransaction(async (transaction) => {
+        const latestSnapshot = await transaction.get(orderRef);
+        if (!latestSnapshot.exists) return null;
+
+        const order = latestSnapshot.data() as OrderDoc;
+        const notifications = order.emailNotifications || {};
+        const dueAt = timestampMillis(notifications.pendingReminderDueAt);
+        const claimedAt = timestampMillis(
+          notifications.pendingReminderClaimedAt
+        );
+
+        if (
+          order.status !== "pending" ||
+          dueAt === null ||
+          dueAt > now.toMillis() ||
+          notifications.pendingReminderSentAt ||
+          notifications.pendingReminderSkippedAt ||
+          (claimedAt !== null && claimedAt > staleClaimBefore)
+        ) {
+          return null;
+        }
+
+        transaction.update(orderRef, {
+          "emailNotifications.pendingReminderClaimedAt": now,
+        });
+        return order;
       });
-    } catch (e) {
-      logger.error("emailOnOrderCreated failed", String(e));
+
+      if (!claimedOrder) continue;
+
+      const orderId = orderSnapshot.id;
+      const customerEmail = claimedOrder.customer?.email?.trim();
+      if (!customerEmail) {
+        await orderRef.update({
+          "emailNotifications.pendingReminderClaimedAt": FieldValue.delete(),
+          "emailNotifications.pendingReminderSkippedAt": Timestamp.now(),
+          "emailNotifications.pendingReminderSkipReason":
+            "No customer email address",
+        });
+        logger.warn("Pending-order reminder skipped: no customer email", {
+          orderId,
+        });
+        continue;
+      }
+
+      const latestSnapshot = await orderRef.get();
+      const latestOrder = latestSnapshot.data() as OrderDoc | undefined;
+      if (!latestSnapshot.exists || latestOrder?.status !== "pending") {
+        await orderRef.update({
+          "emailNotifications.pendingReminderClaimedAt": FieldValue.delete(),
+          "emailNotifications.pendingReminderSkippedAt": Timestamp.now(),
+          "emailNotifications.pendingReminderSkipReason":
+            "Order was paid or otherwise closed before delivery",
+        });
+        continue;
+      }
+
+      try {
+        const email = renderPendingOrderEmail(
+          buildOrderEmailDetails(orderId, latestOrder)
+        );
+        await sendEmail({
+          to: customerEmail,
+          subject: email.subject,
+          html: email.html,
+          text: email.text,
+        });
+        await orderRef.update({
+          "emailNotifications.pendingReminderClaimedAt": FieldValue.delete(),
+          "emailNotifications.pendingReminderSentAt": Timestamp.now(),
+        });
+        logger.info("Pending-order reminder sent", { orderId });
+      } catch (error) {
+        await orderRef.update({
+          "emailNotifications.pendingReminderClaimedAt": FieldValue.delete(),
+        });
+        logger.error("Pending-order reminder failed", {
+          orderId,
+          error: String(error),
+        });
+      }
     }
   }
 );
@@ -1178,23 +1348,50 @@ if (req.method === "POST" && url === "/api/deluxe/webhook") {
   } catch (e) {
     logger.warn("forceSetPartyDeckBooked failed", { orderId: order.id, error: String(e) });
   }
-          // 3) 💌 payment approved email (customer + admin) — send once
+          // 3) Payment-approved emails — send once, with separate customer/admin copy
           try {
-            const to = order.customer?.email || NOTIFY_ADMIN_EMAIL.value();
-            const subject = `Payment received — Order ${order.id}`;
-            const html = renderOrderPaidEmail({
-              firstName: order.customer?.firstName,
-              orderId: order.id!,
-              total: Number(order.total || 0),
-              dates: order.booking?.dates,
-              hunters: order.booking?.numberOfHunters,
-            });
-            await sendEmail({
-              to,
-              subject,
-              html,
-              bcc: NOTIFY_ADMIN_EMAIL.value() || undefined,
-            });
+            const details = buildOrderEmailDetails(order.id!, order);
+            const deliveries: Promise<unknown>[] = [];
+            const customerEmail = order.customer?.email?.trim();
+            const adminEmail = NOTIFY_ADMIN_EMAIL.value().trim();
+
+            if (customerEmail) {
+              const email = renderOrderPaidEmail(details);
+              deliveries.push(
+                sendEmail({
+                  to: customerEmail,
+                  subject: email.subject,
+                  html: email.html,
+                  text: email.text,
+                })
+              );
+            } else {
+              logger.warn("Paid-order customer email skipped: no address", {
+                orderId: order.id,
+              });
+            }
+
+            if (adminEmail) {
+              const email = renderAdminOrderPaidEmail(details);
+              deliveries.push(
+                sendEmail({
+                  to: adminEmail,
+                  subject: email.subject,
+                  html: email.html,
+                  text: email.text,
+                })
+              );
+            }
+
+            const results = await Promise.allSettled(deliveries);
+            const failures = results.filter(
+              (result) => result.status === "rejected"
+            );
+            if (failures.length > 0) {
+              throw new Error(
+                `${failures.length} paid-order email delivery attempt(s) failed`
+              );
+            }
           } catch (e) {
             logger.error("email payment-approved failed", String(e));
           }
