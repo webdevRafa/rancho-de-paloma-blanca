@@ -8,31 +8,18 @@
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(20rem, 0.7fr);
   gap: clamp(2rem, 6vw, 6rem);
-  align-items: end;
+  align-items: start;
   margin-bottom: clamp(2rem, 4vw, 3.5rem);
 }
 
 .packages-brochure__eyebrow {
-  margin: 0 0 0.85rem;
+  margin: 0;
   color: var(--booking-gold, #d9b56a);
   font-family: "Acumin Pro", sans-serif;
   font-size: 0.77rem;
   font-weight: 800;
   letter-spacing: 0.19em;
   line-height: 1;
-  text-transform: uppercase;
-}
-
-.packages-brochure__title {
-  max-width: 13ch;
-  margin: 0;
-  color: #f7f0e3;
-  font-family: gin, Impact, sans-serif;
-  font-size: clamp(3.25rem, 6.6vw, 6.4rem);
-  font-weight: 400;
-  letter-spacing: -0.035em;
-  line-height: 0.84;
-  text-wrap: balance;
   text-transform: uppercase;
 }
 
@@ -459,11 +446,6 @@
 @media (max-width: 680px) {
   .packages-brochure {
     padding-top: 4.5rem;
-  }
-
-  .packages-brochure__title {
-    font-size: clamp(3rem, 13vw, 4rem);
-    letter-spacing: -0.045em;
   }
 
   .packages-brochure__date-chip {

@@ -176,13 +176,10 @@ export function PackagesBrochure() {
   const seasonYear = seasonConfig?.seasonStart?.slice(0, 4) || "2026";
 
   return (
-    <section className="packages-brochure" aria-labelledby="season-rates-title">
+    <section className="packages-brochure" aria-label={`${seasonYear} season details and rates`}>
       <header className="packages-brochure__header">
         <div>
           <p className="packages-brochure__eyebrow">{seasonYear} season details</p>
-          <h2 id="season-rates-title" className="packages-brochure__title">
-            One season. Straightforward rates.
-          </h2>
         </div>
 
         <div className="packages-brochure__intro">
