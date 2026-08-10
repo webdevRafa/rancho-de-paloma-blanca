@@ -79,10 +79,10 @@
   margin: 1.25rem 0 0;
   color: #fff8ed;
   font-family: "gin", serif;
-  font-size: clamp(3.35rem, 6.4vw, 6.8rem);
+  font-size: clamp(2.75rem, 3.75vw, 4.25rem);
   font-weight: 400;
-  letter-spacing: -0.035em;
-  line-height: 0.88;
+  letter-spacing: -0.025em;
+  line-height: 0.94;
   text-wrap: balance;
 }
 
@@ -213,26 +213,6 @@
 
 .client-account-card__text svg {
   flex: 0 0 auto;
-}
-
-.client-account-card__status {
-  display: flex;
-  align-items: center;
-  gap: 0.48rem;
-  margin-top: 1.35rem;
-  padding-top: 1rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
-  color: rgba(246, 239, 228, 0.5);
-  font-family: "Acumin Pro", sans-serif;
-  font-size: 0.74rem;
-}
-
-.client-account-card__status > span {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #83b77a;
-  box-shadow: 0 0 0 4px rgba(131, 183, 122, 0.11);
 }
 
 .client-dashboard-empty,
@@ -1004,7 +984,7 @@ button.client-order-meta__item:hover {
   }
 
   .client-dashboard-hero h1 {
-    font-size: clamp(3.25rem, 16vw, 4.8rem);
+    font-size: clamp(2.6rem, 11vw, 3.25rem);
   }
 
   .client-account-card {

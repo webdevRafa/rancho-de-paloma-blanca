@@ -1220,9 +1220,6 @@ const ClientDashboard: React.FC = () => {
                   </span>
                 </div>
               </div>
-              <div className="client-account-card__status">
-                <span aria-hidden="true" /> Account active
-              </div>
             </aside>
           </header>
 
