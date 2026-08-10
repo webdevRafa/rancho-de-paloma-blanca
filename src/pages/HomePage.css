@@ -983,6 +983,7 @@
 
 .home-deck__footer p {
   display: grid;
+  row-gap: 0.55rem;
   margin: 0;
 }
 
