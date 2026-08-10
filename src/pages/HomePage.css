@@ -451,12 +451,12 @@
 .home-story__figures strong {
   color: var(--home-gold);
   font-family: "gin", serif;
-  font-size: 2.5rem;
+  font-size: clamp(3.5rem, 5vw, 4.75rem);
   font-weight: 400;
-  line-height: 1;
+  line-height: 0.9;
 }
 
-.home-story__figures span {
+.home-story__figures > div > span {
   color: rgba(244, 237, 223, 0.58);
   font-family: "Acumin Pro", sans-serif;
   font-size: 0.7rem;
@@ -880,15 +880,15 @@
 
 .home-season__event-rate strong {
   font-family: "gin", serif;
-  font-size: 3.5rem;
+  font-size: clamp(4.2rem, 5vw, 5.5rem);
   font-weight: 400;
-  line-height: 1;
+  line-height: 0.88;
 }
 
-.home-season__event-rate span {
+.home-season__event-rate > span {
   color: rgba(255, 255, 255, 0.64);
   font-family: "Acumin Pro", sans-serif;
-  font-size: 0.74rem;
+  font-size: 0.82rem;
 }
 
 .home-season__event-link {
@@ -989,15 +989,15 @@
 .home-deck__footer strong {
   color: var(--home-gold);
   font-family: "gin", serif;
-  font-size: 2.8rem;
+  font-size: clamp(3.6rem, 5vw, 4.8rem);
   font-weight: 400;
-  line-height: 1;
+  line-height: 0.9;
 }
 
-.home-deck__footer span {
+.home-deck__footer p > span {
   color: rgba(244, 237, 223, 0.52);
   font-family: "Acumin Pro", sans-serif;
-  font-size: 0.66rem;
+  font-size: 0.75rem;
 }
 
 .home-deck__footer .home-text-link {

@@ -316,8 +316,11 @@ const HomePage = () => {
               <div className="home-bento__shade" />
               <div className="home-bento__content">
                 <span>The flight</span>
-                <h3>When the sky comes alive.</h3>
-                <p>Open Brownsville fields along a well-traveled migration path.</p>
+                <h3>Hunt beneath a wide South Texas sky.</h3>
+                <p>
+                  Brownsville fields set along a well-traveled dove migration
+                  path.
+                </p>
               </div>
             </motion.article>
 
@@ -330,14 +333,14 @@ const HomePage = () => {
               <div className="home-bento__shade" />
               <div className="home-bento__content">
                 <span>Good company</span>
-                <h3>Better with your people.</h3>
-                <p>Bring the crew and head home with another story.</p>
+                <h3>Bring the people you hunt with.</h3>
+                <p>Settle in for a day outside with friends and family.</p>
               </div>
             </motion.article>
 
             <motion.article className="home-bento__card home-bento__card--details" {...reveal}>
-              <p className="home-kicker">Easy from booking to field</p>
-              <h3>We keep the day simple.</h3>
+              <p className="home-kicker">Plan your hunt</p>
+              <h3>Know what to expect before you arrive.</h3>
               <ul>
                 <li>
                   <Sunrise aria-hidden="true" />
@@ -367,7 +370,7 @@ const HomePage = () => {
               <div className="home-bento__shade" />
               <div className="home-bento__content">
                 <span>The tradition</span>
-                <h3>Good hunting. No fuss.</h3>
+                <h3>Make time for another day in the field.</h3>
               </div>
             </motion.article>
           </div>
@@ -394,14 +397,7 @@ const HomePage = () => {
             <p>Standard hunt</p>
             <div>
               <sup>$</sup>
-              <strong>
-                <CountUp
-                  end={season.standardRate}
-                  duration={reduceMotion ? 0 : 1.8}
-                  enableScrollSpy={!reduceMotion}
-                  scrollSpyOnce
-                />
-              </strong>
+              <strong>{season.standardRate}</strong>
             </div>
             <span>per hunter, per hunt day</span>
             <Link className="home-button home-button--primary" to="/book">
@@ -421,14 +417,7 @@ const HomePage = () => {
               books, everyone in their party receives the event rate.
             </p>
             <div className="home-season__event-rate">
-              <strong>
-                $<CountUp
-                  end={season.eventRate}
-                  duration={reduceMotion ? 0 : 1.5}
-                  enableScrollSpy={!reduceMotion}
-                  scrollSpyOnce
-                />
-              </strong>
+              <strong>${season.eventRate}</strong>
               <span>per hunter, per day</span>
             </div>
             <Link to="/book" className="home-season__event-link">
@@ -466,14 +455,7 @@ const HomePage = () => {
             </div>
             <div className="home-deck__footer">
               <p>
-                <strong>
-                  $<CountUp
-                    end={season.partyDeckRate}
-                    duration={reduceMotion ? 0 : 1.8}
-                    enableScrollSpy={!reduceMotion}
-                    scrollSpyOnce
-                  />
-                </strong>
+                <strong>${season.partyDeckRate}</strong>
                 <span>per hunt, per day</span>
               </p>
               <Link className="home-text-link" to="/book">
