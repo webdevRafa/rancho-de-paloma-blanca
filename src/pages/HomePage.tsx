@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
+import CountUp from "react-countup";
 import {
   ArrowDown,
   ArrowRight,
@@ -23,6 +24,13 @@ import partyDeck from "../assets/images/four.webp";
 import "./HomePage.css";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
+
+const RAIL_ITEMS = [
+  "White-wing dove country",
+  "Brownsville, Texas",
+  "Family owned",
+  "Rooted at 1419 Ranch",
+] as const;
 
 const parseLocalDate = (iso: string) => {
   const [year, month, day] = iso.split("-").map(Number);
@@ -126,9 +134,9 @@ const HomePage = () => {
               <span>takes flight.</span>
             </h1>
             <p className="home-hero__lede">
-              Authentic dove hunting, wide-open fields, and a century of ranch
-              tradition—built for the people you want beside you when the sky
-              comes alive.
+              Come hunt Brownsville&apos;s open fields with good people beside
+              you and white-wings moving overhead. That&apos;s what a day at
+              Rancho de Paloma Blanca is all about.
             </p>
 
             <div className="home-actions">
@@ -157,13 +165,14 @@ const HomePage = () => {
               <span>{season.year} season</span>
               <span>Now booking</span>
             </div>
-            <p className="home-hero__price">
-              <sup>$</sup>
-              {season.standardRate}
-            </p>
-            <p className="home-hero__unit">per hunter, per hunt day</p>
+            <div className="home-hero__season-dates">
+              <CalendarDays aria-hidden="true" />
+              <div>
+                <span>Dove hunting season</span>
+                <p className="home-hero__date">{season.range}</p>
+              </div>
+            </div>
             <div className="home-hero__season-rule" />
-            <p className="home-hero__date">{season.range}</p>
             <Link to="/book" className="home-hero__availability">
               View available dates
               <ArrowRight aria-hidden="true" />
@@ -178,14 +187,21 @@ const HomePage = () => {
       </section>
 
       <div className="home-rail" aria-label="Rancho highlights">
-        <div className="home-rail__track">
-          <span>White-wing dove country</span>
-          <i aria-hidden="true" />
-          <span>Brownsville, Texas</span>
-          <i aria-hidden="true" />
-          <span>Family owned</span>
-          <i aria-hidden="true" />
-          <span>Rooted at 1419 Ranch</span>
+        <div className="home-rail__marquee">
+          {[false, true].map((duplicate) => (
+            <div
+              className="home-rail__group"
+              aria-hidden={duplicate || undefined}
+              key={duplicate ? "duplicate" : "primary"}
+            >
+              {RAIL_ITEMS.map((item) => (
+                <span className="home-rail__item" key={`${duplicate}-${item}`}>
+                  <span>{item}</span>
+                  <i aria-hidden="true" />
+                </span>
+              ))}
+            </div>
+          ))}
         </div>
       </div>
 
@@ -196,14 +212,13 @@ const HomePage = () => {
             <h2>A century on the land. Thirty years in the field.</h2>
             <p className="home-story__lead">
               Rancho de Paloma Blanca is a family-run dove hunting operation
-              under the historic 1419 Ranch—where South Texas hospitality is
-              every bit as important as the hunt.
+              on the historic 1419 Ranch. We care about good hunting, good
+              company, and making folks feel at home.
             </p>
             <p>
-              We keep the experience straightforward: thoughtfully managed
-              fields, clear booking, room for your whole group, and the kind of
-              welcome that turns a morning in Brownsville into a tradition of
-              your own.
+              We keep things straightforward: cared-for fields, clear online
+              booking, and a warm South Texas welcome that can turn one morning
+              in Brownsville into a tradition of your own.
             </p>
             <Link className="home-text-link" to="/about">
               Our story
@@ -212,11 +227,27 @@ const HomePage = () => {
 
             <div className="home-story__figures" aria-label="Ranch experience">
               <div>
-                <strong>100+</strong>
+                <strong>
+                  <CountUp
+                    end={100}
+                    suffix="+"
+                    duration={reduceMotion ? 0 : 2.2}
+                    enableScrollSpy={!reduceMotion}
+                    scrollSpyOnce
+                  />
+                </strong>
                 <span>years rooted in the region</span>
               </div>
               <div>
-                <strong>30+</strong>
+                <strong>
+                  <CountUp
+                    end={30}
+                    suffix="+"
+                    duration={reduceMotion ? 0 : 1.8}
+                    enableScrollSpy={!reduceMotion}
+                    scrollSpyOnce
+                  />
+                </strong>
                 <span>years in dove hunting</span>
               </div>
             </div>
@@ -245,7 +276,16 @@ const HomePage = () => {
             </figure>
             <div className="home-story__stamp" aria-hidden="true">
               <span>Est.</span>
-              <strong>1419</strong>
+              <strong>
+                <CountUp
+                  end={1419}
+                  separator=""
+                  duration={reduceMotion ? 0 : 2.1}
+                  enableScrollSpy={!reduceMotion}
+                  scrollSpyOnce
+                  useEasing={false}
+                />
+              </strong>
               <span>Ranch</span>
             </div>
           </motion.div>
@@ -260,8 +300,9 @@ const HomePage = () => {
               <h2 id="experience-title">Come for the flight. Stay for the story.</h2>
             </div>
             <p>
-              Every part of the day is designed to feel easy, authentic, and
-              distinctly South Texas—from the first light to the last laugh.
+              A day here is about good fields, familiar faces, and time outside
+              with the people you came with. We keep the rest simple so you can
+              settle in and enjoy the hunt.
             </p>
           </motion.header>
 
@@ -274,9 +315,9 @@ const HomePage = () => {
               />
               <div className="home-bento__shade" />
               <div className="home-bento__content">
-                <span>01 / The flight</span>
-                <h3>South Texas skies in motion.</h3>
-                <p>Expansive fields along a storied migration path.</p>
+                <span>The flight</span>
+                <h3>When the sky comes alive.</h3>
+                <p>Open Brownsville fields along a well-traveled migration path.</p>
               </div>
             </motion.article>
 
@@ -288,24 +329,23 @@ const HomePage = () => {
               />
               <div className="home-bento__shade" />
               <div className="home-bento__content">
-                <span>02 / Your people</span>
-                <h3>Better shared.</h3>
-                <p>Bring the crew. Leave with another story.</p>
+                <span>Good company</span>
+                <h3>Better with your people.</h3>
+                <p>Bring the crew and head home with another story.</p>
               </div>
             </motion.article>
 
             <motion.article className="home-bento__card home-bento__card--details" {...reveal}>
-              <div className="home-bento__number">03</div>
-              <p className="home-kicker">A smooth day in the field</p>
-              <h3>The details are handled.</h3>
+              <p className="home-kicker">Easy from booking to field</p>
+              <h3>We keep the day simple.</h3>
               <ul>
                 <li>
                   <Sunrise aria-hidden="true" />
-                  Thoughtfully managed South Texas fields
+                  Cared-for South Texas hunting fields
                 </li>
                 <li>
                   <UsersRound aria-hidden="true" />
-                  Space for friends, families, and larger groups
+                  A welcoming place to hunt with friends and family
                 </li>
                 <li>
                   <ShieldCheck aria-hidden="true" />
@@ -326,8 +366,8 @@ const HomePage = () => {
               />
               <div className="home-bento__shade" />
               <div className="home-bento__content">
-                <span>04 / The tradition</span>
-                <h3>Unhurried. Uncomplicated. Unforgettable.</h3>
+                <span>The tradition</span>
+                <h3>Good hunting. No fuss.</h3>
               </div>
             </motion.article>
           </div>
@@ -354,7 +394,14 @@ const HomePage = () => {
             <p>Standard hunt</p>
             <div>
               <sup>$</sup>
-              <strong>{season.standardRate}</strong>
+              <strong>
+                <CountUp
+                  end={season.standardRate}
+                  duration={reduceMotion ? 0 : 1.8}
+                  enableScrollSpy={!reduceMotion}
+                  scrollSpyOnce
+                />
+              </strong>
             </div>
             <span>per hunter, per hunt day</span>
             <Link className="home-button home-button--primary" to="/book">
@@ -374,7 +421,14 @@ const HomePage = () => {
               books, everyone in their party receives the event rate.
             </p>
             <div className="home-season__event-rate">
-              <strong>${season.eventRate}</strong>
+              <strong>
+                $<CountUp
+                  end={season.eventRate}
+                  duration={reduceMotion ? 0 : 1.5}
+                  enableScrollSpy={!reduceMotion}
+                  scrollSpyOnce
+                />
+              </strong>
               <span>per hunter, per day</span>
             </div>
             <Link to="/book" className="home-season__event-link">
@@ -412,7 +466,14 @@ const HomePage = () => {
             </div>
             <div className="home-deck__footer">
               <p>
-                <strong>${season.partyDeckRate}</strong>
+                <strong>
+                  $<CountUp
+                    end={season.partyDeckRate}
+                    duration={reduceMotion ? 0 : 1.8}
+                    enableScrollSpy={!reduceMotion}
+                    scrollSpyOnce
+                  />
+                </strong>
                 <span>per hunt, per day</span>
               </p>
               <Link className="home-text-link" to="/book">
@@ -432,8 +493,8 @@ const HomePage = () => {
         />
         <div className="home-final__wash" aria-hidden="true" />
         <motion.div className="home-shell home-final__content" {...reveal}>
-          <p className="home-kicker">The sky is waiting</p>
-          <h2 id="final-title">Make this season one you remember.</h2>
+          <p className="home-kicker">Come hunt with us</p>
+          <h2 id="final-title">A good day in the field starts here.</h2>
           <p>
             Pick your date, bring your people, and meet us in Brownsville.
           </p>
