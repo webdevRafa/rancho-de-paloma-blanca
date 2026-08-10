@@ -1,0 +1,467 @@
+.contact-page {
+  --contact-ink: #110c07;
+  --contact-ink-soft: #21170d;
+  --contact-paper: #f2eadc;
+  --contact-gold: #ddb868;
+  min-height: 100vh;
+  overflow: clip;
+  background: var(--contact-ink);
+  color: var(--contact-paper);
+}
+
+.contact-page *,
+.contact-page *::before,
+.contact-page *::after {
+  box-sizing: border-box;
+}
+
+.contact-shell {
+  width: min(100% - 2rem, 84rem);
+  margin-inline: auto;
+}
+
+.contact-hero {
+  position: relative;
+  display: grid;
+  min-height: max(48rem, 100svh);
+  align-items: center;
+  isolation: isolate;
+  padding: clamp(8.5rem, 12vw, 11rem) 0 clamp(4rem, 7vw, 6.5rem);
+}
+
+.contact-hero__image,
+.contact-hero__wash,
+.contact-hero__grain {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.contact-hero__image {
+  z-index: -4;
+  object-fit: cover;
+  object-position: center 48%;
+  filter: saturate(0.72) contrast(1.06);
+}
+
+.contact-hero__wash {
+  z-index: -3;
+  background:
+    linear-gradient(90deg, rgba(13, 9, 5, 0.98) 0%, rgba(13, 9, 5, 0.88) 38%, rgba(13, 9, 5, 0.46) 72%, rgba(13, 9, 5, 0.62) 100%),
+    linear-gradient(180deg, rgba(13, 9, 5, 0.72) 0%, rgba(13, 9, 5, 0.05) 42%, rgba(13, 9, 5, 0.92) 100%);
+}
+
+.contact-hero__grain {
+  z-index: -2;
+  opacity: 0.1;
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.28) 0 0.5px, transparent 0.7px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.18) 0 0.45px, transparent 0.65px);
+  background-position: 0 0, 2px 3px;
+  background-size: 5px 5px, 7px 7px;
+  mix-blend-mode: soft-light;
+  pointer-events: none;
+}
+
+.contact-hero__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.82fr) minmax(32rem, 1fr);
+  gap: clamp(3rem, 7vw, 7.5rem);
+  align-items: center;
+}
+
+.contact-hero__copy {
+  animation: contact-reveal 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.contact-eyebrow,
+.contact-panel__header > p {
+  margin: 0;
+  font-family: "Acumin Pro", sans-serif;
+  font-size: 0.73rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.contact-eyebrow {
+  display: flex;
+  gap: 0.7rem;
+  align-items: center;
+  color: var(--contact-gold);
+}
+
+.contact-eyebrow::before {
+  width: 2.5rem;
+  height: 1px;
+  background: currentColor;
+  content: "";
+}
+
+.contact-hero h1 {
+  max-width: 8.5ch;
+  margin: 1.35rem 0 0;
+  color: #fffaf0;
+  font-family: gin, Impact, sans-serif;
+  font-size: clamp(4.5rem, 8.5vw, 8rem);
+  font-weight: 400;
+  letter-spacing: -0.035em;
+  line-height: 0.93;
+  text-wrap: balance;
+  text-transform: uppercase;
+}
+
+.contact-hero__lede {
+  max-width: 36rem;
+  margin: 2rem 0 0;
+  color: rgba(242, 234, 220, 0.78);
+  font-family: "Acumin Pro", sans-serif;
+  font-size: clamp(1rem, 1.35vw, 1.12rem);
+  line-height: 1.75;
+}
+
+.contact-panel {
+  position: relative;
+  padding: clamp(1.25rem, 2.7vw, 2.25rem);
+  border: 1px solid rgba(221, 184, 104, 0.42);
+  background: rgba(17, 12, 7, 0.86);
+  box-shadow: 0 2.5rem 7rem rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(18px);
+  animation: contact-reveal 750ms 100ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.contact-panel::before {
+  position: absolute;
+  inset: 0.55rem;
+  border: 1px solid rgba(221, 184, 104, 0.15);
+  content: "";
+  pointer-events: none;
+}
+
+.contact-panel__header {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 1.5rem;
+  align-items: end;
+  justify-content: space-between;
+  padding: 0.6rem 0 1.65rem;
+}
+
+.contact-panel__header > p {
+  color: var(--contact-gold);
+}
+
+.contact-panel__header h2 {
+  margin: 0;
+  color: #fffaf0;
+  font-family: gin, Impact, sans-serif;
+  font-size: clamp(1.8rem, 2.25vw, 2.55rem);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 0.9;
+  text-transform: uppercase;
+}
+
+.contact-options {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 1px;
+  border: 1px solid rgba(221, 184, 104, 0.24);
+  background: rgba(221, 184, 104, 0.24);
+}
+
+.contact-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  min-width: 0;
+  padding: clamp(1.35rem, 2.4vw, 1.9rem);
+  background: rgba(28, 20, 12, 0.96);
+  color: var(--contact-paper);
+  text-decoration: none;
+  transition: background 220ms ease, color 220ms ease;
+}
+
+.contact-option:hover {
+  background: #2b1e11;
+}
+
+.contact-option--phone {
+  background: var(--contact-paper);
+  color: #1a120a;
+}
+
+.contact-option--phone:hover {
+  background: #fff8ea;
+}
+
+.contact-option__icon {
+  display: grid;
+  width: 3.2rem;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 1px solid rgba(221, 184, 104, 0.45);
+  color: var(--contact-gold);
+}
+
+.contact-option--phone .contact-option__icon {
+  border-color: rgba(95, 65, 28, 0.28);
+  color: #8a6228;
+}
+
+.contact-option__icon svg {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.contact-option__content {
+  display: grid;
+  min-width: 0;
+  gap: 0.28rem;
+}
+
+.contact-option__label,
+.contact-option__description,
+.contact-option__action {
+  font-family: "Acumin Pro", sans-serif;
+}
+
+.contact-option__label {
+  color: var(--contact-gold);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.contact-option--phone .contact-option__label {
+  color: #79551f;
+}
+
+.contact-option__content strong {
+  overflow-wrap: anywhere;
+  font-family: "Acumin Pro", sans-serif;
+  font-size: clamp(1rem, 1.45vw, 1.18rem);
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.contact-option:not(.contact-option--phone) .contact-option__content strong {
+  font-size: clamp(0.82rem, 1vw, 1rem);
+  letter-spacing: -0.035em;
+  white-space: nowrap;
+}
+
+.contact-option__description {
+  color: rgba(242, 234, 220, 0.58);
+  font-size: 0.76rem;
+}
+
+.contact-option--phone .contact-option__description {
+  color: rgba(26, 18, 10, 0.58);
+}
+
+.contact-option__action {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+  color: var(--contact-gold);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.contact-option--phone .contact-option__action {
+  color: #6c4b1d;
+}
+
+.contact-option__action svg {
+  width: 1rem;
+  height: 1rem;
+  transition: transform 220ms ease;
+}
+
+.contact-option:hover .contact-option__action svg {
+  transform: translate(0.15rem, -0.15rem);
+}
+
+.contact-panel__booking {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 1.25rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1.5rem;
+  padding: 1.1rem 0.2rem 0.15rem;
+}
+
+.contact-panel__booking > div {
+  display: grid;
+  gap: 0.25rem;
+  font-family: "Acumin Pro", sans-serif;
+}
+
+.contact-panel__booking span {
+  color: rgba(242, 234, 220, 0.52);
+  font-size: 0.73rem;
+}
+
+.contact-panel__booking strong {
+  color: #fff5df;
+  font-size: 0.86rem;
+}
+
+.contact-panel__booking a {
+  display: inline-flex;
+  gap: 0.55rem;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.9rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid rgba(221, 184, 104, 0.48);
+  color: var(--contact-gold);
+  font-family: "Acumin Pro", sans-serif;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: background 220ms ease, color 220ms ease;
+}
+
+.contact-panel__booking a:hover {
+  background: var(--contact-gold);
+  color: #171009;
+}
+
+.contact-panel__booking a svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.contact-option:focus-visible,
+.contact-panel__booking a:focus-visible {
+  outline: 3px solid #f6d78f;
+  outline-offset: 4px;
+}
+
+@keyframes contact-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 1050px) {
+  .contact-hero {
+    min-height: auto;
+  }
+
+  .contact-hero__layout {
+    grid-template-columns: 1fr;
+    gap: 3.5rem;
+  }
+
+  .contact-hero__copy {
+    max-width: 44rem;
+  }
+
+  .contact-hero h1 {
+    max-width: 10ch;
+  }
+
+  .contact-panel {
+    max-width: 48rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .contact-shell {
+    width: min(100% - 1.25rem, 84rem);
+  }
+
+  .contact-hero {
+    padding-top: 7.5rem;
+    padding-bottom: 3rem;
+  }
+
+  .contact-hero__wash {
+    background:
+      linear-gradient(180deg, rgba(13, 9, 5, 0.7) 0%, rgba(13, 9, 5, 0.82) 35%, rgba(13, 9, 5, 0.98) 100%),
+      linear-gradient(90deg, rgba(13, 9, 5, 0.84), rgba(13, 9, 5, 0.38));
+  }
+
+  .contact-hero__layout {
+    gap: 2.75rem;
+  }
+
+  .contact-hero h1 {
+    max-width: 9ch;
+    font-size: clamp(3.25rem, 14vw, 4.25rem);
+    line-height: 0.95;
+  }
+
+  .contact-hero__lede {
+    margin-top: 1.35rem;
+    font-size: 0.96rem;
+  }
+
+  .contact-panel {
+    padding: 1rem;
+  }
+
+  .contact-panel__header {
+    display: grid;
+    gap: 0.75rem;
+    padding: 0.4rem 0 1.2rem;
+  }
+
+  .contact-option {
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 1.25rem 1rem;
+  }
+
+  .contact-option__action {
+    grid-column: 2;
+    margin-top: 0.4rem;
+  }
+
+  .contact-option:not(.contact-option--phone) .contact-option__content strong {
+    font-size: 0.88rem;
+    white-space: normal;
+  }
+
+  .contact-panel__booking {
+    display: grid;
+    padding-inline: 0;
+  }
+
+  .contact-panel__booking a {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .contact-hero__copy,
+  .contact-panel {
+    animation: none;
+  }
+
+  .contact-option,
+  .contact-option__action svg,
+  .contact-panel__booking a {
+    transition: none;
+  }
+}
