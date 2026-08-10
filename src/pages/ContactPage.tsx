@@ -1,67 +1,92 @@
-// /pages/ContactPage.tsx
-import { Mail, Phone } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Mail, Phone } from "lucide-react";
+import { Link } from "react-router-dom";
+import fieldImage from "../assets/images/image000001.jpeg";
+import "./ContactPage.css";
 
 const ContactPage = () => {
   return (
-    <div className="min-h-screen pt-24 pb-16 px-4 text-[var(--color-text)] bg-[var(--color-dark)] mt-30">
-      <div className="max-w-2xl mx-auto text-center">
-        <h1 className="text-4xl font-gin mb-2 text-white" data-aos="fade-up">
-          Contact Us
-        </h1>
-        <p
-          className="text-md text-[var(--color-accent-sage)] mb-10"
-          data-aos="fade-up"
-          data-aos-delay="100"
-        >
-          Reach out to us directly using the contacts below.
-        </p>
+    <main className="contact-page">
+      <section className="contact-hero" aria-labelledby="contact-title">
+        <img
+          className="contact-hero__image"
+          src={fieldImage}
+          alt="Sunlit fields at Rancho de Paloma Blanca"
+          fetchPriority="high"
+        />
+        <div className="contact-hero__wash" aria-hidden="true" />
+        <div className="contact-hero__grain" aria-hidden="true" />
 
-        <div
-          className="bg-[var(--color-card)] rounded-lg shadow-lg p-6 mb-6"
-          data-aos="fade-up"
-          data-aos-delay="200"
-        >
-          <h2 className="text-xl  text-[var(--color-accent-gold)] mb-2 font-gin">
-            Justin S.
-          </h2>
-          <p className="flex items-center justify-center  gap-2 text-sm text-[var(--color-text)]">
-            <Phone size={16} /> 956-466-9614
-          </p>
-        </div>
+        <div className="contact-shell contact-hero__layout">
+          <div className="contact-hero__copy">
+            <p className="contact-eyebrow">Contact the ranch</p>
+            <h1 id="contact-title">Questions about your hunt?</h1>
+            <p className="contact-hero__lede">
+              Call Justin for help with booking, dates, group details, or your
+              visit. For general questions, send the ranch an email.
+            </p>
+          </div>
 
-        <div
-          className="bg-[var(--color-card)] rounded-lg shadow-lg p-6 mb-6"
-          data-aos="fade-up"
-          data-aos-delay="300"
-        >
-          <h2 className="text-xl font-gin text-[var(--color-accent-gold)] mb-2">
-            Allison W.
-          </h2>
-          <p className="flex items-center justify-center gap-2 text-sm text-[var(--color-text)]">
-            <Phone size={16} /> 210-974-9496
-          </p>
-        </div>
+          <div className="contact-panel" aria-label="Contact options">
+            <header className="contact-panel__header">
+              <p>Reach us directly</p>
+              <h2>Call or email.</h2>
+            </header>
 
-        <div
-          className="bg-[var(--color-card)] rounded-lg shadow-lg p-6"
-          data-aos="fade-up"
-          data-aos-delay="400"
-        >
-          <h2 className="text-xl font-gin text-[var(--color-accent-gold)] mb-2">
-            General Email
-          </h2>
-          <p className="flex items-center justify-center gap-2 text-sm text-[var(--color-text)]">
-            <Mail size={16} />
-            <a
-              href="mailto:info@ranchodepalomablanca.com"
-              className="underline hover:text-[var(--color-accent-gold)]"
-            >
-              info@ranchodepalomablanca.com
-            </a>
-          </p>
+            <div className="contact-options">
+              <a
+                className="contact-option contact-option--phone"
+                href="tel:+19564669614"
+                aria-label="Call Justin S. at 956-466-9614"
+              >
+                <span className="contact-option__icon" aria-hidden="true">
+                  <Phone />
+                </span>
+                <span className="contact-option__content">
+                  <span className="contact-option__label">Justin S.</span>
+                  <strong>956-466-9614</strong>
+                  <span className="contact-option__description">
+                    Booking and hunt questions
+                  </span>
+                </span>
+                <span className="contact-option__action">
+                  Call Justin <ArrowUpRight aria-hidden="true" />
+                </span>
+              </a>
+
+              <a
+                className="contact-option"
+                href="mailto:info@ranchodepalomablanca.com"
+                aria-label="Email Rancho de Paloma Blanca at info@ranchodepalomablanca.com"
+              >
+                <span className="contact-option__icon" aria-hidden="true">
+                  <Mail />
+                </span>
+                <span className="contact-option__content">
+                  <span className="contact-option__label">General email</span>
+                  <strong>info@ranchodepalomablanca.com</strong>
+                  <span className="contact-option__description">
+                    General questions for the ranch
+                  </span>
+                </span>
+                <span className="contact-option__action">
+                  Send an email <ArrowUpRight aria-hidden="true" />
+                </span>
+              </a>
+            </div>
+
+            <div className="contact-panel__booking">
+              <div>
+                <span>Ready to choose a date?</span>
+                <strong>Book your 2026 hunt online.</strong>
+              </div>
+              <Link to="/book">
+                Book a hunt <ArrowRight aria-hidden="true" />
+              </Link>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 };
 
