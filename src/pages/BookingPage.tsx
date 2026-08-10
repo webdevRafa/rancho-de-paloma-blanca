@@ -1,305 +1,368 @@
-// /pages/BookingPage.tsx (rebuilt with auth gating + AuthModal reuse)
-// RDPB — Booking page with friendly sign‑in flow, then booking/cart UX.
-//
-// • If NOT logged in: show a polished "Sign in / Create account" panel
-//   that reuses our <AuthModal /> (email/password) and offers a 1‑click
-//   "Continue with Google" action.
-// • If logged in: show the original booking experience — either the
-//   <BookingForm /> (start a booking) OR a "cart in progress" summary with
-//   actions (Go to Checkout, Edit Dates, Clear Cart).
-//
-// Notes:
-// - Uses Tailwind + our CSS vars for the ranch palette.
-// - Micro‑motion via Framer Motion for smooth entry/exit.
-// - No business logic changed; this is a UX upgrade.
-//
-// Dependencies already in the project:
-//   • context/AuthContext  (exposes: user, loginWithGoogle)
-//   • components/AuthModal (props: isOpen, onClose)
-//   • components/BookingForm, components/EditBookingDatesModal
-//   • utils/formatDate
-//
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import {
+  ArrowDown,
+  ArrowRight,
+  CalendarDays,
+  CheckCircle2,
+  LogIn,
+  ShieldCheck,
+  ShoppingBag,
+} from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { useCart } from "../context/CartContext";
 import AuthModal from "../components/AuthModal";
 import BookingForm from "../components/BookingForm";
 import EditBookingDatesModal from "../components/EditBookingDatesModal";
-import { formatLongDate } from "../utils/formatDate";
-import { useCart } from "../context/CartContext";
-import hunter from "../assets/images/IMG_5574.webp";
 import { PackagesBrochure } from "../components/PackagesBrochure";
+import { formatLongDate } from "../utils/formatDate";
+import hunter from "../assets/images/IMG_5574.webp";
 import hunters from "../assets/images/IMG_5547.webp";
+import "./BookingPage.css";
+
+const EASE = [0.16, 1, 0.3, 1] as const;
+
 const BookingPage = () => {
   const navigate = useNavigate();
+  const reduceMotion = useReducedMotion();
   const { user, loginWithGoogle } = useAuth();
   const { booking, merchItems, resetCart } = useCart();
 
   const [authOpen, setAuthOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
 
-  const hasBooking = !!booking && (booking.dates?.length ?? 0) > 0;
+  const hasBooking = Boolean(booking?.dates?.length);
   const hasMerch = useMemo(
     () => Object.keys(merchItems || {}).length > 0,
     [merchItems]
   );
   const cartTotalItems = useMemo(() => {
-    const merchCount = Object.values(merchItems || {}).reduce(
-      (sum: number, anyItem: any) => {
-        const qty = (anyItem?.quantity ?? 0) as number;
-        return sum + (Number.isFinite(qty) ? qty : 0);
-      },
-      0
-    );
-    const days = booking?.dates?.length ?? 0;
-    return merchCount + days;
+    const merchCount = Object.values(merchItems || {}).reduce((sum, item) => {
+      const quantity = item.quantity ?? 0;
+      return sum + (Number.isFinite(quantity) ? quantity : 0);
+    }, 0);
+    const huntDays = booking?.dates?.length ?? 0;
+    return merchCount + huntDays;
   }, [merchItems, booking]);
-  // iOS doesn't support background-attachment: fixed reliably
-  const isIOS = useMemo(() => {
-    if (typeof navigator === "undefined") return false;
-    const ua = navigator.userAgent || "";
-    const iOS = /iPad|iPhone|iPod/.test(ua);
-    const iPadOS =
-      navigator.platform === "MacIntel" &&
-      (navigator as any).maxTouchPoints > 1;
-    return iOS || iPadOS;
-  }, []);
-  // ---------- 1) AUTH GATE (friendly) ----------
-  if (!user) {
-    // simple framer-motion variants for a smooth stagger
-    const ease: [number, number, number, number] = [0.16, 1, 0.3, 1];
-    const container = {
-      hidden: { opacity: 0, y: 8 },
-      show: {
-        opacity: 1,
-        y: 0,
-        transition: {
-          duration: 0.45,
-          ease,
-          when: "beforeChildren",
-          staggerChildren: 0.06,
-        },
-      },
-    };
-    const item = {
-      hidden: { opacity: 0, y: 10 },
-      show: { opacity: 1, y: 0, transition: { duration: 0.35, ease } },
-    };
 
-    return (
-      <section className="relative min-h-screen overflow-hidden pt-30">
-        {/* Hero background */}
-        <div
-          className="fixed inset-0 bg-center bg-cover opacity-90"
-          style={{ backgroundImage: `url(${hunter})` }}
-          aria-hidden="true"
-        />
-        {/* Subtle vignette + readability overlay */}
-        <div
-          className="fixed top-0 left-0 w-full h-[100vh] inset-0 bg-gradient-to-b from-black/70 via-black/60 to-black/75"
-          aria-hidden="true"
-        />
+  const firstName = user?.displayName?.trim().split(/\s+/)[0] || "there";
+  const showFreshBooking = Boolean(user) && !hasBooking && cartTotalItems === 0;
+  const heroImage = user ? hunters : hunter;
 
-        {/* Content */}
-        <div className="relative z-10 max-w-[1400px] mx-auto px-4 lg:px-6 pt-28 pb-16">
-          <motion.div
-            variants={container}
-            initial="hidden"
-            animate="show"
-            className="mx-auto flex max-w-5xl flex-col gap-8"
+  const reveal = {
+    initial: reduceMotion ? { opacity: 1 } : { opacity: 0, y: 24 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: reduceMotion ? 0 : 0.7, ease: EASE },
+  };
+
+  return (
+    <main className="booking-page">
+      <section className="booking-hero" aria-labelledby="booking-title">
+        <img
+          className="booking-hero__image"
+          src={heroImage}
+          alt="Dove hunters in the field at Rancho de Paloma Blanca"
+          fetchPriority="high"
+        />
+        <div className="booking-hero__wash" aria-hidden="true" />
+        <div className="booking-hero__grain" aria-hidden="true" />
+
+        <div className="booking-shell booking-hero__grid">
+          <motion.div className="booking-hero__copy" {...reveal}>
+            <p className="booking-eyebrow">
+              <CalendarDays aria-hidden="true" />
+              2026 Dove Hunting Season
+            </p>
+            <h1 id="booking-title">
+              Plan your day
+              <span>in the field.</span>
+            </h1>
+            <p className="booking-hero__lede">
+              Choose an available date from September 1 through October 25.
+              Standard hunts are $150 per hunter, per day, with the special
+              Back the Blue hunt on October 3 at $50 per hunter, per day.
+            </p>
+
+            <div className="booking-facts" aria-label="2026 season overview">
+              <div className="booking-fact">
+                <span>Season</span>
+                <strong>Sep 1 — Oct 25</strong>
+              </div>
+              <div className="booking-fact">
+                <span>Standard rate</span>
+                <strong>$150 / hunter / day</strong>
+              </div>
+              <div className="booking-fact">
+                <span>Daily capacity</span>
+                <strong>Up to 100 hunters</strong>
+              </div>
+              <div className="booking-fact booking-fact--blue">
+                <span>October 3</span>
+                <strong>$50 Back the Blue</strong>
+              </div>
+            </div>
+          </motion.div>
+
+          <motion.aside
+            className={`booking-access-card ${
+              user ? "booking-access-card--signed-in" : ""
+            }`}
+            aria-label={user ? "Signed-in booking access" : "Sign in to book"}
+            initial={reduceMotion ? { opacity: 1 } : { opacity: 0, x: 26 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{
+              duration: reduceMotion ? 0 : 0.75,
+              delay: reduceMotion ? 0 : 0.12,
+              ease: EASE,
+            }}
           >
-            {/* Sign-in card above brochure */}
-            <motion.aside variants={item} className="w-full  mx-auto shadow-md">
-              {/* Left side text */}
-              <h1 className="text-md font-gin mb-2 text-white">
-                Sign in to book your hunt
-              </h1>
-              <div className="flex flex-col sm:flex-row sm:items-start justify-start gap-3">
-                {/* CTA buttons */}
-                <div className="flex gap-2 w-full sm:w-auto">
+            {user ? (
+              <>
+                <div className="booking-access-card__status">
+                  <CheckCircle2 aria-hidden="true" />
+                  Signed in securely
+                </div>
+                <p className="booking-card-kicker">Welcome back</p>
+                <h2>{firstName}, your hunt starts below.</h2>
+                <p>
+                  Live availability, party details, and checkout are ready when
+                  you are.
+                </p>
+                <a className="booking-access-card__link" href="#booking-workspace">
+                  {showFreshBooking ? "Start your booking" : "Review your cart"}
+                  <ArrowDown aria-hidden="true" />
+                </a>
+                <div className="booking-access-card__account">
+                  <ShieldCheck aria-hidden="true" />
+                  <span>{user.email}</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="booking-access-card__icon">
+                  <LogIn aria-hidden="true" />
+                </div>
+                <p className="booking-card-kicker">Account required</p>
+                <h2>Sign in to see live availability.</h2>
+                <p>
+                  Use your account to select hunt dates, add the Party Deck,
+                  and keep your reservation details together.
+                </p>
+                <div className="booking-access-card__actions">
                   <button
+                    type="button"
+                    className="booking-button booking-button--gold"
                     onClick={() => setAuthOpen(true)}
-                    className="flex-1 sm:flex-none rounded-md bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] px-3 py-2 text-xs font-semibold text-white transition-colors"
                   >
-                    Sign in / Sign up
+                    Sign in or create account
+                    <ArrowRight aria-hidden="true" />
                   </button>
-
                   <button
+                    type="button"
+                    className="booking-button booking-button--light"
                     onClick={async () => {
                       try {
                         await loginWithGoogle();
-                      } catch (e) {
-                        console.warn(e);
+                      } catch (error) {
+                        console.warn(error);
                       }
                     }}
-                    className="flex-1 sm:flex-none rounded-md border border-[var(--color-footer)]/20 bg-white px-3 py-2 text-xs font-semibold text-[var(--color-background)] hover:bg-neutral-100 transition-colors"
                   >
                     Continue with Google
                   </button>
                 </div>
-              </div>
-            </motion.aside>
-
-            {/* Packages brochure below */}
-            <motion.div variants={item} className="w-full mt-2">
-              <PackagesBrochure />
-            </motion.div>
-          </motion.div>
-        </div>
-
-        {/* Global auth modal (unchanged) */}
-        <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} />
-      </section>
-    );
-  }
-
-  // ---------- 2) BOOKING / CART UX (for signed-in users) ----------
-  return (
-    <section className="relative min-h-screen overflow-hidden">
-      {/* Background image */}
-      <div
-        className="fixed inset-0 z-0"
-        style={{
-          backgroundImage: `url(${hunters})`,
-          backgroundSize: "cover",
-          backgroundPosition: "top",
-          backgroundRepeat: "no-repeat",
-          backgroundAttachment: isIOS ? "scroll" : "fixed",
-          opacity: 0.8,
-        }}
-        aria-hidden="true"
-      />
-
-      {/* Overlay */}
-      <div
-        className="fixed inset-0 z-0 bg-gradient-to-b from-black/70 via-black/60 to-black/75"
-        aria-hidden="true"
-      />
-
-      {/* Content */}
-      <div className="relative z-10 max-w-[1400px] mx-auto px-4 lg:px-6 pt-28 pb-16">
-        <div className="mx-auto flex max-w-6xl flex-col gap-8">
-          <AnimatePresence mode="wait">
-            {!hasBooking && cartTotalItems === 0 ? (
-              <motion.div
-                key="booking-form"
-                initial={{ opacity: 0, y: 16, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 16, scale: 0.98 }}
-                transition={{ duration: 0.4 }}
-                className="w-full"
-              >
-                <BookingForm />
-              </motion.div>
-            ) : (
-              <motion.div
-                key="cart-blocker"
-                initial={{ opacity: 0, y: 16, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 16, scale: 0.98 }}
-                transition={{ duration: 0.4 }}
-                className="bg-white max-w-[800px] mx-auto w-full relative rounded-b-2xl shadow-2xl p-6 md:p-8 border border-white/10"
-              >
-                <h2 className="text-2xl md:text-3xl text-[var(--color-background)] font-acumin mb-2">
-                  You’ve got a cart in progress
-                </h2>
-                <p className="text-sm text-[var(--color-background)]/80 mb-6">
-                  You already started a booking and/or added merchandise. Finish
-                  checkout or edit your dates below. If you want to start over,
-                  you can clear your cart.
-                </p>
-
-                <div className="space-y-3 text-sm">
-                  {hasBooking && (
-                    <div className="rounded-md p-4 bg-neutral-100 border border-black/5">
-                      <p className="font-semibold text-[var(--color-footer)] text-base mb-1">
-                        Current Booking
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        <span className="inline-flex items-center px-3 py-1 rounded-full bg-white border border-black/10">
-                          {booking?.numberOfHunters ?? 1} hunter
-                          {(booking?.numberOfHunters ?? 1) > 1 ? "s" : ""}
-                        </span>
-                        {booking?.dates?.map((d: string) => (
-                          <span
-                            key={d}
-                            className="inline-flex items-center px-3 py-1 rounded-full bg-white border border-black/10"
-                          >
-                            {formatLongDate(d)}
-                          </span>
-                        ))}
-                      </div>
-
-                      {booking?.partyDeckDates?.length ? (
-                        <p className="mt-2 text-[var(--color-background)]/80">
-                          Party Deck reserved for:{" "}
-                          <span className="font-medium">
-                            {booking.partyDeckDates
-                              .map((d: string) => formatLongDate(d))
-                              .join(", ")}
-                          </span>
-                        </p>
-                      ) : null}
-                    </div>
-                  )}
-
-                  {hasMerch && (
-                    <div className="rounded-md p-4 bg-neutral-100 border border-black/5">
-                      <p className="font-semibold text-[var(--color-footer)] text-base mb-1">
-                        Merchandise
-                      </p>
-                      <p className="text-[var(--color-background)]/80">
-                        {Object.values(merchItems || {}).length} item(s) in
-                        cart.
-                      </p>
-                    </div>
-                  )}
+                <div className="booking-access-card__account">
+                  <ShieldCheck aria-hidden="true" />
+                  <span>Availability updates in real time.</span>
                 </div>
-
-                <div className="mt-6 flex flex-col sm:flex-row gap-3">
-                  <button
-                    onClick={() => navigate("/checkout")}
-                    className="flex-1 bg-[var(--color-button)] hover:bg-[var(--color-button-hover)] text-white px-3 py-3 rounded-md font-semibold text-sm transition-colors"
-                  >
-                    Go to Checkout
-                  </button>
-
-                  {hasBooking && (
-                    <button
-                      onClick={() => setEditOpen(true)}
-                      className="flex-1 bg-[var(--color-accent-gold,#B38E35)]/15 hover:bg-[var(--color-accent-gold,#B38E35)]/25 text-[var(--color-footer)] px-3 py-3 rounded-md font-semibold text-sm transition-colors"
-                    >
-                      Edit Dates
-                    </button>
-                  )}
-
-                  <button
-                    onClick={resetCart}
-                    className="flex-1 bg-[var(--color-footer)] hover:opacity-90 text-white px-3 py-3 rounded-md text-sm transition-colors"
-                    title="Clear everything and start over"
-                  >
-                    Clear Cart & Start Over
-                  </button>
-                </div>
-              </motion.div>
+              </>
             )}
-          </AnimatePresence>
-
-          {/* Packages brochure always visible for signed-in users */}
-          <div className="w-full">
-            <PackagesBrochure />
-          </div>
+          </motion.aside>
         </div>
-      </div>
+      </section>
 
-      {hasBooking && (
+      <section className="booking-page__content">
+        <div className="booking-shell">
+          {user && (
+            <section
+              id="booking-workspace"
+              className="booking-workspace"
+              aria-labelledby="booking-workspace-title"
+            >
+              <motion.header
+                className="booking-section-heading"
+                initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 18 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.25 }}
+                transition={{ duration: reduceMotion ? 0 : 0.65, ease: EASE }}
+              >
+                <div>
+                  <p className="booking-eyebrow">Booking workspace</p>
+                  <h2 id="booking-workspace-title">
+                    {showFreshBooking
+                      ? "Build your hunt one step at a time."
+                      : "Your reservation is already underway."}
+                  </h2>
+                </div>
+                <p>
+                  {showFreshBooking
+                    ? "Enter your party details, choose from live availability, and review everything before checkout."
+                    : "Review what is already in your cart, make any changes you need, or continue to checkout."}
+                </p>
+              </motion.header>
+
+              {showFreshBooking && (
+                <ol className="booking-steps" aria-label="Booking steps">
+                  <li>
+                    <span>1</span>
+                    <div>
+                      <strong>Party details</strong>
+                      <small>Phone and hunter count</small>
+                    </div>
+                  </li>
+                  <li>
+                    <span>2</span>
+                    <div>
+                      <strong>Choose dates</strong>
+                      <small>Live season availability</small>
+                    </div>
+                  </li>
+                  <li>
+                    <span>3</span>
+                    <div>
+                      <strong>Review & checkout</strong>
+                      <small>Confirm before payment</small>
+                    </div>
+                  </li>
+                </ol>
+              )}
+
+              <AnimatePresence mode="wait">
+                {showFreshBooking ? (
+                  <motion.div
+                    key="booking-form"
+                    className="booking-page__form-shell"
+                    initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 16 }}
+                    transition={{ duration: reduceMotion ? 0 : 0.4, ease: EASE }}
+                  >
+                    <BookingForm />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="cart-blocker"
+                    className="booking-progress-card"
+                    initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 16 }}
+                    transition={{ duration: reduceMotion ? 0 : 0.4, ease: EASE }}
+                  >
+                    <div className="booking-progress-card__header">
+                      <p className="booking-card-kicker">Cart in progress</p>
+                      <h3>Pick up where you left off.</h3>
+                      <p>
+                        Your booking and merchandise stay together until you
+                        check out or clear the cart.
+                      </p>
+                    </div>
+
+                    <div className="booking-progress-card__summary">
+                      {hasBooking && (
+                        <section className="booking-summary-card">
+                          <div className="booking-summary-card__title">
+                            <CalendarDays aria-hidden="true" />
+                            <div>
+                              <span>Current hunt</span>
+                              <strong>
+                                {booking?.numberOfHunters ?? 1} hunter
+                                {(booking?.numberOfHunters ?? 1) > 1 ? "s" : ""}
+                              </strong>
+                            </div>
+                          </div>
+                          <div className="booking-summary-card__pills">
+                            {booking?.dates?.map((date: string) => (
+                              <span key={date}>{formatLongDate(date)}</span>
+                            ))}
+                          </div>
+                          {booking?.partyDeckDates?.length ? (
+                            <p>
+                              Party Deck: {booking.partyDeckDates
+                                .map((date: string) => formatLongDate(date))
+                                .join(", ")}
+                            </p>
+                          ) : null}
+                        </section>
+                      )}
+
+                      {hasMerch && (
+                        <section className="booking-summary-card">
+                          <div className="booking-summary-card__title">
+                            <ShoppingBag aria-hidden="true" />
+                            <div>
+                              <span>Merchandise</span>
+                              <strong>
+                                {Object.values(merchItems || {}).length} item
+                                {Object.values(merchItems || {}).length === 1
+                                  ? ""
+                                  : "s"}
+                              </strong>
+                            </div>
+                          </div>
+                          <p>Your ranch merchandise is saved in this cart.</p>
+                        </section>
+                      )}
+                    </div>
+
+                    <div className="booking-progress-card__actions">
+                      <button
+                        type="button"
+                        className="booking-button booking-button--gold"
+                        onClick={() => navigate("/checkout")}
+                      >
+                        Continue to checkout
+                        <ArrowRight aria-hidden="true" />
+                      </button>
+                      {hasBooking && (
+                        <button
+                          type="button"
+                          className="booking-button booking-button--outline"
+                          onClick={() => setEditOpen(true)}
+                        >
+                          Edit dates
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="booking-button booking-button--quiet"
+                        onClick={resetCart}
+                        title="Clear everything and start over"
+                      >
+                        Clear cart & start over
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </section>
+          )}
+
+          <PackagesBrochure />
+        </div>
+      </section>
+
+      {!user && (
+        <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} />
+      )}
+
+      {user && hasBooking && (
         <EditBookingDatesModal
           isOpen={editOpen}
           onClose={() => setEditOpen(false)}
         />
       )}
-    </section>
+    </main>
   );
 };
 

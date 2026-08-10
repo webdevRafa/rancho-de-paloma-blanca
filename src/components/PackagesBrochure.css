@@ -1,0 +1,501 @@
+.packages-brochure {
+  width: min(100%, 80rem);
+  margin-inline: auto;
+  padding: clamp(5rem, 9vw, 8rem) 0 clamp(4.5rem, 8vw, 7rem);
+}
+
+.packages-brochure__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(20rem, 0.7fr);
+  gap: clamp(2rem, 6vw, 6rem);
+  align-items: end;
+  margin-bottom: clamp(2rem, 4vw, 3.5rem);
+}
+
+.packages-brochure__eyebrow {
+  margin: 0 0 0.85rem;
+  color: var(--booking-gold, #d9b56a);
+  font-family: "Acumin Pro", sans-serif;
+  font-size: 0.77rem;
+  font-weight: 800;
+  letter-spacing: 0.19em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.packages-brochure__title {
+  max-width: 13ch;
+  margin: 0;
+  color: #f7f0e3;
+  font-family: gin, Impact, sans-serif;
+  font-size: clamp(3.25rem, 6.6vw, 6.4rem);
+  font-weight: 400;
+  letter-spacing: -0.035em;
+  line-height: 0.84;
+  text-wrap: balance;
+  text-transform: uppercase;
+}
+
+.packages-brochure__intro {
+  padding-bottom: 0.25rem;
+}
+
+.packages-brochure__intro > p:first-child {
+  margin: 0;
+  color: rgba(247, 240, 227, 0.7);
+  font-size: clamp(0.98rem, 1.3vw, 1.1rem);
+  line-height: 1.7;
+}
+
+.packages-brochure__date-chip {
+  display: inline-flex;
+  gap: 0.65rem;
+  align-items: center;
+  margin: 1.4rem 0 0 !important;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(217, 181, 106, 0.28);
+  color: #f4dfae !important;
+  font-family: "Acumin Pro", sans-serif;
+  font-size: 0.78rem !important;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.4 !important;
+  text-transform: uppercase;
+}
+
+.packages-brochure__notice {
+  padding: 1.25rem 1.4rem;
+  border: 1px solid rgba(217, 181, 106, 0.3);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f7f0e3;
+}
+
+.packages-brochure__notice--error {
+  border-color: rgba(248, 113, 113, 0.55);
+  color: #fecaca;
+}
+
+.packages-brochure__cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid rgba(217, 181, 106, 0.28);
+  border-left: 1px solid rgba(217, 181, 106, 0.28);
+}
+
+.packages-card {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 32rem;
+  flex-direction: column;
+  overflow: hidden;
+  padding: clamp(1.5rem, 2.4vw, 2.35rem);
+  border-right: 1px solid rgba(217, 181, 106, 0.28);
+  border-bottom: 1px solid rgba(217, 181, 106, 0.28);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(217, 181, 106, 0.14), transparent 40%),
+    #f1e9db;
+  color: #1c140c;
+  transition: background 300ms ease, transform 300ms ease;
+}
+
+.packages-card:hover {
+  background-color: #faf4e8;
+}
+
+.packages-card__topline {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.packages-card__badge,
+.packages-card__category {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.8rem;
+  font-family: "Acumin Pro", sans-serif;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.packages-card__badge {
+  padding: 0.48rem 0.7rem 0.4rem;
+  background: #21160c;
+  color: #f7f0e3;
+}
+
+.packages-card__category {
+  color: rgba(28, 20, 12, 0.58);
+  text-align: right;
+}
+
+.packages-card__body {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding-top: clamp(3.5rem, 6vw, 6.5rem);
+}
+
+.packages-card__body h3,
+.packages-card--deck__body h3 {
+  max-width: 11ch;
+  margin: 0;
+  font-family: gin, Impact, sans-serif;
+  font-size: clamp(2.35rem, 3.4vw, 3.7rem);
+  font-weight: 400;
+  letter-spacing: -0.025em;
+  line-height: 0.9;
+  text-transform: uppercase;
+}
+
+.packages-card__rate {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.7rem;
+  align-items: baseline;
+  margin-top: auto;
+  padding-top: 2.5rem;
+}
+
+.packages-card__rate strong {
+  font-family: gin, Impact, sans-serif;
+  font-size: clamp(4.25rem, 6vw, 6.25rem);
+  font-weight: 400;
+  letter-spacing: -0.04em;
+  line-height: 0.72;
+}
+
+.packages-card__rate span,
+.packages-card__unit {
+  color: rgba(28, 20, 12, 0.68);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.packages-card__details {
+  margin: 1.5rem 0 0;
+  color: rgba(28, 20, 12, 0.7);
+  font-size: 0.94rem;
+  line-height: 1.65;
+}
+
+.packages-card__footer {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(28, 20, 12, 0.13);
+  color: rgba(28, 20, 12, 0.65);
+  font-size: 0.74rem;
+  font-weight: 750;
+  letter-spacing: 0.03em;
+}
+
+.packages-card__footer svg {
+  flex: 0 0 auto;
+  color: #9a6d25;
+}
+
+.packages-card__tiers {
+  margin-top: auto;
+  padding-top: 2.5rem;
+}
+
+.packages-card__tier {
+  display: flex;
+  gap: 1rem;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid rgba(28, 20, 12, 0.12);
+}
+
+.packages-card__tier span {
+  color: rgba(28, 20, 12, 0.68);
+  font-size: 0.9rem;
+}
+
+.packages-card__tier strong {
+  font-size: 1.35rem;
+}
+
+.packages-card__unit {
+  margin: 1rem 0 0;
+  text-transform: uppercase;
+}
+
+.packages-card--special {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(126, 168, 255, 0.28), transparent 42%),
+    #1834b1;
+  color: #fff;
+}
+
+.packages-card--special:hover {
+  background-color: #203fc3;
+}
+
+.packages-card--special .packages-card__badge {
+  background: #f7f0e3;
+  color: #1735b9;
+}
+
+.packages-card--special .packages-card__category,
+.packages-card--special .packages-card__rate span,
+.packages-card--special .packages-card__details,
+.packages-card--special .packages-card__footer {
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.packages-card--special .packages-card__footer {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.packages-card--special .packages-card__footer svg {
+  color: #dce6ff;
+}
+
+.packages-card--deck {
+  padding: 0;
+  background: #100c07;
+  color: #fff;
+}
+
+.packages-card--deck > img,
+.packages-card--deck__wash {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.packages-card--deck > img {
+  object-fit: cover;
+  object-position: center;
+  transition: transform 700ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.packages-card--deck:hover > img {
+  transform: scale(1.035);
+}
+
+.packages-card--deck__wash {
+  z-index: 1;
+  background:
+    linear-gradient(180deg, rgba(9, 7, 4, 0.2), rgba(9, 7, 4, 0.96) 76%),
+    linear-gradient(90deg, rgba(9, 7, 4, 0.35), transparent);
+}
+
+.packages-card--deck__content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  min-height: 32rem;
+  flex: 1;
+  flex-direction: column;
+  padding: clamp(1.5rem, 2.4vw, 2.35rem);
+}
+
+.packages-card--deck .packages-card__badge {
+  background: var(--booking-gold, #d9b56a);
+  color: #171109;
+}
+
+.packages-card--deck .packages-card__category {
+  color: rgba(255, 255, 255, 0.74);
+}
+
+.packages-card--deck__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding-top: 4rem;
+}
+
+.packages-card--deck__kicker {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0 0 1rem;
+  color: #f1cf83;
+  font-size: 0.71rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.packages-card--deck__body h3 {
+  max-width: 9ch;
+}
+
+.packages-card--deck .packages-card__rate {
+  margin-top: 1.7rem;
+  padding-top: 0;
+}
+
+.packages-card--deck .packages-card__rate strong {
+  color: #f0c96f;
+}
+
+.packages-card--deck .packages-card__rate span {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.packages-card--deck__body > p:last-child {
+  margin: 1.35rem 0 0;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.packages-card--deck__availability {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff0c9;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.packages-card--deck__availability > span {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: #efc764;
+  box-shadow: 0 0 0 0.3rem rgba(239, 199, 100, 0.14);
+}
+
+.packages-brochure__assurances {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-right: 1px solid rgba(217, 181, 106, 0.24);
+  border-bottom: 1px solid rgba(217, 181, 106, 0.24);
+  border-left: 1px solid rgba(217, 181, 106, 0.24);
+}
+
+.packages-assurance {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  min-width: 0;
+  padding: 1.45rem clamp(1.15rem, 2vw, 2rem);
+  border-right: 1px solid rgba(217, 181, 106, 0.24);
+}
+
+.packages-assurance:last-child {
+  border-right: 0;
+}
+
+.packages-assurance > svg {
+  width: 1.2rem;
+  flex: 0 0 auto;
+  color: var(--booking-gold, #d9b56a);
+}
+
+.packages-assurance p {
+  margin: 0 0 0.35rem;
+  color: #f5e2b7;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.packages-assurance span {
+  display: block;
+  color: rgba(247, 240, 227, 0.65);
+  font-size: 0.83rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 1020px) {
+  .packages-brochure__header {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .packages-brochure__intro {
+    max-width: 40rem;
+  }
+
+  .packages-brochure__cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .packages-brochure__assurances {
+    grid-template-columns: 1fr;
+  }
+
+  .packages-assurance {
+    border-right: 0;
+    border-bottom: 1px solid rgba(217, 181, 106, 0.24);
+  }
+
+  .packages-assurance:last-child {
+    border-bottom: 0;
+  }
+}
+
+@media (max-width: 680px) {
+  .packages-brochure {
+    padding-top: 4.5rem;
+  }
+
+  .packages-brochure__title {
+    font-size: clamp(3rem, 13vw, 4rem);
+    letter-spacing: -0.045em;
+  }
+
+  .packages-brochure__date-chip {
+    align-items: flex-start;
+  }
+
+  .packages-brochure__cards {
+    grid-template-columns: 1fr;
+  }
+
+  .packages-card,
+  .packages-card--deck__content {
+    min-height: 29rem;
+  }
+
+  .packages-card__body {
+    padding-top: 3.5rem;
+  }
+
+  .packages-card__body h3,
+  .packages-card--deck__body h3 {
+    font-size: clamp(2.7rem, 13vw, 3.75rem);
+  }
+
+  .packages-card__rate strong {
+    font-size: clamp(4.4rem, 21vw, 6rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .packages-card,
+  .packages-card--deck > img {
+    transition: none;
+  }
+}
