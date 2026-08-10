@@ -26,6 +26,7 @@ import SetupProfile from "./pages/SetupProfile";
 import CartDrawer from "./components/CartDrawer";
 import AdminDashboard from "./pages/AdminDashboard";
 import RefundPage from "./pages/RefundPage";
+import PaymentSuccessPreview from "./pages/PaymentSuccessPreview";
 
 function App() {
   const { isHydrated } = useCart();
@@ -80,6 +81,10 @@ function App() {
           <Route path="/gallery" element={<GalleryPage />} />
           <Route path="/dashboard" element={<ClientDashboard />} />
           <Route path="/checkout" element={<CheckoutPage />} />
+          <Route
+            path="/__preview/payment-success"
+            element={<PaymentSuccessPreview />}
+          />
           <Route path="/dev-add-docs" element={<DevSeed />} />
         </Routes>
         <Footer />
