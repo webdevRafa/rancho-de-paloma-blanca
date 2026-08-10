@@ -409,7 +409,8 @@
 
   .contact-hero h1 {
     max-width: 9ch;
-    font-size: clamp(3.9rem, 18vw, 5.4rem);
+    font-size: clamp(3.25rem, 14vw, 4.25rem);
+    line-height: 0.95;
   }
 
   .contact-hero__lede {
