@@ -19,6 +19,19 @@ import { useCart } from "../context/CartContext";
 import { useNavigate, useLocation } from "react-router-dom";
 import type { Order } from "../types/Types";
 import { toast } from "react-toastify";
+import {
+  ArrowRight,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  Copy,
+  History,
+  Mail,
+  ReceiptText,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
+import "./ClientDashboard.css";
 
 /**
  * NOTE:
@@ -302,7 +315,7 @@ const ClientDashboard: React.FC = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [successOrder, setSuccessOrder] = useState<Order | null>(null);
   const [loadingSuccess, setLoadingSuccess] = useState(false);
-  type OrdersTab = "all" | "upcoming" | "past" | "cancelled";
+  type OrdersTab = "all" | "upcoming" | "pending" | "past" | "cancelled";
   const [ordersTab, setOrdersTab] = useState<OrdersTab>("all");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmData, setConfirmData] = useState<CancelPreview | null>(null);
@@ -461,12 +474,25 @@ const ClientDashboard: React.FC = () => {
     [orders]
   );
 
+  const confirmedUpcomingOrders = useMemo(
+    () => upcomingOrders.filter((o) => o.status === "paid"),
+    [upcomingOrders]
+  );
+
   const filteredOrders = useMemo(() => {
     if (ordersTab === "cancelled") return cancelledOrders;
     if (ordersTab === "upcoming") return upcomingOrders;
+    if (ordersTab === "pending") return pendingOrders;
     if (ordersTab === "past") return pastOrders;
     return orders;
-  }, [orders, cancelledOrders, upcomingOrders, pastOrders, ordersTab]);
+  }, [
+    orders,
+    cancelledOrders,
+    upcomingOrders,
+    pendingOrders,
+    pastOrders,
+    ordersTab,
+  ]);
 
   // ---------------- Cancel + Refund (unchanged logic; now triggered from modal) ----------------
   const handleCancelOrder = async (order: Order) => {
@@ -669,26 +695,19 @@ const ClientDashboard: React.FC = () => {
     }
   }
   const StageChip: React.FC<{ stage: Stage }> = ({ stage }) => {
-    const base =
-      "inline-flex items-center rounded-full px-2.5 py-[5px] text-[9px] font-semibold uppercase tracking-[0.18em] border";
-
-    const by = {
-      upcoming: "border-sky-400/20 bg-sky-400/10 text-sky-200",
-      active: "border-emerald-400/20 bg-emerald-400/12 text-emerald-200",
-      completed: "border-white/12 bg-white/[0.05] text-white/70",
-      cancelled: "border-rose-400/20 bg-rose-400/12 text-rose-200",
-      refunded: "border-sky-400/20 bg-sky-400/12 text-sky-200",
-    } as const;
-
     const label = {
       upcoming: "Upcoming",
-      active: "Active",
-      completed: "Past",
+      active: "Hunt day",
+      completed: "Completed",
       cancelled: "Cancelled",
       refunded: "Refunded",
     } as const;
 
-    return <span className={`${base} ${by[stage]}`}>{label[stage]}</span>;
+    return (
+      <span className={`client-stage-chip client-stage-chip--${stage}`}>
+        {label[stage]}
+      </span>
+    );
   };
 
   // Single slim order row
@@ -723,24 +742,24 @@ const ClientDashboard: React.FC = () => {
     return (
       <li
         key={order.id}
-        className="overflow-hidden rounded-[26px] border border-white/10  bg-[#22140b]/70 shadow-[0_18px_40px_rgba(0,0,0,0.26)] transition-all duration-200 hover:border-white/15 hover:shadow-[0_24px_60px_rgba(0,0,0,0.32)]"
+        className="client-order-card"
       >
         {/* Collapsed / summary header */}
-        <div className="px-5 py-5 md:px-7 md:py-5.5">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2.5">
+        <div className="client-order-summary">
+          <div className="client-order-summary__grid">
+            <div className="client-order-summary__main">
+              <div className="client-order-eyebrow">
                 <StageChip stage={stage} />
-                <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-white/38">
+                <span className="client-order-type">
                   {hasBooking ? "Reservation" : "Order"}
                 </span>
               </div>
 
-              <h3 className="mt-3 max-w-4xl font-acumin text-[1.08rem] font-semibold leading-[1.16] tracking-[-0.025em] text-white md:text-lg">
+              <h3 className="client-order-title">
                 {huntDateLabel}
               </h3>
 
-              <div className="mt-4 flex flex-wrap gap-2 text-[10.5px]">
+              <div className="client-order-meta">
                 <button
                   type="button"
                   onClick={async () => {
@@ -758,98 +777,85 @@ const ClientDashboard: React.FC = () => {
                     }
                   }}
                   disabled={!order.id}
-                  className="inline-flex max-w-[260px] items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-[5px] text-white/68 shadow-[inset_0_1px_0_rgba(255,255,255,0.018)] transition hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="client-order-meta__item client-order-reference"
+                  aria-label="Copy order reference"
                 >
                   <span className="truncate">
                     Order #{order.id ?? "Unavailable"}
                   </span>
-
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-3.5 w-3.5 shrink-0 opacity-70"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M8 16h8M8 12h8M8 8h8M9 4h6a2 2 0 012 2v14l-5-3-5 3V6a2 2 0 012-2z"
-                    />
-                  </svg>
+                  <Copy aria-hidden="true" size={13} strokeWidth={1.8} />
                 </button>
 
                 {created && (
-                  <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-[5px] text-white/68 shadow-[inset_0_1px_0_rgba(255,255,255,0.018)]">
+                  <span className="client-order-meta__item">
                     Placed {created}
                   </span>
                 )}
 
                 {hasBooking && (
-                  <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-[5px] text-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.018)]">
+                  <span className="client-order-meta__item">
                     {order.booking?.numberOfHunters || 0} hunter
                     {(order.booking?.numberOfHunters || 0) !== 1 ? "s" : ""}
                   </span>
                 )}
 
                 {hasMerch && (
-                  <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-[5px] text-white/68 shadow-[inset_0_1px_0_rgba(255,255,255,0.018)]">
+                  <span className="client-order-meta__item">
                     {merchLines.length} merch item
                     {merchLines.length !== 1 ? "s" : ""}
                   </span>
                 )}
 
                 {!!partyDeckDates.length && (
-                  <span className="rounded-full border border-[var(--color-accent-gold)]/20 bg-[var(--color-accent-gold)]/10 px-3 py-1 text-[var(--color-accent-gold)] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                  <span className="client-order-meta__item client-order-meta__item--gold">
                     Party Deck included
                   </span>
                 )}
               </div>
             </div>
 
-            <div className="flex shrink-0 flex-col gap-3 xl:min-w-[190px] xl:items-end">
+            <div className="client-order-summary__aside">
               {order.status === "paid" && (
-                <span className="inline-flex items-center self-start rounded-full border border-emerald-400/18 bg-emerald-400/8 px-3 py-[6px] text-[9px] font-semibold uppercase tracking-[0.18em] text-emerald-200/90 xl:self-end">
-                  Paid
+                <span className="client-payment-chip client-payment-chip--paid">
+                  <CheckCircle2 aria-hidden="true" size={13} /> Paid in full
                 </span>
               )}
 
               {order.status === "pending" && (
-                <span className="inline-flex items-center self-start rounded-full border border-amber-400/18 bg-amber-400/8 px-3 py-[6px] text-[9px] font-semibold uppercase tracking-[0.18em] text-amber-200/90 xl:self-end">
-                  Payment Needed
+                <span className="client-payment-chip client-payment-chip--pending">
+                  <Clock3 aria-hidden="true" size={13} /> Payment needed
                 </span>
               )}
 
               {order.status === "cancelled" && (
-                <span className="inline-flex items-center self-start rounded-full border border-rose-400/18 bg-rose-400/8 px-3 py-[6px] text-[9px] font-semibold uppercase tracking-[0.18em] text-rose-200/90 xl:self-end">
+                <span className="client-payment-chip client-payment-chip--cancelled">
                   Cancelled
                 </span>
               )}
 
               {order.status === "refunded" && (
-                <span className="inline-flex items-center self-start rounded-full border border-sky-400/18 bg-sky-400/8 px-3 py-[6px] text-[9px] font-semibold uppercase tracking-[0.18em] text-sky-200/90 xl:self-end">
+                <span className="client-payment-chip client-payment-chip--refunded">
                   Refunded
                 </span>
               )}
 
-              <div className="rounded-[20px] border border-white/10 bg-white/[0.028] px-5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
-                <div className="text-[9px] font-semibold uppercase tracking-[0.24em] text-white/80">
+              <div className="client-order-total">
+                <div className="client-order-total__label">
                   Total
                 </div>
-                <div className="mt-1 font-acumin text-lg  leading-none tracking-[-0.035em] text-white">
-                  <span className="text-white/60 mr-[2px]">$</span>
-                  <span>{fmtWholeMoney(order.total)}</span>
+                <div className="client-order-total__value">
+                  <span aria-hidden="true">$</span>
+                  {fmtWholeMoney(order.total)}
                 </div>
               </div>
 
               <button
                 type="button"
                 onClick={() => setIsExpanded((prev) => !prev)}
-                className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-[18px] border border-white/10 bg-white/[0.035] px-4 py-2 text-[12.5px] font-medium text-white/78 transition hover:border-white/16 hover:bg-white/[0.055]"
+                className="client-order-toggle"
                 aria-expanded={isExpanded}
               >
-                {isExpanded ? "Hide details" : "View full order"}
+                {isExpanded ? "Hide details" : "View order details"}
                 <span
                   className={`inline-block text-[11px] transition-transform ${
                     isExpanded ? "rotate-180" : ""
@@ -862,15 +868,27 @@ const ClientDashboard: React.FC = () => {
           </div>
         </div>
 
+        {order.status === "pending" && (
+          <div className="client-payment-callout" role="status">
+            <div>
+              <strong>Finish payment to confirm this reservation.</strong>
+              <span>Your dates are not secured until checkout is complete.</span>
+            </div>
+            <button type="button" onClick={() => navigate("/checkout")}>
+              Continue payment <ArrowRight aria-hidden="true" size={16} />
+            </button>
+          </div>
+        )}
+
         {/* Expanded details */}
         {isExpanded && (
           <>
-            <div className="h-px bg-white/7" />
+            <div className="client-order-divider" />
 
-            <div className="px-5 py-4.5 md:px-6 md:py-5">
-              <div className="grid gap-3.5 xl:grid-cols-3">
+            <div className="client-order-details">
+              <div className="client-order-details__grid">
                 {/* Reservation details */}
-                <div className="rounded-[24px] border border-white/10 bg-white/[0.045] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                <div className="client-detail-panel">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/36">
                       Reservation Details
@@ -953,7 +971,7 @@ const ClientDashboard: React.FC = () => {
                 </div>
 
                 {/* Guest / attendee details */}
-                <div className="rounded-[24px] border border-white/10 bg-white/[0.045] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                <div className="client-detail-panel">
                   <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/36">
                     Guest & Attendee Details
                   </div>
@@ -1011,7 +1029,7 @@ const ClientDashboard: React.FC = () => {
                 </div>
 
                 {/* Payment / merchandise / actions */}
-                <div className="rounded-[24px] border border-white/10 bg-white/[0.045] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                <div className="client-detail-panel">
                   <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/36">
                     Order & Payment
                   </div>
@@ -1105,8 +1123,8 @@ const ClientDashboard: React.FC = () => {
                 </div>
               </div>
 
-              <div className="mt-4 flex flex-col gap-3 border-t border-white/8 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="text-[12px] text-white/42">
+              <div className="client-order-actions">
+                <div className="client-order-help">
                   Need help? Contact us and reference{" "}
                   <span className="font-mono text-white/58">#{order.id}</span>.
                 </div>
@@ -1114,26 +1132,26 @@ const ClientDashboard: React.FC = () => {
                 {order.status === "paid" && (
                   <button
                     onClick={() => openCancelConfirm(order)}
-                    className="rounded-2xl border border-red-400/20 bg-red-500/90 px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-red-500"
+                    className="client-order-button client-order-button--danger"
                   >
-                    Cancel{hasBooking ? " & Refund" : ""}
+                    Review cancellation{hasBooking ? " / refund" : ""}
                   </button>
                 )}
 
                 {order.status === "pending" && (
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="client-order-actions__buttons">
                     <button
                       onClick={() => openDeleteConfirm(order)}
-                      className="rounded-xl border border-red-400/30 px-3 py-2 text-xs text-red-200 transition hover:bg-red-500/10"
+                      className="client-order-button client-order-button--danger-outline"
                     >
-                      Delete Order
+                      Delete unpaid order
                     </button>
 
                     <button
                       onClick={() => navigate("/checkout")}
-                      className="rounded-xl border border-white/15 px-3 py-2 text-xs text-white/90 transition hover:bg-white/5"
+                      className="client-order-button client-order-button--primary"
                     >
-                      Continue Payment
+                      Continue payment <ArrowRight aria-hidden="true" size={15} />
                     </button>
                   </div>
                 )}
@@ -1145,20 +1163,72 @@ const ClientDashboard: React.FC = () => {
     );
   };
 
+  const accountName = user?.displayName?.trim() || "Your account";
+  const accountInitials = accountName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+  const orderTabClassName = (tab: OrdersTab) =>
+    `client-orders-tab${ordersTab === tab ? " is-active" : ""}`;
+
   // ---------------- Render ----------------
   return (
     <Boundary>
-      <div className="max-w-[1400px] mx-auto text-[var(--color-text)] py-6 min-h-[600px] px-6 flex flex-col md:flex-row gap-8 mt-20 md:mt-36">
-        {/* Main */}
-        <section className="flex-1  w-full  backdrop-blur p-5 md:p-6 rounded-xl border border-black/5">
-          <div className="mb-5">
-            <h1 className="font-acumin text-2xl">{user?.displayName}</h1>
-            <p className="text-sm">{user?.email}</p>
-          </div>
+      <div className="client-dashboard">
+        <section className="client-dashboard__shell">
+          <header className="client-dashboard-hero">
+            <div className="client-dashboard-hero__copy">
+              <span className="client-dashboard-kicker">
+                <ReceiptText aria-hidden="true" size={15} /> Client dashboard
+              </span>
+              <h1>Your bookings</h1>
+              <p>
+                Review your hunt dates, payment status, and order details.
+              </p>
+              {user && (
+                <button
+                  type="button"
+                  className="client-dashboard-book-button"
+                  onClick={() => navigate("/book")}
+                >
+                  Book another hunt <ArrowRight aria-hidden="true" size={17} />
+                </button>
+              )}
+            </div>
+
+            <aside className="client-account-card" aria-label="Signed in account">
+              <div className="client-account-card__label">
+                <ShieldCheck aria-hidden="true" size={15} /> Signed in as
+              </div>
+              <div className="client-account-card__identity">
+                <div className="client-account-card__avatar" aria-hidden="true">
+                  {user?.photoURL ? (
+                    <img src={user.photoURL} alt="" />
+                  ) : accountInitials ? (
+                    accountInitials
+                  ) : (
+                    <UserRound size={21} />
+                  )}
+                </div>
+                <div className="client-account-card__text">
+                  <strong>{accountName}</strong>
+                  <span>
+                    <Mail aria-hidden="true" size={14} />
+                    {user?.email || "No email available"}
+                  </span>
+                </div>
+              </div>
+              <div className="client-account-card__status">
+                <span aria-hidden="true" /> Account active
+              </div>
+            </aside>
+          </header>
 
           {!user ? (
-            <div className="text-center py-10">
-              <p className="text-neutral-600">
+            <div className="client-dashboard-empty">
+              <p>
                 Please sign in to view your orders.
               </p>
             </div>
@@ -1494,110 +1564,150 @@ const ClientDashboard: React.FC = () => {
               </section>
             </div>
           ) : loading ? (
-            <p className="text-sm text-neutral-400">Loading your data...</p>
+            <div className="client-dashboard-loading" role="status">
+              <span />
+              <div>
+                <strong>Loading your bookings</strong>
+                <p>Getting your latest order details.</p>
+              </div>
+            </div>
           ) : (
             <>
-              <div className="mb-5 space-y-4">
-                <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                  <div className="rounded-[18px] border border-white/10 bg-white/5 px-3 py-3 sm:rounded-2xl sm:px-4 sm:py-4">
-                    <div className="text-[8px] font-medium uppercase tracking-[0.16em] text-white/36 sm:text-[10px] sm:tracking-[0.18em]">
-                      Upcoming
-                    </div>
-                    <div className="mt-1.5 text-[1.75rem] font-semibold leading-none text-white sm:mt-2 sm:text-2xl">
-                      {upcomingOrders.length}
-                    </div>
+              <div className="client-orders-overview">
+                <div className="client-orders-overview__heading">
+                  <div>
+                    <span>At a glance</span>
+                    <h2>Your reservation activity</h2>
                   </div>
-
-                  <div className="rounded-[18px] border border-white/10 bg-white/5 px-3 py-3 sm:rounded-2xl sm:px-4 sm:py-4">
-                    <div className="text-[8px] font-medium uppercase tracking-[0.16em] text-white/36 sm:text-[10px] sm:tracking-[0.18em]">
-                      Past
-                    </div>
-                    <div className="mt-1.5 text-[1.75rem] font-semibold leading-none text-white sm:mt-2 sm:text-2xl">
-                      {pastOrders.length}
-                    </div>
-                  </div>
-
-                  <div className="rounded-[18px] border border-white/10 bg-white/5 px-3 py-3 sm:rounded-2xl sm:px-4 sm:py-4">
-                    <div className="text-[8px] font-medium uppercase tracking-[0.16em] text-white/36 sm:text-[10px] sm:tracking-[0.18em]">
-                      Pending
-                    </div>
-                    <div className="mt-1.5 text-[1.75rem] font-semibold leading-none text-white sm:mt-2 sm:text-2xl">
-                      {pendingOrders.length}
-                    </div>
-                  </div>
+                  <p>Counts are based on the orders connected to this account.</p>
                 </div>
 
-                <div className="-mx-1 overflow-x-auto px-1 sm:mx-0 sm:overflow-visible sm:px-0">
-                  <div className="flex min-w-max items-center gap-1.5 rounded-[18px] border border-white/8 bg-white/[0.025] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] sm:min-w-0 sm:flex-wrap sm:gap-2 sm:rounded-2xl sm:border-white/10 sm:bg-white/[0.03] sm:p-2 sm:shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
+                <div className="client-order-stats">
+                  <button
+                    type="button"
+                    className="client-order-stat"
+                    onClick={() => setOrdersTab("upcoming")}
+                    aria-label={`${confirmedUpcomingOrders.length} confirmed upcoming hunts. Show upcoming orders.`}
+                  >
+                    <span className="client-order-stat__icon client-order-stat__icon--confirmed">
+                      <CalendarDays aria-hidden="true" size={20} />
+                    </span>
+                    <span className="client-order-stat__text">
+                      <strong>{confirmedUpcomingOrders.length}</strong>
+                      <span>Confirmed hunts</span>
+                      <small>Upcoming reservations that are paid</small>
+                    </span>
+                    <ArrowRight aria-hidden="true" size={17} className="client-order-stat__arrow" />
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`client-order-stat ${
+                      pendingOrders.length ? "client-order-stat--attention" : ""
+                    }`}
+                    onClick={() => setOrdersTab("pending")}
+                    aria-label={`${pendingOrders.length} orders need payment. Show unpaid orders.`}
+                  >
+                    <span className="client-order-stat__icon client-order-stat__icon--pending">
+                      <Clock3 aria-hidden="true" size={20} />
+                    </span>
+                    <span className="client-order-stat__text">
+                      <strong>{pendingOrders.length}</strong>
+                      <span>Needs payment</span>
+                      <small>Orders waiting for checkout</small>
+                    </span>
+                    <ArrowRight aria-hidden="true" size={17} className="client-order-stat__arrow" />
+                  </button>
+
+                  <button
+                    type="button"
+                    className="client-order-stat"
+                    onClick={() => setOrdersTab("past")}
+                    aria-label={`${pastOrders.length} completed hunts. Show completed orders.`}
+                  >
+                    <span className="client-order-stat__icon client-order-stat__icon--history">
+                      <History aria-hidden="true" size={20} />
+                    </span>
+                    <span className="client-order-stat__text">
+                      <strong>{pastOrders.length}</strong>
+                      <span>Completed hunts</span>
+                      <small>Your past reservation history</small>
+                    </span>
+                    <ArrowRight aria-hidden="true" size={17} className="client-order-stat__arrow" />
+                  </button>
+                </div>
+
+                <div className="client-orders-toolbar">
+                  <div>
+                    <span>Order history</span>
+                    <h2>All bookings and purchases</h2>
+                  </div>
+                  <div
+                    className="client-orders-tabs"
+                    role="tablist"
+                    aria-label="Filter orders"
+                  >
                     <button
+                      type="button"
+                      role="tab"
+                      aria-selected={ordersTab === "all"}
                       onClick={() => setOrdersTab("all")}
-                      className={
-                        "shrink-0 rounded-[12px] border px-3 py-1.5 text-[11px] font-medium transition sm:rounded-xl sm:px-3.5 sm:py-2 sm:text-[12px] " +
-                        (ordersTab === "all"
-                          ? "border-white/20 bg-white/[0.08] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
-                          : "border-white/10 bg-transparent text-white/60 hover:border-white/20 hover:bg-white/[0.04] hover:text-white/85")
-                      }
+                      className={orderTabClassName("all")}
                     >
-                      All <span className="opacity-60">({orders.length})</span>
+                      All <span>{orders.length}</span>
                     </button>
 
                     <button
+                      type="button"
+                      role="tab"
+                      aria-selected={ordersTab === "upcoming"}
                       onClick={() => setOrdersTab("upcoming")}
-                      className={
-                        "shrink-0 rounded-[12px] border px-3 py-1.5 text-[11px] font-medium transition sm:rounded-xl sm:px-3.5 sm:py-2 sm:text-[12px] " +
-                        (ordersTab === "upcoming"
-                          ? "border-white/20 bg-white/[0.08] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
-                          : "border-white/10 bg-transparent text-white/60 hover:border-white/20 hover:bg-white/[0.04] hover:text-white/85")
-                      }
+                      className={orderTabClassName("upcoming")}
                     >
-                      Upcoming{" "}
-                      <span className="opacity-60">
-                        ({upcomingOrders.length})
-                      </span>
+                      Upcoming <span>{upcomingOrders.length}</span>
                     </button>
 
                     <button
+                      type="button"
+                      role="tab"
+                      aria-selected={ordersTab === "pending"}
+                      onClick={() => setOrdersTab("pending")}
+                      className={orderTabClassName("pending")}
+                    >
+                      Needs payment <span>{pendingOrders.length}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={ordersTab === "past"}
                       onClick={() => setOrdersTab("past")}
-                      className={
-                        "shrink-0 rounded-[12px] border px-3 py-1.5 text-[11px] font-medium transition sm:rounded-xl sm:px-3.5 sm:py-2 sm:text-[12px] " +
-                        (ordersTab === "past"
-                          ? "border-white/20 bg-white/[0.08] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
-                          : "border-white/10 bg-transparent text-white/60 hover:border-white/20 hover:bg-white/[0.04] hover:text-white/85")
-                      }
+                      className={orderTabClassName("past")}
                     >
-                      Past{" "}
-                      <span className="opacity-60">({pastOrders.length})</span>
+                      Completed <span>{pastOrders.length}</span>
                     </button>
 
                     <button
+                      type="button"
+                      role="tab"
+                      aria-selected={ordersTab === "cancelled"}
                       onClick={() => setOrdersTab("cancelled")}
-                      className={
-                        "shrink-0 rounded-[12px] border px-3 py-1.5 text-[11px] font-medium transition sm:rounded-xl sm:px-3.5 sm:py-2 sm:text-[12px] " +
-                        (ordersTab === "cancelled"
-                          ? "border-white/20 bg-white/[0.08] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
-                          : "border-white/10 bg-transparent text-white/60 hover:border-white/20 hover:bg-white/[0.04] hover:text-white/85")
-                      }
+                      className={orderTabClassName("cancelled")}
                     >
-                      Cancelled / Refunded{" "}
-                      <span className="opacity-60">
-                        ({cancelledOrders.length})
-                      </span>
+                      Cancelled / refunded <span>{cancelledOrders.length}</span>
                     </button>
                   </div>
                 </div>
               </div>
 
               {filteredOrders.length === 0 ? (
-                <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-8 text-center">
-                  <p className="text-white/75 text-base">
-                    No records found in this section.
-                  </p>
-                  <p className="mt-2 text-sm text-white/45">
-                    When you place a booking or purchase, it will appear here.
-                  </p>
+                <div className="client-orders-empty" role="status">
+                  <ReceiptText aria-hidden="true" size={24} />
+                  <p>No orders in this view.</p>
+                  <span>Bookings and purchases for this account will appear here.</span>
                 </div>
               ) : (
-                <ul className="grid grid-cols-1 gap-5">
+                <ul className="client-orders-list" aria-live="polite">
                   {filteredOrders.map((order) => (
                     <OrderRow key={order.id} order={order} />
                   ))}
@@ -1611,20 +1721,21 @@ const ClientDashboard: React.FC = () => {
       {/* ---------- Cancel/Refund Confirm Modal ---------- */}
       {confirmOpen && confirmData && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          className="client-dashboard-modal"
           role="dialog"
           aria-modal="true"
+          aria-labelledby="cancel-order-title"
         >
           <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            className="client-dashboard-modal__backdrop"
             onClick={closeCancelConfirm}
           />
-          <div className="relative w-full max-w-md rounded-xl bg-white shadow-xl border border-black/5 p-5">
-            <h3 className="text-lg font-acumin font-semibold text-neutral-900">
+          <div className="client-dashboard-modal__card">
+            <h3 id="cancel-order-title">
               Cancel order
             </h3>
 
-            <div className="mt-3 space-y-3 text-[13px] text-neutral-700">
+            <div className="client-dashboard-modal__body">
               <div>
                 <div className="text-neutral-500">Order</div>
                 <div className="font-medium break-all">
@@ -1648,7 +1759,7 @@ const ClientDashboard: React.FC = () => {
                 </div>
               )}
 
-              <div className="rounded-md bg-neutral-50 border border-black/5 p-3">
+              <div className="client-dashboard-modal__notice">
                 {confirmData.eligibleForRefund ? (
                   <>
                     <div className="text-neutral-500">Refund preview</div>
@@ -1676,10 +1787,10 @@ const ClientDashboard: React.FC = () => {
               </div>
             </div>
 
-            <div className="mt-5 flex items-center justify-end gap-2">
+            <div className="client-dashboard-modal__actions">
               <button
                 onClick={closeCancelConfirm}
-                className="px-4 py-2 text-sm rounded-md bg-neutral-100 hover:bg-neutral-200 text-neutral-800"
+                className="client-dashboard-modal__secondary"
               >
                 Keep Order
               </button>
@@ -1689,7 +1800,7 @@ const ClientDashboard: React.FC = () => {
                   closeCancelConfirm();
                   await handleCancelOrder(target);
                 }}
-                className="px-4 py-2 text-sm rounded-md bg-red-600 hover:bg-red-700 text-white"
+                className="client-dashboard-modal__danger"
               >
                 Confirm Cancel
               </button>
@@ -1701,26 +1812,27 @@ const ClientDashboard: React.FC = () => {
       {/* ---------- Delete Pending Order Confirm Modal ---------- */}
       {deleteOpen && deleteTarget && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          className="client-dashboard-modal"
           role="dialog"
           aria-modal="true"
+          aria-labelledby="delete-order-title"
         >
           <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            className="client-dashboard-modal__backdrop"
             onClick={closeDeleteConfirm}
           />
-          <div className="relative w-full max-w-md rounded-xl bg-white shadow-xl border border-black/5 p-5">
-            <h3 className="text-lg font-acumin font-semibold text-neutral-900">
+          <div className="client-dashboard-modal__card">
+            <h3 id="delete-order-title">
               Delete unpaid order
             </h3>
 
-            <div className="mt-3 space-y-3 text-[13px] text-neutral-700">
+            <div className="client-dashboard-modal__body">
               <div>
                 <div className="text-neutral-500">Order</div>
                 <div className="font-medium break-all">#{deleteTarget.id}</div>
               </div>
 
-              <div className="rounded-md bg-neutral-50 border border-black/5 p-3">
+              <div className="client-dashboard-modal__notice">
                 <p className="text-[13px] text-neutral-700">
                   This order has not been paid yet, so you can safely delete it
                   from your dashboard.
@@ -1732,10 +1844,10 @@ const ClientDashboard: React.FC = () => {
               </div>
             </div>
 
-            <div className="mt-5 flex items-center justify-end gap-2">
+            <div className="client-dashboard-modal__actions">
               <button
                 onClick={closeDeleteConfirm}
-                className="px-4 py-2 text-sm rounded-md bg-neutral-100 hover:bg-neutral-200 text-neutral-800"
+                className="client-dashboard-modal__secondary"
               >
                 Keep Order
               </button>
@@ -1745,7 +1857,7 @@ const ClientDashboard: React.FC = () => {
                   closeDeleteConfirm();
                   if (target) await handleDeleteOrder(target);
                 }}
-                className="px-4 py-2 text-sm rounded-md bg-red-600 hover:bg-red-700 text-white"
+                className="client-dashboard-modal__danger"
               >
                 Delete Order
               </button>
