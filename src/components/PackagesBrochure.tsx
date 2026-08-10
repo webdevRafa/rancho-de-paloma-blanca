@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
+import { CalendarDays, ShieldCheck, Sparkles, UsersRound } from "lucide-react";
 import type { PricingWindow, SeasonConfig } from "../types/Types";
 import { getSeasonConfig } from "../utils/getSeasonConfig";
 import { BACK_THE_BLUE_DATE } from "../utils/huntPricing";
+import partyDeckImage from "../assets/images/four.webp";
+import "./PackagesBrochure.css";
 
 type RateTier = {
   label: string;
@@ -84,9 +87,9 @@ const windowToCard = (window: PricingWindow): RateCard => {
     key: `${window.start}-${window.end}-flat`,
     title: window.label || (special ? "Back the Blue" : "Standard Hunt Rate"),
     price: formatCurrency(window.rate),
-    unit: special ? "per hunter, per day" : "per hunter, per hunt day",
+    unit: "per hunter, per day",
     details: special
-      ? "Special first-responder event. Proof of eligibility is required at check-in."
+      ? "A special hunt for first responders. Proof of eligibility is required at check-in."
       : `${dateLabel}. The same rate applies to every hunter on each selected date.`,
     badge: formatBadgeRange(window.start, window.end),
     special,
@@ -117,7 +120,7 @@ const buildRateCards = (config: SeasonConfig): RateCard[] => {
         key: "standard-season-rate",
         title: "2026 Dove Hunting Season",
         price: formatCurrency(standardRate),
-        unit: "per hunter, per hunt day",
+        unit: "per hunter, per day",
         details: `${formatSeasonRange(
           config.seasonStart,
           config.seasonEnd
@@ -135,7 +138,7 @@ const buildRateCards = (config: SeasonConfig): RateCard[] => {
       key: "fallback-season-rate",
       title: "Standard Hunt Rate",
       price: formatCurrency(config.weekdayRate),
-      unit: "per hunter, per hunt day",
+      unit: "per hunter, per day",
       details: `${formatSeasonRange(
         config.seasonStart,
         config.seasonEnd
@@ -173,149 +176,168 @@ export function PackagesBrochure() {
   const seasonYear = seasonConfig?.seasonStart?.slice(0, 4) || "2026";
 
   return (
-    <section className="relative max-w-6xl mx-auto px-1 py-2 lg:px-0">
-      <div className="mb-8">
-        <h2 className="text-3xl md:text-5xl font-gin text-white leading-tight">
-          {seasonYear} Dove Hunting Season
-        </h2>
+    <section className="packages-brochure" aria-labelledby="season-rates-title">
+      <header className="packages-brochure__header">
+        <div>
+          <p className="packages-brochure__eyebrow">{seasonYear} season details</p>
+          <h2 id="season-rates-title" className="packages-brochure__title">
+            One season. Straightforward rates.
+          </h2>
+        </div>
 
-        {seasonConfig && (
-          <p className="mt-2 text-base md:text-lg text-black font-bold bg-[var(--color-accent-gold)] max-w-fit px-2">
-            {formatSeasonRange(
-              seasonConfig.seasonStart,
-              seasonConfig.seasonEnd
-            )}
+        <div className="packages-brochure__intro">
+          <p>
+            Pick any available date and build the day that fits your group. The
+            standard rate stays the same throughout the season, with one special
+            event priced separately.
           </p>
-        )}
-
-        <p className="mt-4 max-w-2xl text-sm md:text-[15px] leading-7 text-neutral-200/90">
-          Choose any available hunt date. Current rates are loaded directly from
-          the active season configuration used at checkout.
-        </p>
-      </div>
+          {seasonConfig && (
+            <p className="packages-brochure__date-chip">
+              <CalendarDays aria-hidden="true" size={17} />
+              {formatSeasonRange(
+                seasonConfig.seasonStart,
+                seasonConfig.seasonEnd
+              )}
+            </p>
+          )}
+        </div>
+      </header>
 
       {!seasonConfig && !loadError && (
-        <div className="rounded-2xl border border-white/10 bg-white/95 p-6 text-[var(--color-background)]">
+        <div className="packages-brochure__notice" role="status">
           Loading current hunt rates…
         </div>
       )}
 
       {loadError && (
-        <div className="rounded-2xl border border-red-300 bg-white/95 p-6 text-red-900">
+        <div
+          className="packages-brochure__notice packages-brochure__notice--error"
+          role="alert"
+        >
           Current pricing is temporarily unavailable. Please refresh before
           booking.
         </div>
       )}
 
       {seasonConfig && (
-        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="packages-brochure__cards">
           {rateCards.map((card) => (
-            <div
+            <article
               key={card.key}
-              className={`group relative overflow-hidden rounded-2xl border bg-white/95 backdrop-blur shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 ${
-                card.special
-                  ? "border-blue-400 ring-1 ring-blue-300"
-                  : "border-white/10"
+              className={`packages-card${
+                card.special ? " packages-card--special" : ""
               }`}
             >
-              <div className="relative p-6 flex flex-col h-full">
+              <div className="packages-card__topline">
                 {card.badge && (
-                  <div
-                    className={`mb-3 inline-flex rounded-full px-2.5 py-1 text-[14px] font-semibold uppercase tracking-wide text-white ${
-                      card.special ? "bg-blue-800" : "bg-[var(--color-footer)]"
-                    }`}
-                  >
-                    {card.badge}
-                  </div>
+                  <span className="packages-card__badge">{card.badge}</span>
                 )}
-
-                <h3 className="text-xl font-acumin text-[var(--color-background)]">
-                  {card.title}
-                </h3>
-
-                {card.tiers?.length ? (
-                  <div className="mt-4 rounded-xl border border-black/8 bg-[var(--color-background)]/5 p-4">
-                    <div className="space-y-2">
-                      {card.tiers.map((tier) => (
-                        <div
-                          key={tier.label}
-                          className="flex items-center justify-between gap-3 border-b border-black/8 pb-2 last:border-b-0 last:pb-0"
-                        >
-                          <span className="text-sm font-medium text-[var(--color-background)]/80">
-                            {tier.label}
-                          </span>
-                          <span className="text-lg font-bold tracking-tight text-[var(--color-background)]">
-                            {tier.price}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                    <p className="mt-3 text-xs font-medium uppercase tracking-wide text-[var(--color-background)]/55">
-                      {card.unit}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="mt-2 flex flex-wrap items-baseline gap-1">
-                    <div className="text-2xl font-bold tracking-tight">
-                      {card.price}
-                    </div>
-                    <div className="text-sm text-[var(--color-background)]/70">
-                      {card.unit}
-                    </div>
-                  </div>
-                )}
-
-                <p className="mt-3 text-sm leading-6 text-[var(--color-background)]/80">
-                  {card.details}
-                </p>
-              </div>
-            </div>
-          ))}
-
-          <div className="group relative overflow-hidden border-[var(--color-accent-gold)] border-2 backdrop-blur shadow-lg hover:shadow-2xl hover:-translate-y-1 transition-all duration-300">
-            <div className="relative p-6">
-              <div className="mb-3 flex items-start justify-between gap-3">
-                <h3 className="text-xl font-acumin text-white">Party Deck</h3>
-                <span className="rounded-full px-2 py-1 text-[10px] uppercase tracking-wide text-white">
-                  Add-on
+                <span className="packages-card__category">
+                  {card.special ? "First responders" : "Standard hunt"}
                 </span>
               </div>
 
-              <div className="mt-2 flex flex-wrap items-baseline gap-1">
-                <div className="text-3xl font-bold text-white">
-                  {formatCurrency(partyDeckRate)}
-                </div>
-                <div className="text-sm text-white">per hunt, per day</div>
+              <div className="packages-card__body">
+                <h3>{card.title}</h3>
+
+                {card.tiers?.length ? (
+                  <div className="packages-card__tiers">
+                    <div>
+                      {card.tiers.map((tier) => (
+                        <div key={tier.label} className="packages-card__tier">
+                          <span>{tier.label}</span>
+                          <strong>{tier.price}</strong>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="packages-card__unit">{card.unit}</p>
+                  </div>
+                ) : (
+                  <div className="packages-card__rate">
+                    <strong>{card.price}</strong>
+                    <span>{card.unit}</span>
+                  </div>
+                )}
+
+                <p className="packages-card__details">{card.details}</p>
               </div>
 
-              <p className="mt-3 text-sm leading-6 text-white">
-                Elevate your hunt with our two-story Party Deck overlooking the
-                fields, with shade, power, fans, and running water on site.
-              </p>
+              <div className="packages-card__footer">
+                <ShieldCheck aria-hidden="true" size={18} />
+                <span>
+                  {card.special
+                    ? "Eligibility checked at arrival"
+                    : "Rate applied at checkout"}
+                </span>
+              </div>
+            </article>
+          ))}
+
+          <article className="packages-card packages-card--deck">
+            <img
+              src={partyDeckImage}
+              alt="The two-story Party Deck overlooking the ranch fields"
+            />
+            <div className="packages-card--deck__wash" aria-hidden="true" />
+            <div className="packages-card--deck__content">
+              <div className="packages-card__topline">
+                <span className="packages-card__badge">Party Deck</span>
+                <span className="packages-card__category">Add-on</span>
+              </div>
+
+              <div className="packages-card--deck__body">
+                <p className="packages-card--deck__kicker">
+                  <Sparkles aria-hidden="true" size={17} />
+                  The best seat on the ranch
+                </p>
+                <h3>Make the Party Deck your home base.</h3>
+                <div className="packages-card__rate">
+                  <strong>{formatCurrency(partyDeckRate)}</strong>
+                  <span>per hunt, per day</span>
+                </div>
+                <p>
+                  A two-story gathering spot with shade, power, fans, running
+                  water, and a full-size grill overlooking the fields.
+                </p>
+              </div>
+
+              <div className="packages-card--deck__availability">
+                <span aria-hidden="true" /> First come, first served
+              </div>
             </div>
-          </div>
+          </article>
         </div>
       )}
 
       {seasonConfig && (
-        <div className="mt-6 grid md:grid-cols-2 gap-4 text-sm">
-          <div className="p-4">
-            <p className="mb-1 font-semibold text-white">Season Window</p>
-            <p className="text-white">
-              The current season runs from {formatSeasonRange(
-                seasonConfig.seasonStart,
-                seasonConfig.seasonEnd
-              )}.
-            </p>
+        <div className="packages-brochure__assurances">
+          <div className="packages-assurance">
+            <CalendarDays aria-hidden="true" />
+            <div>
+              <p>Season window</p>
+              <span>
+                {formatSeasonRange(
+                  seasonConfig.seasonStart,
+                  seasonConfig.seasonEnd
+                )}
+              </span>
+            </div>
           </div>
 
-          <div className="p-4">
-            <p className="mb-1 font-semibold text-white">Capacity</p>
-            <p className="text-white">
-              We host up to {seasonConfig.maxHuntersPerDay} hunters per day.
-              Availability updates in real time, and spots are confirmed after
-              payment.
-            </p>
+          <div className="packages-assurance">
+            <UsersRound aria-hidden="true" />
+            <div>
+              <p>Daily capacity</p>
+              <span>Up to {seasonConfig.maxHuntersPerDay} hunters per day</span>
+            </div>
+          </div>
+
+          <div className="packages-assurance">
+            <ShieldCheck aria-hidden="true" />
+            <div>
+              <p>Party Deck</p>
+              <span>First come, first served and confirmed after payment</span>
+            </div>
           </div>
         </div>
       )}
