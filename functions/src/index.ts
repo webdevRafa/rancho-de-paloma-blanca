@@ -81,7 +81,7 @@ const DELUXE_EMBEDDED_SECRET = defineSecret("DELUXE_EMBEDDED_SECRET"); // HS256 
 const RESEND_API_KEY = defineSecret("RESEND_API_KEY");
 const RESEND_FROM_EMAIL = defineSecret("RESEND_FROM_EMAIL");
 const NOTIFY_ADMIN_EMAIL = defineSecret("NOTIFY_ADMIN_EMAIL");
-const SITE_URL = "https://rancho-de-paloma-blanca.vercel.app";
+const SITE_URL = "https://www.ranchodepalomablanca.com";
 const PENDING_REMINDER_DELAY_MINUTES = 20;
 const PENDING_REMINDER_CLAIM_TIMEOUT_MINUTES = 15;
 
