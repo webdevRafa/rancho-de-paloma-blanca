@@ -107,10 +107,453 @@
   color: #fff;
 }
 
+.mobile-menu {
+  --menu-gold: #dfbb6c;
+  --menu-cream: #f4ecdf;
+  width: min(100%, 34rem);
+  border-left: 1px solid rgba(223, 187, 108, 0.24);
+  background:
+    radial-gradient(circle at 88% 4%, rgba(113, 134, 85, 0.12), transparent 18rem),
+    radial-gradient(circle at 12% 70%, rgba(223, 187, 108, 0.08), transparent 24rem),
+    linear-gradient(165deg, #1b1109 0%, #110b06 62%, #0b0805 100%);
+  color: var(--menu-cream);
+  box-shadow: -2rem 0 5rem rgba(0, 0, 0, 0.42);
+  overscroll-behavior: contain;
+  scrollbar-color: rgba(223, 187, 108, 0.5) transparent;
+  scrollbar-width: thin;
+}
+
+.mobile-menu::before {
+  position: fixed;
+  z-index: 3;
+  top: 0;
+  right: 0;
+  width: min(100%, 34rem);
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--menu-gold), transparent);
+  content: "";
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.mobile-menu__header {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  display: flex;
+  min-height: 5.25rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid rgba(223, 187, 108, 0.15);
+  background: rgba(17, 11, 6, 0.86);
+  backdrop-filter: blur(18px);
+}
+
+.mobile-menu__brand {
+  display: flex;
+  min-width: 0;
+  gap: 0.8rem;
+  align-items: center;
+  color: #fff;
+  text-decoration: none;
+}
+
+.mobile-menu__brand img {
+  width: 2.8rem;
+  height: 2.8rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(223, 187, 108, 0.28);
+}
+
+.mobile-menu__brand > span {
+  display: grid;
+  min-width: 0;
+  gap: 0.22rem;
+}
+
+.mobile-menu__brand strong {
+  overflow: hidden;
+  font-family: gin, Impact, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.mobile-menu__brand small {
+  color: rgba(244, 236, 223, 0.52);
+  font-family: "Acumin Pro", sans-serif;
+  font-size: 0.64rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mobile-menu__close {
+  display: grid;
+  width: 2.8rem;
+  aspect-ratio: 1;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(244, 236, 223, 0.18);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.025);
+  color: rgba(255, 255, 255, 0.82);
+  transition:
+    border-color 200ms ease,
+    background 200ms ease,
+    color 200ms ease,
+    transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mobile-menu__close:hover {
+  border-color: rgba(223, 187, 108, 0.55);
+  background: rgba(223, 187, 108, 0.08);
+  color: var(--menu-gold);
+  transform: rotate(4deg);
+}
+
+.mobile-menu__close svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.mobile-menu__content {
+  display: grid;
+  gap: 1.8rem;
+  padding: 1.35rem 1.25rem calc(1.5rem + env(safe-area-inset-bottom));
+}
+
+.mobile-menu__account {
+  overflow: hidden;
+  border: 1px solid rgba(223, 187, 108, 0.2);
+  background:
+    linear-gradient(135deg, rgba(223, 187, 108, 0.08), transparent 54%),
+    rgba(255, 255, 255, 0.025);
+  box-shadow: 0 1.2rem 3rem rgba(0, 0, 0, 0.18);
+}
+
+.mobile-menu__profile {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.95rem;
+  align-items: center;
+  padding: 1.1rem;
+}
+
+.mobile-menu__profile > img,
+.mobile-menu__avatar-fallback {
+  width: 3.25rem;
+  height: 3.25rem;
+  border: 1px solid rgba(244, 236, 223, 0.66);
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 0 0 0.25rem rgba(223, 187, 108, 0.08);
+}
+
+.mobile-menu__avatar-fallback {
+  display: grid;
+  place-items: center;
+  background: #2a1b0f;
+  color: var(--menu-gold);
+  font-family: gin, Impact, sans-serif;
+  font-size: 1.3rem;
+  text-transform: uppercase;
+}
+
+.mobile-menu__profile-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+}
+
+.mobile-menu__profile-copy > span {
+  color: var(--menu-gold);
+  font-family: "Acumin Pro", sans-serif;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.mobile-menu__profile-copy strong {
+  overflow: hidden;
+  color: #fff;
+  font-family: gin, Impact, sans-serif;
+  font-size: 1.15rem;
+  font-weight: 400;
+  line-height: 1;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.mobile-menu__profile-copy small {
+  color: rgba(244, 236, 223, 0.54);
+  font-family: "Acumin Pro", sans-serif;
+  font-size: 0.72rem;
+}
+
+.mobile-menu__orders {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 1.1rem;
+  border-top: 1px solid rgba(223, 187, 108, 0.17);
+  background: rgba(223, 187, 108, 0.055);
+  color: var(--menu-cream);
+  text-decoration: none;
+  transition: background 200ms ease, color 200ms ease;
+}
+
+.mobile-menu__orders:hover {
+  background: rgba(223, 187, 108, 0.11);
+  color: #fff;
+}
+
+.mobile-menu__orders > span {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.mobile-menu__orders strong {
+  color: var(--menu-gold);
+  font-family: "Acumin Pro", sans-serif;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.mobile-menu__orders small {
+  color: rgba(244, 236, 223, 0.5);
+  font-family: "Acumin Pro", sans-serif;
+  font-size: 0.69rem;
+}
+
+.mobile-menu__orders > svg {
+  width: 1.05rem;
+  height: 1.05rem;
+  color: var(--menu-gold);
+  transition: transform 200ms ease;
+}
+
+.mobile-menu__orders:hover > svg {
+  transform: translateX(0.2rem);
+}
+
+.mobile-menu__section-label {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.2rem;
+}
+
+.mobile-menu__section-label > span,
+.mobile-menu__section-label small {
+  font-family: "Acumin Pro", sans-serif;
+  text-transform: uppercase;
+}
+
+.mobile-menu__section-label > span {
+  color: var(--menu-gold);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+}
+
+.mobile-menu__section-label small {
+  color: rgba(244, 236, 223, 0.3);
+  font-size: 0.55rem;
+  letter-spacing: 0.1em;
+}
+
+.mobile-menu__links {
+  display: grid;
+  margin: -1rem 0 0;
+  padding: 0;
+  border-top: 1px solid rgba(244, 236, 223, 0.1);
+  list-style: none;
+}
+
+.mobile-menu__links > li {
+  border-bottom: 1px solid rgba(244, 236, 223, 0.1);
+}
+
+.mobile-menu__link {
+  position: relative;
+  display: flex;
+  min-height: 3.5rem;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  overflow: hidden;
+  padding: 0.85rem 0.75rem 0.85rem 1rem;
+  color: rgba(244, 236, 223, 0.72);
+  text-decoration: none;
+  transition:
+    background 200ms ease,
+    color 200ms ease,
+    padding 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mobile-menu__link::before {
+  position: absolute;
+  top: 0.75rem;
+  bottom: 0.75rem;
+  left: 0;
+  width: 2px;
+  background: var(--menu-gold);
+  box-shadow: 0 0 1rem rgba(223, 187, 108, 0.38);
+  content: "";
+  opacity: 0;
+  transform: scaleY(0.25);
+  transition: opacity 180ms ease, transform 220ms ease;
+}
+
+.mobile-menu__link > span {
+  font-family: gin, Impact, sans-serif;
+  font-size: 1.05rem;
+  letter-spacing: 0.012em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.mobile-menu__link > svg {
+  width: 1rem;
+  height: 1rem;
+  color: rgba(244, 236, 223, 0.3);
+  transition: color 200ms ease, transform 200ms ease;
+}
+
+.mobile-menu__link:hover {
+  padding-left: 1.25rem;
+  background: rgba(255, 255, 255, 0.025);
+  color: #fff;
+}
+
+.mobile-menu__link:hover > svg {
+  color: var(--menu-gold);
+  transform: translateX(0.2rem);
+}
+
+.mobile-menu__link--active,
+.mobile-menu__link--active:hover {
+  padding-left: 1.25rem;
+  background: linear-gradient(90deg, rgba(223, 187, 108, 0.11), transparent 72%);
+  color: var(--menu-gold);
+}
+
+.mobile-menu__link--active::before,
+.mobile-menu__link--active:hover::before {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+.mobile-menu__link--active > svg {
+  color: var(--menu-gold);
+}
+
+.mobile-menu__footer {
+  display: grid;
+  gap: 0.85rem;
+  padding-top: 0.15rem;
+}
+
+.mobile-menu__session-action {
+  display: flex;
+  width: 100%;
+  min-height: 3.25rem;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(223, 187, 108, 0.4);
+  background: rgba(223, 187, 108, 0.08);
+  color: var(--menu-gold);
+  font-family: "Acumin Pro", sans-serif;
+  font-size: 0.73rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  transition: background 200ms ease, border-color 200ms ease, color 200ms ease;
+}
+
+.mobile-menu__session-action:hover {
+  border-color: var(--menu-gold);
+  background: var(--menu-gold);
+  color: #171009;
+}
+
+.mobile-menu__session-action--signout {
+  border-color: rgba(244, 236, 223, 0.16);
+  background: transparent;
+  color: rgba(244, 236, 223, 0.62);
+}
+
+.mobile-menu__session-action--signout:hover {
+  border-color: rgba(244, 236, 223, 0.35);
+  background: rgba(255, 255, 255, 0.045);
+  color: #fff;
+}
+
+.mobile-menu__session-action svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.mobile-menu__footer > p {
+  margin: 0;
+  color: rgba(244, 236, 223, 0.28);
+  font-family: "Acumin Pro", sans-serif;
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.mobile-menu__brand:focus-visible,
+.mobile-menu__close:focus-visible,
+.mobile-menu__orders:focus-visible,
+.mobile-menu__link:focus-visible,
+.mobile-menu__session-action:focus-visible {
+  outline: 2px solid #f0cd83;
+  outline-offset: 3px;
+}
+
+@media (max-width: 420px) {
+  .mobile-menu__header,
+  .mobile-menu__content {
+    padding-right: 1rem;
+    padding-left: 1rem;
+  }
+
+  .mobile-menu__brand strong {
+    font-size: 0.84rem;
+  }
+
+  .mobile-menu__section-label small {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .desktop-nav__link,
   .desktop-nav__link::before,
-  .desktop-nav__link::after {
+  .desktop-nav__link::after,
+  .mobile-menu__close,
+  .mobile-menu__orders,
+  .mobile-menu__orders > svg,
+  .mobile-menu__link,
+  .mobile-menu__link::before,
+  .mobile-menu__link > svg,
+  .mobile-menu__session-action {
     transition: none;
   }
 }
