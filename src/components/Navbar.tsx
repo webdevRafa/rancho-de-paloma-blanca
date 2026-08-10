@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import logo from "../assets/logo-official.webp";
 import { useAuth } from "../context/AuthContext";
 import AuthModal from "./AuthModal";
+import "./Navbar.css";
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
@@ -120,7 +121,7 @@ export default function Navbar() {
           </Link>
 
           {/* Desktop nav */}
-          <div className="hidden items-center md:space-x-2 lg:flex lg:space-x-4 text-xs">
+          <div className="desktop-nav hidden items-center lg:flex text-xs">
             {navLinks.map((l) => {
               const isActive = isActivePath(l.to);
 
@@ -128,16 +129,9 @@ export default function Navbar() {
                 <NavLink
                   key={l.to}
                   to={l.to}
-                  className={[
-                    " px-3 py-2 text-white transition-all duration-200",
-                    "border border-transparent",
-                    isActive
-                      ? "bg-[var(--color-card)] text-[var(--color-accent-gold)] border-[var(--color-accent-gold)]/40 shadow-[0_0_0_1px_rgba(217,181,106,0.08)]"
-                      : "hover:bg-[var(--color-card)]/20 text-white/60 hover:text-white",
-                    l.label === "Book a Hunt" && !isActive
-                      ? "font-bold"
-                      : "font-bold",
-                  ].join(" ")}
+                  className={`desktop-nav__link${
+                    isActive ? " desktop-nav__link--active" : ""
+                  }`}
                   aria-current={isActive ? "page" : undefined}
                 >
                   {l.label}
