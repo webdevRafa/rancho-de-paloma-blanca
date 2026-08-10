@@ -198,17 +198,16 @@ const BookingPage = () => {
                 transition={{ duration: reduceMotion ? 0 : 0.65, ease: EASE }}
               >
                 <div>
-                  <p className="booking-eyebrow">Booking workspace</p>
                   <h2 id="booking-workspace-title">
                     {showFreshBooking
-                      ? "Build your hunt one step at a time."
-                      : "Your reservation is already underway."}
+                      ? "Book your hunt."
+                      : "Finish booking your hunt."}
                   </h2>
                 </div>
                 <p>
                   {showFreshBooking
-                    ? "Enter your party details, choose from live availability, and review everything before checkout."
-                    : "Review what is already in your cart, make any changes you need, or continue to checkout."}
+                    ? "Start with your party size, then choose the dates that work for you."
+                    : "Your dates are saved. Make any changes you need, or continue to checkout when you're ready."}
                 </p>
               </motion.header>
 
