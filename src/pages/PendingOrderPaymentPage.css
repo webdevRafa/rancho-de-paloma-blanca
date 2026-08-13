@@ -1,0 +1,391 @@
+.pending-payment-page {
+  min-height: 100vh;
+  color: #f7f0e4;
+  background:
+    radial-gradient(circle at 82% 8%, rgba(189, 142, 56, 0.13), transparent 30rem),
+    linear-gradient(135deg, #0a0705 0%, #140d08 55%, #0d0906 100%);
+  padding: clamp(7.5rem, 12vw, 10rem) 1rem clamp(4rem, 8vw, 7rem);
+}
+
+.pending-payment-shell {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+}
+
+.pending-payment-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: rgba(247, 240, 228, 0.66);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: color 180ms ease, transform 180ms ease;
+}
+
+.pending-payment-back:hover {
+  color: #e0b85f;
+  transform: translateX(-2px);
+}
+
+.pending-payment-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2rem;
+  align-items: end;
+  padding: clamp(2rem, 5vw, 4rem) 0 2rem;
+  border-bottom: 1px solid rgba(224, 184, 95, 0.2);
+}
+
+.pending-payment-kicker {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: #e0b85f;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.pending-payment-heading h1 {
+  max-width: 780px;
+  margin: 0.9rem 0 0;
+  font-family: var(--font-acumin, sans-serif);
+  font-size: clamp(2.7rem, 6vw, 5.6rem);
+  line-height: 0.93;
+  letter-spacing: -0.035em;
+  text-transform: uppercase;
+}
+
+.pending-payment-heading p {
+  max-width: 650px;
+  margin: 1.25rem 0 0;
+  color: rgba(247, 240, 228, 0.64);
+  font-size: clamp(0.95rem, 1.5vw, 1.08rem);
+  line-height: 1.7;
+}
+
+.pending-payment-reference {
+  min-width: 220px;
+  padding: 1rem 1.1rem;
+  border: 1px solid rgba(224, 184, 95, 0.28);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.pending-payment-reference span,
+.pending-payment-reference strong {
+  display: block;
+}
+
+.pending-payment-reference span {
+  color: rgba(247, 240, 228, 0.48);
+  font-size: 0.67rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.pending-payment-reference strong {
+  overflow: hidden;
+  margin-top: 0.35rem;
+  color: #f7f0e4;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pending-payment-layout {
+  display: grid;
+  grid-template-columns: minmax(270px, 0.72fr) minmax(0, 1.55fr);
+  gap: clamp(1rem, 2.4vw, 2rem);
+  align-items: start;
+  padding-top: clamp(1.5rem, 4vw, 3rem);
+}
+
+.pending-payment-summary,
+.pending-payment-panel {
+  border: 1px solid rgba(224, 184, 95, 0.23);
+  background: rgba(22, 14, 9, 0.82);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(18px);
+}
+
+.pending-payment-summary {
+  position: sticky;
+  top: 7rem;
+}
+
+.pending-payment-summary__top {
+  padding: 1.5rem;
+  border-bottom: 1px solid rgba(224, 184, 95, 0.16);
+}
+
+.pending-payment-summary__top span,
+.pending-payment-summary__top strong {
+  display: block;
+}
+
+.pending-payment-summary__top span {
+  color: #e0b85f;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+}
+
+.pending-payment-summary__top strong {
+  margin-top: 0.5rem;
+  font-size: clamp(2.1rem, 4vw, 3.3rem);
+  line-height: 1;
+}
+
+.pending-payment-details {
+  display: grid;
+  gap: 1rem;
+  padding: 1.5rem;
+}
+
+.pending-payment-details > div {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.pending-payment-details svg {
+  color: #e0b85f;
+}
+
+.pending-payment-details small,
+.pending-payment-details strong {
+  display: block;
+}
+
+.pending-payment-details small {
+  color: rgba(247, 240, 228, 0.45);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.pending-payment-details strong {
+  margin-top: 0.18rem;
+  font-size: 0.93rem;
+}
+
+.pending-payment-details ul {
+  display: grid;
+  gap: 0.35rem;
+  margin: -0.35rem 0 0 2.65rem;
+  color: rgba(247, 240, 228, 0.68);
+  font-size: 0.82rem;
+}
+
+.pending-payment-details p {
+  margin: -0.25rem 0 0 2.65rem;
+  color: rgba(247, 240, 228, 0.55);
+  font-size: 0.78rem;
+}
+
+.pending-payment-details .pending-payment-deck {
+  margin: 0;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid rgba(224, 184, 95, 0.2);
+  color: #e8c77e;
+  background: rgba(224, 184, 95, 0.07);
+}
+
+.pending-payment-security {
+  display: flex;
+  gap: 0.7rem;
+  padding: 1.25rem 1.5rem;
+  border-top: 1px solid rgba(224, 184, 95, 0.16);
+  color: rgba(247, 240, 228, 0.55);
+}
+
+.pending-payment-security svg {
+  flex: 0 0 auto;
+  color: #8fa77d;
+}
+
+.pending-payment-security p {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+
+.pending-payment-security strong {
+  display: block;
+  margin-bottom: 0.15rem;
+  color: rgba(247, 240, 228, 0.82);
+}
+
+.pending-payment-panel {
+  min-height: 520px;
+  padding: clamp(1rem, 2.7vw, 2rem);
+  overflow: hidden;
+}
+
+.pending-payment-state {
+  min-height: 450px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+}
+
+.pending-payment-state svg {
+  color: #e0b85f;
+}
+
+.pending-payment-state h2 {
+  margin: 1rem 0 0;
+  font-family: var(--font-acumin, sans-serif);
+  font-size: clamp(1.7rem, 4vw, 2.7rem);
+  text-transform: uppercase;
+}
+
+.pending-payment-state p {
+  max-width: 500px;
+  margin: 0.65rem 0 0;
+  color: rgba(247, 240, 228, 0.6);
+  line-height: 1.65;
+}
+
+.pending-payment-spinner {
+  animation: pending-payment-spin 0.9s linear infinite;
+}
+
+@keyframes pending-payment-spin {
+  to { transform: rotate(360deg); }
+}
+
+.pending-payment-state--success svg {
+  color: #8fa77d;
+}
+
+.pending-payment-state--error svg {
+  color: #d7a25b;
+}
+
+.pending-payment-state button,
+.pending-payment-state__actions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0.75rem 1.1rem;
+  border: 1px solid rgba(224, 184, 95, 0.38);
+  color: #f7f0e4;
+  background: transparent;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  transition: background 180ms ease, border-color 180ms ease;
+}
+
+.pending-payment-state button:hover,
+.pending-payment-state__actions a:hover {
+  border-color: #e0b85f;
+  background: rgba(224, 184, 95, 0.11);
+}
+
+.pending-payment-state__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.65rem;
+  margin-top: 1.4rem;
+}
+
+.pending-payment-state--success button {
+  margin-top: 1.35rem;
+}
+
+.pending-payment-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid rgba(215, 162, 91, 0.35);
+  color: #f4d6ac;
+  background: rgba(215, 162, 91, 0.08);
+  font-size: 0.84rem;
+}
+
+#pending-order-embedded-payments {
+  display: none;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  background: #f7f4ee;
+}
+
+#pending-order-embedded-payments.is-visible {
+  display: block;
+}
+
+#pending-order-embedded-payments > *,
+#pending-order-embedded-payments .embedded-form-container,
+#pending-order-embedded-payments .payment-panel,
+#pending-order-embedded-payments .payment-panel-container,
+#pending-order-embedded-payments .embedded-payment-panel,
+#pending-order-embedded-payments .embedded-form,
+#pending-order-embedded-payments .embedded-checkout-container {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+#pending-order-embedded-payments .purchase-summary,
+#pending-order-embedded-payments .products-panel,
+#pending-order-embedded-payments .summary-panel,
+#pending-order-embedded-payments .left-panel,
+#pending-order-embedded-payments .product-panel,
+#pending-order-embedded-payments .embedded-left-panel {
+  display: none !important;
+}
+
+@media (max-width: 800px) {
+  .pending-payment-page {
+    padding-top: 6.5rem;
+  }
+
+  .pending-payment-heading,
+  .pending-payment-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .pending-payment-heading {
+    gap: 1.25rem;
+  }
+
+  .pending-payment-reference {
+    width: 100%;
+  }
+
+  .pending-payment-summary {
+    position: static;
+  }
+
+  .pending-payment-panel {
+    min-height: 440px;
+  }
+
+  .pending-payment-state {
+    min-height: 370px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pending-payment-spinner {
+    animation-duration: 1.8s;
+  }
+}

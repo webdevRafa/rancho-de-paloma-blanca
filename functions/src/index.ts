@@ -6,6 +6,7 @@
  *   GET  /api/health
  *   GET  /api/getEmbeddedMerchantStatus
  *   POST /api/createEmbeddedJwt
+ *   POST /api/createPendingOrderEmbeddedJwt
  *   POST /api/createDeluxePayment
  *   POST /api/refundDeluxePayment
  *   POST /api/deluxe/webhook
@@ -31,6 +32,7 @@
 // no longer exported on the default namespace.  Instead, import from
 // `firebase-admin/app` and `firebase-admin/firestore`.
 import { initializeApp, getApps } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
 // We're not using Express or CORS middleware in this implementation.  Instead we
 // implement each endpoint directly inside a single HTTPS handler.  This
@@ -48,6 +50,10 @@ import {
   renderPendingOrderEmail,
   renderRefundEmail,
 } from "./email/templates.js";
+import {
+  evaluatePendingOrderCapacity,
+  type PendingOrderAvailability,
+} from "./pendingOrderResume.js";
 
 import { setGlobalOptions, logger } from "firebase-functions/v2";
 import { onRequest } from "firebase-functions/v2/https";
@@ -318,6 +324,93 @@ function resolvePartyDeckDates(booking?: {
   }
 
   return [];
+}
+
+function getBearerToken(req: any): string | null {
+  const header = String(
+    req?.headers?.authorization || req?.headers?.Authorization || ""
+  ).trim();
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  return match?.[1]?.trim() || null;
+}
+
+function pendingOrderSummary(orderId: string, order: OrderDoc) {
+  const merchItems = Array.isArray(order.merchItems)
+    ? order.merchItems
+    : Object.values(order.merchItems || {});
+
+  return {
+    orderId,
+    status: order.status,
+    total: Number(order.total || 0),
+    currency: order.currency || "USD",
+    createdAt: order.createdAt?.toDate().toISOString(),
+    customer: {
+      firstName: order.customer?.firstName || "",
+      lastName: order.customer?.lastName || "",
+      email: order.customer?.email || "",
+    },
+    booking: order.booking
+      ? {
+          dates: Array.from(new Set(order.booking.dates || [])).sort(),
+          numberOfHunters: Number(order.booking.numberOfHunters || 0),
+          partyDeckDates: resolvePartyDeckDates(order.booking).sort(),
+          attendees: (order.booking.attendees || []).map((attendee) => ({
+            fullName: attendee.fullName || "",
+            email: attendee.email || "",
+          })),
+        }
+      : null,
+    merchItems: merchItems.map((item) => ({
+      name: item.name || "Merchandise",
+      quantity: Number(item.quantity || 0),
+      price: Number(item.price || 0),
+    })),
+  };
+}
+
+async function checkPendingOrderCapacity(order: OrderDoc) {
+  const booking = order.booking;
+  if (!booking) return { ok: true as const };
+
+  const dates = Array.from(new Set((booking.dates || []).filter(Boolean)));
+  const numberOfHunters = Number(booking.numberOfHunters || 0);
+  if (!dates.length || !Number.isFinite(numberOfHunters) || numberOfHunters <= 0) {
+    return {
+      ok: false as const,
+      code: "order-invalid",
+      conflictDates: [] as string[],
+    };
+  }
+
+  const configSnap = await db.collection("seasonConfig").doc("active").get();
+  const maxHuntersPerDay = Number(configSnap.get("maxHuntersPerDay"));
+  if (!configSnap.exists || !Number.isFinite(maxHuntersPerDay) || maxHuntersPerDay <= 0) {
+    return {
+      ok: false as const,
+      code: "configuration-unavailable",
+      conflictDates: [] as string[],
+    };
+  }
+
+  const refs = dates.map((date) => db.collection("availability").doc(date));
+  const snapshots = await db.getAll(...refs);
+  const availabilityByDate: Record<string, PendingOrderAvailability> = {};
+  snapshots.forEach((snapshot) => {
+    availabilityByDate[snapshot.id] = {
+      exists: snapshot.exists,
+      huntersBooked: snapshot.get("huntersBooked"),
+      partyDeckBooked: snapshot.get("partyDeckBooked"),
+    };
+  });
+
+  return evaluatePendingOrderCapacity({
+    dates,
+    partyDeckDates: resolvePartyDeckDates(booking),
+    numberOfHunters,
+    maxHuntersPerDay,
+    availabilityByDate,
+  });
 }
 
 async function rollbackCapacityFromOrder(order: OrderDoc) {
@@ -720,6 +813,165 @@ export const api = onRequest(
         } catch (err: any) {
           logger.error("getEmbeddedMerchantStatus error", err);
           res.status(200).json({ applePayEnabled: false, googlePayEnabled: false });
+          return;
+        }
+      }
+
+      // Resume Deluxe Embedded Payments for an existing unpaid order.
+      // This route is intentionally separate from createEmbeddedJwt so the
+      // cart-based booking checkout keeps its current behavior.
+      if (
+        req.method === "POST" &&
+        url === "/api/createPendingOrderEmbeddedJwt"
+      ) {
+        res.setHeader("Cache-Control", "no-store");
+        try {
+          const token = getBearerToken(req);
+          if (!token) {
+            res.status(401).json({ error: "authentication-required" });
+            return;
+          }
+
+          let uid: string;
+          try {
+            uid = (await getAuth().verifyIdToken(token)).uid;
+          } catch (error) {
+            logger.warn("pending-order resume: invalid Firebase token", {
+              error: String(error),
+            });
+            res.status(401).json({ error: "authentication-invalid" });
+            return;
+          }
+
+          const orderId = String(req.body?.orderId || "").trim();
+          if (!orderId) {
+            res.status(400).json({ error: "order-id-required" });
+            return;
+          }
+
+          const orderRef = db.collection("orders").doc(orderId);
+          const orderSnap = await orderRef.get();
+          if (!orderSnap.exists) {
+            res.status(404).json({ error: "order-not-found" });
+            return;
+          }
+
+          const order = { id: orderSnap.id, ...(orderSnap.data() as OrderDoc) };
+          if (!order.userId || order.userId !== uid) {
+            res.status(403).json({ error: "order-forbidden" });
+            return;
+          }
+
+          if (order.status !== "pending") {
+            res.status(409).json({
+              error: order.status === "paid" ? "order-already-paid" : "order-not-payable",
+              order: pendingOrderSummary(orderId, order),
+            });
+            return;
+          }
+
+          const amount = asMoney(order.total);
+          if (amount === null || amount <= 0) {
+            res.status(409).json({ error: "order-total-invalid" });
+            return;
+          }
+
+          let capacity;
+          try {
+            capacity = await checkPendingOrderCapacity(order);
+          } catch (error) {
+            logger.error("pending-order resume: capacity preflight failed", {
+              orderId,
+              error: String(error),
+            });
+            res.status(503).json({ error: "availability-check-failed" });
+            return;
+          }
+
+          if (!capacity.ok) {
+            res.status(409).json({
+              error: capacity.code,
+              conflictDates: capacity.conflictDates,
+              order: pendingOrderSummary(orderId, order),
+            });
+            return;
+          }
+
+          const now = Math.floor(Date.now() / 1000);
+          const exp = now + 10 * 60;
+          const firstName = order.customer?.firstName || "Guest";
+          const lastName = order.customer?.lastName || "Customer";
+          const billing = order.customer?.billingAddress;
+          const billingAddress = billing
+            ? {
+                address: billing.address || billing.line1,
+                city: billing.city,
+                state: billing.state,
+                zipCode: billing.zipCode || billing.postalCode,
+                countryCode:
+                  billing.countryCode ||
+                  (billing.country === "US"
+                    ? "USA"
+                    : billing.country === "CA"
+                      ? "CAN"
+                      : billing.country),
+              }
+            : undefined;
+
+          const payload: Record<string, any> = {
+            iat: now,
+            exp,
+            accessToken: DELUXE_ACCESS_TOKEN.value(),
+            amount,
+            currencyCode: order.currency || "USD",
+            transactionReference: orderId,
+            customer: {
+              firstName,
+              lastName,
+              ...(order.customer?.email ? { email: order.customer.email } : {}),
+              ...(billingAddress ? { billingAddress } : {}),
+            },
+            products: [
+              {
+                name: "Rancho de Paloma Blanca order",
+                amount: Math.round(amount * 100),
+                quantity: 1,
+                description: `Order ${orderId}`,
+              },
+            ],
+            hideProductPanel: true,
+            hidetotals: true,
+          };
+
+          const jwtToken = signEmbeddedJwt(payload);
+          await orderRef.set(
+            {
+              paymentResume: {
+                lastTokenIssuedAt: FieldValue.serverTimestamp(),
+              },
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+
+          logger.info("pending-order resume: fresh Deluxe token issued", {
+            orderId,
+            uid,
+            exp,
+          });
+          res.status(200).json({
+            jwt: jwtToken,
+            exp,
+            embeddedBase: embeddedBase(),
+            env: useSandbox() ? "sandbox" : "production",
+            order: pendingOrderSummary(orderId, order),
+          });
+          return;
+        } catch (error: any) {
+          logger.error("createPendingOrderEmbeddedJwt error", {
+            error: error?.message || String(error),
+          });
+          res.status(500).json({ error: "payment-session-failed" });
           return;
         }
       }
@@ -1266,14 +1518,23 @@ if (req.method === "POST" && url === "/api/deluxe/webhook") {
   try {
     const evt = req.body || {};
 
-    // Try both shapes: orderData.orderId and customData[] pair
+    // Hosted links send orderData/customData. Embedded Payments identifies the
+    // original order through the documented transactionReference JWT claim.
     const orderId: string | undefined =
       evt?.orderData?.orderId ||
-      evt?.customData?.find?.((x: any) => x?.name === "orderId")?.value;
+      evt?.customData?.find?.((x: any) => x?.name === "orderId")?.value ||
+      evt?.transactionReference ||
+      evt?.data?.transactionReference ||
+      evt?.transaction?.transactionReference;
 
     // Normalize status checks from various Deluxe payloads
     const status: string | undefined =
-      evt?.status || evt?.transactionStatus || evt?.paymentStatus;
+      evt?.status ||
+      evt?.transactionStatus ||
+      evt?.paymentStatus ||
+      evt?.data?.status ||
+      evt?.data?.transactionStatus ||
+      evt?.transaction?.status;
     const approved = typeof status === "string" && /approved|captured|paid/i.test(status);
 
     if (orderId && approved) {

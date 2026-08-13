@@ -874,7 +874,14 @@ const ClientDashboard: React.FC = () => {
               <strong>Finish payment to confirm this reservation.</strong>
               <span>Your dates are not secured until checkout is complete.</span>
             </div>
-            <button type="button" onClick={() => navigate("/checkout")}>
+            <button
+              type="button"
+              disabled={!order.id}
+              onClick={() =>
+                order.id &&
+                navigate(`/checkout/pending/${encodeURIComponent(order.id)}`)
+              }
+            >
               Continue payment <ArrowRight aria-hidden="true" size={16} />
             </button>
           </div>
@@ -1148,7 +1155,13 @@ const ClientDashboard: React.FC = () => {
                     </button>
 
                     <button
-                      onClick={() => navigate("/checkout")}
+                      disabled={!order.id}
+                      onClick={() =>
+                        order.id &&
+                        navigate(
+                          `/checkout/pending/${encodeURIComponent(order.id)}`
+                        )
+                      }
                       className="client-order-button client-order-button--primary"
                     >
                       Continue payment <ArrowRight aria-hidden="true" size={15} />

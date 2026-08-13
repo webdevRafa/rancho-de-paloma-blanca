@@ -26,11 +26,15 @@ import SetupProfile from "./pages/SetupProfile";
 import CartDrawer from "./components/CartDrawer";
 import AdminDashboard from "./pages/AdminDashboard";
 import RefundPage from "./pages/RefundPage";
+import ClientRoute from "./components/ClientRoute";
+import PendingOrderPaymentPage from "./pages/PendingOrderPaymentPage";
 
 function App() {
   const { isHydrated } = useCart();
   const location = useLocation();
-  const hideCartDrawer = location.pathname === "/checkout";
+  const hideCartDrawer =
+    location.pathname === "/checkout" ||
+    location.pathname.startsWith("/checkout/pending/");
 
   useEffect(() => {
     AOS.init({
@@ -80,6 +84,14 @@ function App() {
           <Route path="/gallery" element={<GalleryPage />} />
           <Route path="/dashboard" element={<ClientDashboard />} />
           <Route path="/checkout" element={<CheckoutPage />} />
+          <Route
+            path="/checkout/pending/:orderId"
+            element={
+              <ClientRoute>
+                <PendingOrderPaymentPage />
+              </ClientRoute>
+            }
+          />
           <Route path="/dev-add-docs" element={<DevSeed />} />
         </Routes>
         <Footer />
