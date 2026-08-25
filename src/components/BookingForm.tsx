@@ -109,7 +109,7 @@ const BookingForm = () => {
   const [huntersInput, setHuntersInput] = useState<string>("1");
 
   // Party deck availability per date
-  const [deckAvailability, setDeckAvailability] = useState<
+  const [, setDeckAvailability] = useState<
     Record<string, boolean>
   >({});
 
@@ -813,6 +813,13 @@ const BookingForm = () => {
                         <p className="mt-1 text-sm text-[var(--color-footer)]/70">
                           Optional add-on at $500 per reserved day.
                         </p>
+                        <p
+                          id="party-deck-construction-note"
+                          className="mt-2 text-sm font-semibold text-amber-800"
+                        >
+                          The Party Deck is currently under construction and
+                          unavailable to book.
+                        </p>
                       </div>
 
                       <button
@@ -828,25 +835,18 @@ const BookingForm = () => {
 
                   <div className="space-y-3 px-5 py-5 md:px-6">
                     {form.dates.map((date) => {
-                      const availabilityKnown = date in deckAvailability;
-                      const isAvailable = deckAvailability[date] === true;
-                      const checked = form.partyDeckDates.includes(date);
-
                       return (
                         <label
                           key={date}
-                          className={`flex items-center justify-between gap-4 rounded-xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm ${
-                            !availabilityKnown || !isAvailable
-                              ? "opacity-70"
-                              : ""
-                          }`}
+                          className="flex cursor-not-allowed items-center justify-between gap-4 rounded-xl border border-black/10 bg-neutral-100 px-4 py-3 text-sm opacity-70"
                         >
                           <div className="flex items-center gap-3">
                             <input
                               type="checkbox"
-                              disabled={!availabilityKnown || !isAvailable}
-                              checked={checked}
+                              disabled
+                              checked={false}
                               onChange={() => togglePartyDeckDate(date)}
+                              aria-describedby="party-deck-construction-note"
                               className="accent-[var(--color-accent-gold)]"
                             />
 
@@ -856,11 +856,7 @@ const BookingForm = () => {
                           </div>
 
                           <span className="text-xs font-medium text-[var(--color-footer)]/65">
-                            {!availabilityKnown
-                              ? "Checking..."
-                              : !isAvailable
-                              ? "Unavailable"
-                              : "$500/day"}
+                            Under construction
                           </span>
                         </label>
                       );
@@ -1166,7 +1162,7 @@ const BookingForm = () => {
                                 Location
                               </span>
                               <span className="font-semibold text-right">
-                                Brownsville, Texas
+                                Rio Hondo, Texas
                               </span>
                             </div>
 

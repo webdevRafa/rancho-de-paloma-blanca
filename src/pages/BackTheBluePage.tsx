@@ -87,7 +87,7 @@ const BackTheBluePage = () => {
                 </li>
                 <li>
                   🌵 <strong>Where:</strong> Rancho de Paloma Blanca —
-                  Brownsville, TX
+                  Rio Hondo, TX
                 </li>
               </ul>
 
