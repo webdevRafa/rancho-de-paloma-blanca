@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { SeasonConfig } from "../types/Types";
 import { getSeasonConfig } from "../utils/getSeasonConfig";
+import { BACK_THE_BLUE_DATE_LABEL, BACK_THE_BLUE_RESCHEDULE_NOTICE } from "../utils/huntPricing";
 import palomas from "../assets/images/palomas.webp";
 import huntHero from "../assets/images/hunthero.webp";
 import hunterPortrait from "../assets/images/IMG_5547.webp";
@@ -410,8 +411,9 @@ const HomePage = () => {
             <div className="home-season__event-icon">
               <Sparkles aria-hidden="true" />
             </div>
-            <p className="home-season__event-date">October 3, {season.year}</p>
+            <p className="home-season__event-date">{BACK_THE_BLUE_DATE_LABEL}</p>
             <h3>Back the Blue Dove Hunt</h3>
+            <p>{BACK_THE_BLUE_RESCHEDULE_NOTICE}</p>
             <p>
               A special hunt honoring first responders. When a first responder
               books, everyone in their party receives the event rate.

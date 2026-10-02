@@ -17,6 +17,7 @@ import BookingForm from "../components/BookingForm";
 import EditBookingDatesModal from "../components/EditBookingDatesModal";
 import { PackagesBrochure } from "../components/PackagesBrochure";
 import { formatLongDate } from "../utils/formatDate";
+import { BACK_THE_BLUE_DATE_SHORT_LABEL } from "../utils/huntPricing";
 import hunter from "../assets/images/IMG_5574.webp";
 import hunters from "../assets/images/IMG_5547.webp";
 import "./BookingPage.css";
@@ -81,7 +82,8 @@ const BookingPage = () => {
             <p className="booking-hero__lede">
               Choose an available date from September 1 through October 25.
               Standard hunts are $150 per hunter, per day, with the special
-              Back the Blue hunt on October 3 at $50 per hunter, per day.
+              Back the Blue hunt, rescheduled to {BACK_THE_BLUE_DATE_SHORT_LABEL} due
+              to weather, at $50 per hunter, per day for first responders and their guests.
             </p>
 
             <div className="booking-facts" aria-label="2026 season overview">
@@ -98,7 +100,7 @@ const BookingPage = () => {
                 <strong>Up to 100 hunters</strong>
               </div>
               <div className="booking-fact booking-fact--blue">
-                <span>October 3</span>
+                <span>{BACK_THE_BLUE_DATE_SHORT_LABEL}</span>
                 <strong>$50 Back the Blue</strong>
               </div>
             </div>

@@ -1,4 +1,9 @@
 // functions/src/email/templates.ts
+import {
+  BACK_THE_BLUE_DATE,
+  BACK_THE_BLUE_DATE_LABEL,
+  BACK_THE_BLUE_ELIGIBILITY,
+} from "../shared/backTheBlue.js";
 
 export type EmailAttendee = {
   fullName?: string;
@@ -58,7 +63,6 @@ const RANCH_NAME = "Rancho de Paloma Blanca";
 const CONTACT_NAME = "Justin S.";
 const CONTACT_PHONE = "956-466-9614";
 const CONTACT_EMAIL = "info@ranchodepalomablanca.com";
-const BACK_THE_BLUE_DATE = "2026-10-03";
 
 function escapeHtml(value: unknown): string {
   return String(value ?? "")
@@ -309,9 +313,9 @@ function backTheBlueHtml(details: OrderEmailDetails): string {
   if (!orderSummary(details).includesBackTheBlue) return "";
   return `
     <div style="margin:22px 0 0;padding:16px;border:1px solid #4165df;background:#eef2ff">
-      <div style="color:#1632a6;font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase">Back the Blue · October 3, 2026</div>
+      <div style="color:#1632a6;font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase">Back the Blue · ${BACK_THE_BLUE_DATE_LABEL}</div>
       <p style="margin:8px 0 0;color:#243b91;font-size:13px;line-height:1.6">
-        This special event is exclusively for qualifying first responders. Proof of eligibility is required at check-in. Anyone unable to provide proof will be turned away without a refund.
+        ${BACK_THE_BLUE_ELIGIBILITY}
       </p>
     </div>`;
 }
@@ -445,7 +449,7 @@ function priceBreakdownText(details: OrderEmailDetails): string {
 
 function backTheBlueText(details: OrderEmailDetails): string {
   if (!orderSummary(details).includesBackTheBlue) return "";
-  return `\n\nBACK THE BLUE — OCTOBER 3, 2026\nThis event is exclusively for qualifying first responders. Proof of eligibility is required at check-in. Anyone unable to provide proof will be turned away without a refund.`;
+  return `\n\nBACK THE BLUE — ${BACK_THE_BLUE_DATE_LABEL.toUpperCase()}\n${BACK_THE_BLUE_ELIGIBILITY}`;
 }
 
 export function renderPendingOrderEmail(details: OrderEmailDetails): RenderedEmail {

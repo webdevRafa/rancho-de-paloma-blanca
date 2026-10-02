@@ -5,7 +5,9 @@ import type { SeasonConfig } from "../types/Types";
 import { useCart } from "../context/CartContext";
 import {
   BACK_THE_BLUE_DATE,
+  BACK_THE_BLUE_DISCLAIMER,
   calculateBookingPricing,
+  getEventScheduleNotice,
 } from "../utils/huntPricing";
 
 type Props = {
@@ -81,6 +83,11 @@ const EditBookingDatesModal = ({ isOpen, onClose }: Props) => {
   };
 
   const handleSave = () => {
+    const scheduleNotice = getEventScheduleNotice(tempDates, seasonConfig);
+    if (scheduleNotice) {
+      setError(scheduleNotice);
+      return;
+    }
     if (tempDates.length === 0) {
       setError("Please select at least one date.");
       return;
@@ -181,7 +188,7 @@ const EditBookingDatesModal = ({ isOpen, onClose }: Props) => {
 
               <p className="text-sm leading-7 text-[var(--color-footer)]/85">
                 {backTheBlueWindow?.disclaimerBody ||
-                  "By selecting October 3rd, 2026, you confirm that all hunters on this booking qualify as first responders. Proof will be required at check-in. Anyone unable to provide proof will be turned away with no refund."}
+                  BACK_THE_BLUE_DISCLAIMER}
               </p>
 
               <div className="mt-6 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">

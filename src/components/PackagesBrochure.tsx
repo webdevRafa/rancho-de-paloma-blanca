@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, ShieldCheck, Sparkles, UsersRound } from "lucide-react";
 import type { PricingWindow, SeasonConfig } from "../types/Types";
 import { getSeasonConfig } from "../utils/getSeasonConfig";
-import { BACK_THE_BLUE_DATE } from "../utils/huntPricing";
+import {
+  BACK_THE_BLUE_DATE,
+  BACK_THE_BLUE_RESCHEDULE_NOTICE,
+} from "../utils/huntPricing";
 import partyDeckImage from "../assets/images/four.webp";
 import "./PackagesBrochure.css";
 
@@ -89,9 +92,11 @@ const windowToCard = (window: PricingWindow): RateCard => {
     price: formatCurrency(window.rate),
     unit: "per hunter, per day",
     details: special
-      ? "A special hunt for first responders. Proof of eligibility is required at check-in."
+      ? `${BACK_THE_BLUE_RESCHEDULE_NOTICE} For first responders and their guests. The first responder must present proof of eligibility at check-in.`
       : `${dateLabel}. The same rate applies to every hunter on each selected date.`,
-    badge: formatBadgeRange(window.start, window.end),
+    badge: special
+      ? formatBadgeRange(BACK_THE_BLUE_DATE, BACK_THE_BLUE_DATE)
+      : formatBadgeRange(window.start, window.end),
     special,
   };
 };

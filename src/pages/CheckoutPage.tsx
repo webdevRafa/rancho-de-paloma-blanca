@@ -18,6 +18,8 @@ import { formatLongDate } from "../utils/formatDate";
 import type { Attendee, SeasonConfig } from "../types/Types";
 import {
   BACK_THE_BLUE_DATE,
+  BACK_THE_BLUE_DATE_LABEL,
+  getEventScheduleNotice,
   calculateBookingPricing,
 } from "../utils/huntPricing";
 import grass from "../assets/images/group.webp";
@@ -814,6 +816,10 @@ export default function CheckoutPage() {
     booking?.dates?.includes(BACK_THE_BLUE_DATE) ?? false;
   const backTheBlueNeedsAck =
     backTheBlueSelected && !booking?.backTheBlueAccepted;
+  const eventScheduleNotice = getEventScheduleNotice(
+    booking?.dates ?? [],
+    seasonConfig
+  );
 
   const [sdkReady, setSdkReady] = useState(false);
   const [instanceReady, setInstanceReady] = useState(false);
@@ -901,6 +907,7 @@ export default function CheckoutPage() {
   }, [booking?.partyDeckDates]);
 
   const ensureOrder = useCallback(async () => {
+    if (eventScheduleNotice) throw new Error(eventScheduleNotice);
     const ref = doc(db, "orders", orderId);
     const snap = await getDoc(ref);
     let base: OrderDoc = {
@@ -965,7 +972,10 @@ export default function CheckoutPage() {
         { ...base, updatedAt: serverTimestamp() },
         { merge: true }
       );
-  }, [amount, booking, customer, merchArray, orderId, seasonConfig, user]);
+  }, [
+    amount, booking, customer, merchArray, orderId, seasonConfig, user,
+    eventScheduleNotice,
+  ]);
 
   const startEmbeddedPayment = useCallback(async () => {
     setErrorMsg("");
@@ -1373,12 +1383,14 @@ export default function CheckoutPage() {
       !!orderId &&
       !hasStockErrors &&
       !hasInvalidBookingDates &&
+      !eventScheduleNotice &&
       !backTheBlueNeedsAck,
     [
       amount,
       orderId,
       hasStockErrors,
       hasInvalidBookingDates,
+      eventScheduleNotice,
       backTheBlueNeedsAck,
     ]
   );
@@ -1395,13 +1407,15 @@ export default function CheckoutPage() {
         {/* Display any error messages */}
         {(errorMsg ||
           (cfgError as any) ||
+          eventScheduleNotice ||
           hasInvalidBookingDates ||
           backTheBlueNeedsAck) && (
           <div className="mb-6 rounded-lg border border-red-500/30 bg-red-500/10 text-red-700 p-3">
             {errorMsg ||
               (cfgError as any) ||
+              eventScheduleNotice ||
               (backTheBlueNeedsAck
-                ? "This booking includes October 3rd, 2026 for the Back the Blue event. You must acknowledge the first-responder proof requirement before payment. Please go back and re-confirm your booking selection."
+                ? `This booking includes ${BACK_THE_BLUE_DATE_LABEL} for the Back the Blue event. You must acknowledge the first-responder proof requirement before payment. Please go back and re-confirm your booking selection.`
                 : `These selected dates are outside the active season: ${invalidBookingDates.join(
                     ", "
                   )}. Please update your booking before checkout.`)}

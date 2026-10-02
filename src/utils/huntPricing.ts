@@ -1,6 +1,43 @@
 import type { PricingWindow, SeasonConfig } from "../types/Types";
 
-export const BACK_THE_BLUE_DATE = "2026-10-03";
+import { BACK_THE_BLUE_DATE } from "../../functions/src/shared/backTheBlue";
+export {
+  BACK_THE_BLUE_DATE,
+  BACK_THE_BLUE_DATE_LABEL,
+  BACK_THE_BLUE_DATE_SHORT_LABEL,
+  BACK_THE_BLUE_RESCHEDULE_NOTICE,
+  BACK_THE_BLUE_DISCLAIMER,
+} from "../../functions/src/shared/backTheBlue";
+
+// Keep new carts from using the old event price while the live configuration
+// is being updated. Saved orders are not repriced or rescheduled here.
+export const getEventScheduleNotice = (
+  dates: string[],
+  config: SeasonConfig | null
+): string | null => {
+  if (!config) return null;
+  const affectedDates = dates.filter(
+    (date) => date >= "2026-10-03" && date <= BACK_THE_BLUE_DATE
+  );
+  const mismatched = affectedDates.some((date) => {
+    const windows = (config.pricingWindows ?? []).filter(
+      (window) => date >= window.start && date <= window.end
+    );
+    const window = windows[0];
+    return (
+      windows.length !== 1 ||
+      window.type !== "flat" ||
+      window.rate !== (date === BACK_THE_BLUE_DATE ? 50 : 150) ||
+      (date === BACK_THE_BLUE_DATE &&
+        (window.start !== BACK_THE_BLUE_DATE ||
+          window.end !== BACK_THE_BLUE_DATE ||
+          window.requiresDisclaimer !== true))
+    );
+  });
+  return mismatched
+    ? "Back the Blue has moved to October 10. Booking for your selected dates is being updated. Please refresh and try again shortly, or contact the ranch for help."
+    : null;
+};
 
 export type BookingPricingBreakdown = {
   bookingTotal: number;

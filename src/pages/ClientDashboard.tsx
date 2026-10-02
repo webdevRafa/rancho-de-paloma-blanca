@@ -18,6 +18,7 @@ import {
 import { useCart } from "../context/CartContext";
 import { useNavigate, useLocation } from "react-router-dom";
 import type { Order } from "../types/Types";
+import { BACK_THE_BLUE_DATE, BACK_THE_BLUE_DATE_LABEL } from "../utils/huntPricing";
 import { toast } from "react-toastify";
 import {
   ArrowRight,
@@ -1411,7 +1412,7 @@ const ClientDashboard: React.FC = () => {
                         </section>
                       )}
 
-                      {successOrder.booking?.dates?.includes("2026-10-03") && (
+                      {successOrder.booking?.dates?.includes(BACK_THE_BLUE_DATE) && (
                         <section className="overflow-hidden rounded-2xl border border-blue-200 bg-blue-50 shadow-[0_10px_30px_rgba(37,99,235,0.08)]">
                           <div className="border-b border-blue-200/70 bg-blue-100/50 px-5 py-4 md:px-6">
                             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-900/60">
@@ -1424,9 +1425,10 @@ const ClientDashboard: React.FC = () => {
 
                           <div className="px-5 py-5 md:px-6">
                             <p className="text-sm leading-7 text-blue-900">
-                              Your order includes the October 3rd, 2026 Back the
-                              Blue event. Proof will still be required at
-                              check-in for this booking.
+                              Your order includes the {BACK_THE_BLUE_DATE_LABEL} Back the
+                              Blue event for first responders and their guests.
+                              The first responder must bring proof of eligibility
+                              to check-in.
                             </p>
                           </div>
                         </section>

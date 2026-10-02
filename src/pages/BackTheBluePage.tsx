@@ -3,7 +3,8 @@ import { Link } from "react-router-dom";
 import { TiArrowBack } from "react-icons/ti";
 import { RxCrosshair2 } from "react-icons/rx";
 import groupBg from "../assets/images/group.webp";
-import flyer from "../assets/images/IMG_20250920_094948.jpg";
+import BackTheBlueEventCard from "../components/BackTheBlueEventCard";
+import { BACK_THE_BLUE_DATE_LABEL } from "../utils/huntPricing";
 
 const BackTheBluePage = () => {
   return (
@@ -37,21 +38,17 @@ const BackTheBluePage = () => {
           data-aos="fade-up"
           className="mx-auto grid max-w-6xl grid-cols-1 gap-8 md:grid-cols-2 md:gap-10"
         >
-          {/* Left: Flyer */}
+          {/* Current event details */}
           <div className="flex items-start justify-center">
             <div className="w-full max-w-[620px] overflow-hidden rounded-2xl border border-white/10 bg-black/20 shadow-xl">
-              <img
-                src={flyer}
-                alt="Back the Blue Dove Hunt flyer"
-                className="h-auto w-full object-contain"
-              />
+              <BackTheBlueEventCard />
             </div>
           </div>
 
           {/* Right: Event copy + CTAs */}
           <div className="flex flex-col justify-center">
             <h1 className="font-gin text-3xl/tight sm:text-4xl/tight md:text-5xl/tight text-white">
-              🚔 Back the Blue — First Annual Dove Hunt
+              Back the Blue Dove Hunt
             </h1>
 
             <p className="mt-3 text-white/80">
@@ -60,30 +57,30 @@ const BackTheBluePage = () => {
 
             <div className="mt-6 space-y-4 text-[15px] leading-relaxed text-white/90">
               <p>
-                On <strong>Saturday, October 3rd, 2026</strong>, Rancho de Paloma
+                On <strong>Saturday, {BACK_THE_BLUE_DATE_LABEL}</strong>, Rancho de Paloma
                 Blanca is proud to host our{" "}
-                <strong>First Annual Back the Blue Dove Hunt</strong>. This
+                <strong>Back the Blue Dove Hunt</strong>, postponed one week due to weather. This
                 special event is dedicated to first responders — police, fire,
                 EMS, and other frontline heroes.
               </p>
               <p>
                 Enjoy a full day of world-class South Texas dove hunting at a{" "}
                 <strong className="text-[var(--color-accent-gold,#f5c26b)]">
-                  special rate of only $50 per hunter
+                  special rate of only $50 per hunter, per day
                 </strong>{" "}
-                for first responders.
+                for first responders and their guests.
               </p>
 
               <ul className="mt-2 space-y-2 rounded-xl border border-white/10 bg-white/5 p-4">
                 <li>
-                  🗓 <strong>Date:</strong> Saturday, October 3rd, 2026
+                  🗓 <strong>Date:</strong> Saturday, {BACK_THE_BLUE_DATE_LABEL}
                 </li>
                 <li>
-                  🎯 <strong>Rate:</strong> $50 per hunter (first responders only)
+                  🎯 <strong>Rate:</strong> $50 per hunter, per day
                 </li>
                 <li>
                   👥 <strong>Who:</strong> Law enforcement, firefighters, EMS,
-                  and other first responders
+                  and other first responders, along with their guests
                 </li>
                 <li>
                   🌵 <strong>Where:</strong> Rancho de Paloma Blanca —
@@ -99,15 +96,13 @@ const BackTheBluePage = () => {
 
             {/* CTAs */}
             <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <a
-                href="https://of.deluxe.com/gateway/publish/3075328e-ad6b-a92f-3bf7-eeb1ebfe1884"
-                target="_blank"
-                rel="noreferrer"
+              <Link
+                to="/book"
                 className="inline-flex items-center justify-center gap-2 rounded-2xl border bg-[var(--color-blue)] hover:bg-[var(--color-bluedarker)] border-white/15  px-5 py-3 font-semibold text-white/90 backdrop-blur transition"
               >
                 Secure your Spot
                 <RxCrosshair2 className="text-lg" />
-              </a>
+              </Link>
               <Link
                 to="/contact"
                 className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/5 px-5 py-3 font-medium text-white/90 backdrop-blur transition hover:bg-white/10"

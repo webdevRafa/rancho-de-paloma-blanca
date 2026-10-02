@@ -1,5 +1,9 @@
 # 2026 flat-pricing Firestore cutover
 
+> Historical procedure: for the October 10 postponement, use
+> [the event checklist](2026-back-the-blue-postponement.md). Do not rerun this
+> October 3 migration to change the event date.
+
 The application code supports both the current package windows and the new flat
 pricing configuration. Deploy the compatible code before changing
 `seasonConfig/active`.

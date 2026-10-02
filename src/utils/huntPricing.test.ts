@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { SeasonConfig } from "../types/Types";
 import {
+  BACK_THE_BLUE_DATE,
   calculateBookingPricing,
   calculateHuntSubtotal,
+  getEventScheduleNotice,
+  getPricingWindowForDate,
 } from "./huntPricing";
 
 const flatConfig: SeasonConfig = {
@@ -19,20 +22,20 @@ const flatConfig: SeasonConfig = {
   pricingWindows: [
     {
       start: "2026-09-01",
-      end: "2026-10-02",
+      end: "2026-10-09",
       type: "flat",
       rate: 150,
     },
     {
-      start: "2026-10-03",
-      end: "2026-10-03",
+      start: "2026-10-10",
+      end: "2026-10-10",
       type: "flat",
       rate: 50,
       label: "Back the Blue",
       requiresDisclaimer: true,
     },
     {
-      start: "2026-10-04",
+      start: "2026-10-11",
       end: "2026-10-25",
       type: "flat",
       rate: 150,
@@ -52,18 +55,30 @@ describe("flat hunt pricing", () => {
     ).toBe(900);
   });
 
-  it("keeps October 3 at $50 per hunter", () => {
-    expect(calculateHuntSubtotal(["2026-10-03"], 4, flatConfig)).toBe(200);
+  it("charges the event rate only on October 10", () => {
+    expect(BACK_THE_BLUE_DATE).toBe("2026-10-10");
+    expect(calculateHuntSubtotal(["2026-10-10"], 4, flatConfig)).toBe(200);
+    expect(calculateHuntSubtotal(["2026-10-03"], 4, flatConfig)).toBe(600);
+    expect(getPricingWindowForDate("2026-10-10", flatConfig)?.requiresDisclaimer).toBe(true);
+    expect(getPricingWindowForDate("2026-10-03", flatConfig)?.requiresDisclaimer).not.toBe(true);
   });
 
   it("prices a selection across the special event one day at a time", () => {
     expect(
       calculateHuntSubtotal(
-        ["2026-10-02", "2026-10-03", "2026-10-04"],
+        ["2026-10-09", "2026-10-10", "2026-10-11"],
         2,
         flatConfig
       )
     ).toBe(700);
+  });
+
+  it("covers every season day exactly once with the expected rate", () => {
+    for (let day = new Date("2026-09-01T12:00:00Z"); day <= new Date("2026-10-25T12:00:00Z"); day.setUTCDate(day.getUTCDate() + 1)) {
+      const iso = day.toISOString().slice(0, 10);
+      expect(flatConfig.pricingWindows?.filter((window) => iso >= window.start && iso <= window.end)).toHaveLength(1);
+      expect(calculateHuntSubtotal([iso], 1, flatConfig)).toBe(iso === BACK_THE_BLUE_DATE ? 50 : 150);
+    }
   });
 
   it("adds the Party Deck once per selected deck day", () => {
@@ -88,6 +103,43 @@ describe("flat hunt pricing", () => {
 
     expect(result.invalidDates).toEqual(["2026-08-31", "2026-10-26"]);
     expect(result.bookingTotal).toBe(150);
+  });
+});
+
+describe("event schedule cutover", () => {
+  const oldConfig: SeasonConfig = {
+    ...flatConfig,
+    pricingWindows: [
+      { start: "2026-09-01", end: "2026-10-02", type: "flat", rate: 150 },
+      { start: "2026-10-03", end: "2026-10-03", type: "flat", rate: 50, requiresDisclaimer: true },
+      { start: "2026-10-04", end: "2026-10-25", type: "flat", rate: 150 },
+    ],
+  };
+
+  it("pauses affected new bookings while Firestore still uses October 3", () => {
+    expect(getEventScheduleNotice(["2026-10-03"], oldConfig)).toContain("October 10");
+    expect(getEventScheduleNotice(["2026-10-10"], oldConfig)).toContain("October 10");
+    expect(getEventScheduleNotice(["2026-10-17"], oldConfig)).toBeNull();
+  });
+
+  it("blocks an overlapping event window even if the event was moved", () => {
+    const overlap: SeasonConfig = {
+      ...oldConfig,
+      pricingWindows: [
+        oldConfig.pricingWindows![0],
+        flatConfig.pricingWindows![1],
+        oldConfig.pricingWindows![2],
+      ],
+    };
+    expect(getEventScheduleNotice(["2026-10-10"], overlap)).not.toBeNull();
+  });
+
+  it("allows the corrected schedule without mutating the config or saved dates", () => {
+    const dates = ["2026-10-03", "2026-10-09", "2026-10-10", "2026-10-11"];
+    const before = JSON.stringify(flatConfig);
+    expect(getEventScheduleNotice(dates, flatConfig)).toBeNull();
+    expect(dates).toEqual(["2026-10-03", "2026-10-09", "2026-10-10", "2026-10-11"]);
+    expect(JSON.stringify(flatConfig)).toBe(before);
   });
 });
 
