@@ -50,7 +50,7 @@ export default function AboutPage() {
               {...fadeUp(0.16)}
             >
               Rancho de Paloma Blanca is a premier dove hunting operation
-              proudly run under the 1419 Ranch in Brownsville, Texas. Managed by
+              proudly run under the 1419 Ranch in Rio Hondo, Texas. Managed by
               Steve Clark and Ray Loop, this family-owned and operated ranch has
               been rooted in the region for over 100 years. With more than 30
               years of experience in the dove hunting industry, we’re committed
@@ -68,7 +68,7 @@ export default function AboutPage() {
           >
             <h3 className="font-gin text-white text-xl mb-1">Where We Hunt</h3>
             <p className="text-sm md:text-base text-neutral-200/90 font-acumin">
-              Brownsville, Texas — part of a storied South Texas migration path
+              Rio Hondo, Texas — part of a storied South Texas migration path
               and home to our expansive fields and amenities.
             </p>
           </motion.div>

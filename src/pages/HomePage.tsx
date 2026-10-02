@@ -27,7 +27,7 @@ const EASE = [0.16, 1, 0.3, 1] as const;
 
 const RAIL_ITEMS = [
   "White-wing dove country",
-  "Brownsville, Texas",
+  "Rio Hondo, Texas",
   "Family owned",
   "Rooted at 1419 Ranch",
 ] as const;
@@ -127,14 +127,14 @@ const HomePage = () => {
           >
             <p className="home-eyebrow">
               <MapPin aria-hidden="true" />
-              Brownsville, Texas
+              Rio Hondo, Texas
             </p>
             <h1 id="home-hero-title">
               Where South Texas{" "}
               <span>takes flight.</span>
             </h1>
             <p className="home-hero__lede">
-              Come hunt Brownsville&apos;s open fields with good people beside
+              Come hunt Rio Hondo&apos;s open fields with good people beside
               you and white-wings moving overhead. That&apos;s what a day at
               Rancho de Paloma Blanca is all about.
             </p>
@@ -218,7 +218,7 @@ const HomePage = () => {
             <p>
               We keep things straightforward: cared-for fields, clear online
               booking, and a warm South Texas welcome that can turn one morning
-              in Brownsville into a tradition of your own.
+              in Rio Hondo into a tradition of your own.
             </p>
             <Link className="home-text-link" to="/about">
               Our story
@@ -318,7 +318,7 @@ const HomePage = () => {
                 <span>The flight</span>
                 <h3>Hunt beneath a wide South Texas sky.</h3>
                 <p>
-                  Brownsville fields set along a well-traveled dove migration
+                  Rio Hondo fields set along a well-traveled dove migration
                   path.
                 </p>
               </div>
@@ -478,7 +478,7 @@ const HomePage = () => {
           <p className="home-kicker">Come hunt with us</p>
           <h2 id="final-title">A good day in the field starts here.</h2>
           <p>
-            Pick your date, bring your people, and meet us in Brownsville.
+            Pick your date, bring your people, and meet us in Rio Hondo.
           </p>
           <div className="home-actions home-actions--centered">
             <Link className="home-button home-button--primary" to="/book">

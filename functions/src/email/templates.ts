@@ -334,7 +334,7 @@ function emailShell(args: {
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;border-collapse:collapse;background:#fffdf9;border:1px solid #ded4c7">
               <tr>
                 <td style="padding:25px 28px;background:#160d08;border-bottom:3px solid #d9b56a">
-                  <div style="color:#d9b56a;font-family:Arial,sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase">Brownsville, Texas</div>
+                  <div style="color:#d9b56a;font-family:Arial,sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase">Rio Hondo, Texas</div>
                   <div style="margin-top:7px;color:#fff9ef;font-family:Georgia,serif;font-size:22px;font-weight:700">${RANCH_NAME}</div>
                 </td>
               </tr>
