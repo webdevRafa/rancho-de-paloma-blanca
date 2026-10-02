@@ -104,6 +104,11 @@ const BookingPage = () => {
                 <strong>$50 Back the Blue</strong>
               </div>
             </div>
+            <p className="booking-hero__lede">
+              Our hunting locations are in Brownsville and Rio Hondo, Texas.
+              Contact the ranch to confirm the location for your hunt.
+              We welcome up to 100 hunters per day across both locations combined.
+            </p>
           </motion.div>
 
           <motion.aside

@@ -24,8 +24,11 @@ export default function BackTheBlueEventCard() {
           <span>Saturday, {BACK_THE_BLUE_DATE_LABEL}</span>
         </p>
         <p className="flex items-center gap-3">
-          <MapPin size={18} aria-hidden="true" />
-          <span>Rio Hondo, Texas</span>
+          <MapPin size={18} className="shrink-0" aria-hidden="true" />
+          <span>Ranch locations: Brownsville and Rio Hondo, Texas</span>
+        </p>
+        <p className="text-blue-100">
+          Contact the ranch to confirm the location for your hunt.
         </p>
       </div>
       <p className="border-t border-white/20 pt-5 text-lg font-semibold">

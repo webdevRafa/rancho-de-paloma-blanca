@@ -1144,10 +1144,13 @@ const BookingForm = () => {
 
                             <div className="flex items-start justify-between gap-4 border-b border-black/5 pb-3">
                               <span className="text-[var(--color-footer)]/70">
-                                Location
+                                Ranch locations
                               </span>
                               <span className="font-semibold text-right">
-                                Rio Hondo, Texas
+                                Brownsville and Rio Hondo, Texas
+                                <span className="mt-1 block text-sm font-normal">
+                                  Contact the ranch to confirm the location for your hunt.
+                                </span>
                               </span>
                             </div>
 

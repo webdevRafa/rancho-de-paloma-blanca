@@ -34,13 +34,17 @@ describe("booking page event announcement", () => {
     expect(html).not.toContain("October 3");
     expect(html).toContain("first responders and their guests");
     expect(html).toContain("$50");
+    expect(html).toContain("Brownsville and Rio Hondo, Texas");
+    expect(html).toContain("Contact the ranch to confirm the location for your hunt.");
+    expect(html).toContain("100 hunters per day across both locations combined");
     expect(html).toContain(signedIn ? "Enter Party Size" : "Sign in to see live availability.");
   });
 
   it("uses current text instead of the outdated printed flyer", () => {
     const html = renderToStaticMarkup(<BackTheBlueEventCard />);
     expect(html).toContain("October 10, 2026");
-    expect(html).toContain("Rio Hondo, Texas");
+    expect(html).toContain("Ranch locations: Brownsville and Rio Hondo, Texas");
+    expect(html).toContain("Contact the ranch to confirm the location for your hunt.");
     expect(html).toContain("first responders and their guests");
     expect(html).not.toContain("<img");
     expect(html).not.toContain("October 3");

@@ -56,11 +56,11 @@ const HeroSection = () => {
           id="info"
           className="text-2xl lg:text-4xl mb-2 text-white pt-10 font-gin uppercase"
         >
-          Rio Hondo’s Premier Dove Hunting Destination
+          Dove Hunting in Brownsville and Rio Hondo, Texas
         </h2>
         <p className="text-md max-w-3xl mx-auto mb-10 px-10">
           Rooted in South Texas tradition, Rancho de Paloma Blanca brings
-          hunters to Rio Hondo for unmatched dove hunting and authentic ranch
+          hunters to Brownsville and Rio Hondo for unmatched dove hunting and authentic ranch
           hospitality.
         </p>
       </div>

@@ -83,8 +83,8 @@ const BackTheBluePage = () => {
                   and other first responders, along with their guests
                 </li>
                 <li>
-                  🌵 <strong>Where:</strong> Rancho de Paloma Blanca —
-                  Rio Hondo, TX
+                  🌵 <strong>Ranch locations:</strong> Brownsville and Rio Hondo, Texas.
+                  Contact the ranch to confirm the location for your hunt.
                 </li>
               </ul>
 

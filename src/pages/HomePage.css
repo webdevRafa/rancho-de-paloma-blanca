@@ -48,6 +48,11 @@
 .home-eyebrow svg {
   width: 0.95rem;
   height: 0.95rem;
+  flex-shrink: 0;
+}
+
+.home-eyebrow {
+  line-height: 1.5;
 }
 
 .home-page h1,

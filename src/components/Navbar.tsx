@@ -225,7 +225,7 @@ export default function Navbar() {
                   <img src={logo} alt="" />
                   <span>
                     <strong>Rancho de Paloma Blanca</strong>
-                    <small>Rio Hondo, Texas</small>
+                    <small>Brownsville and Rio Hondo, Texas</small>
                   </span>
                 </Link>
                 <button
@@ -346,7 +346,7 @@ export default function Navbar() {
                   </motion.button>
                 )}
 
-                <p>Rancho de Paloma Blanca · Rio Hondo, Texas</p>
+                <p>Rancho de Paloma Blanca · Brownsville and Rio Hondo, Texas</p>
               </div>
               </div>
             </motion.aside>

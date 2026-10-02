@@ -11,6 +11,7 @@ import {
 import type { Availability, SeasonConfig } from "../types/Types";
 import { DayPicker } from "react-day-picker";
 import { BACK_THE_BLUE_DATE } from "../utils/huntPricing";
+import { getBookingCalendarDate } from "../utils/bookingCalendar";
 import "react-day-picker/dist/style.css";
 // react-day-picker dates can behave like UTC calendar dates,
 // so use UTC getters here to avoid the one-day-back bug.
@@ -50,6 +51,7 @@ const DateSelector = ({
 
   const rawStart = seasonConfig?.seasonStart?.replace(/"/g, "") ?? "";
   const rawEnd = seasonConfig?.seasonEnd?.replace(/"/g, "") ?? "";
+  const defaultCalendarDate = getBookingCalendarDate(todayStr, rawStart, rawEnd);
   const selectedDatesKey = useMemo(
     () => [...selectedDates].sort().join("|"),
     [selectedDates]
@@ -81,12 +83,8 @@ const DateSelector = ({
       return;
     }
 
-    if (rawStart) {
-      setMonth(isoToLocalDate(rawStart));
-    } else {
-      setMonth(undefined);
-    }
-  }, [selectedDatesKey, rawStart]);
+    setMonth(isoToLocalDate(defaultCalendarDate));
+  }, [selectedDatesKey, defaultCalendarDate]);
 
   useEffect(() => {
     const fetchAvailability = async () => {
@@ -171,11 +169,10 @@ const DateSelector = ({
       <div className="date-selector touch-manipulation w-full max-w-[560px] px-2 sm:px-3">
         <DayPicker
           mode="multiple"
-          month={month}
+          month={month ?? isoToLocalDate(defaultCalendarDate)}
           onMonthChange={setMonth}
           startMonth={rawStart ? new Date(`${rawStart}T00:00:00`) : undefined}
           endMonth={rawEnd ? new Date(`${rawEnd}T00:00:00`) : undefined}
-          defaultMonth={rawStart ? new Date(`${rawStart}T00:00:00`) : undefined}
           selected={selected}
           onSelect={handleSelect}
           disabled={isDateBlocked}
