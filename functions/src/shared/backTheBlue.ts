@@ -1,9 +1,9 @@
 // Shared by the website and email templates. Pricing still comes from Firestore.
-export const BACK_THE_BLUE_DATE = "2026-10-10";
-export const BACK_THE_BLUE_DATE_LABEL = "October 10, 2026";
-export const BACK_THE_BLUE_DATE_SHORT_LABEL = "October 10";
+export const BACK_THE_BLUE_DATE = "2026-10-16";
+export const BACK_THE_BLUE_DATE_LABEL = "October 16, 2026";
+export const BACK_THE_BLUE_DATE_SHORT_LABEL = "October 16";
 export const BACK_THE_BLUE_RESCHEDULE_NOTICE =
-  "Rescheduled to October 10 due to weather.";
+  "Rescheduled to Friday, October 16 due to weather.";
 export const BACK_THE_BLUE_ELIGIBILITY =
   "This event is for qualifying first responders and their guests. The first responder on the booking must provide proof of eligibility at check-in. Bookings that do not meet this requirement will be turned away without a refund.";
 export const BACK_THE_BLUE_DISCLAIMER =

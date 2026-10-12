@@ -22,20 +22,20 @@ const flatConfig: SeasonConfig = {
   pricingWindows: [
     {
       start: "2026-09-01",
-      end: "2026-10-09",
+      end: "2026-10-15",
       type: "flat",
       rate: 150,
     },
     {
-      start: "2026-10-10",
-      end: "2026-10-10",
+      start: "2026-10-16",
+      end: "2026-10-16",
       type: "flat",
       rate: 50,
       label: "Back the Blue",
       requiresDisclaimer: true,
     },
     {
-      start: "2026-10-11",
+      start: "2026-10-17",
       end: "2026-10-25",
       type: "flat",
       rate: 150,
@@ -55,18 +55,18 @@ describe("flat hunt pricing", () => {
     ).toBe(900);
   });
 
-  it("charges the event rate only on October 10", () => {
-    expect(BACK_THE_BLUE_DATE).toBe("2026-10-10");
-    expect(calculateHuntSubtotal(["2026-10-10"], 4, flatConfig)).toBe(200);
+  it("charges the event rate only on October 16", () => {
+    expect(BACK_THE_BLUE_DATE).toBe("2026-10-16");
+    expect(calculateHuntSubtotal(["2026-10-16"], 4, flatConfig)).toBe(200);
     expect(calculateHuntSubtotal(["2026-10-03"], 4, flatConfig)).toBe(600);
-    expect(getPricingWindowForDate("2026-10-10", flatConfig)?.requiresDisclaimer).toBe(true);
+    expect(getPricingWindowForDate("2026-10-16", flatConfig)?.requiresDisclaimer).toBe(true);
     expect(getPricingWindowForDate("2026-10-03", flatConfig)?.requiresDisclaimer).not.toBe(true);
   });
 
   it("prices a selection across the special event one day at a time", () => {
     expect(
       calculateHuntSubtotal(
-        ["2026-10-09", "2026-10-10", "2026-10-11"],
+        ["2026-10-15", "2026-10-16", "2026-10-17"],
         2,
         flatConfig
       )
@@ -110,15 +110,15 @@ describe("event schedule cutover", () => {
   const oldConfig: SeasonConfig = {
     ...flatConfig,
     pricingWindows: [
-      { start: "2026-09-01", end: "2026-10-02", type: "flat", rate: 150 },
-      { start: "2026-10-03", end: "2026-10-03", type: "flat", rate: 50, requiresDisclaimer: true },
-      { start: "2026-10-04", end: "2026-10-25", type: "flat", rate: 150 },
+      { start: "2026-09-01", end: "2026-10-09", type: "flat", rate: 150 },
+      { start: "2026-10-10", end: "2026-10-10", type: "flat", rate: 50, requiresDisclaimer: true },
+      { start: "2026-10-11", end: "2026-10-25", type: "flat", rate: 150 },
     ],
   };
 
-  it("pauses affected new bookings while Firestore still uses October 3", () => {
-    expect(getEventScheduleNotice(["2026-10-03"], oldConfig)).toContain("October 10");
-    expect(getEventScheduleNotice(["2026-10-10"], oldConfig)).toContain("October 10");
+  it("pauses affected new bookings while Firestore still uses October 10", () => {
+    expect(getEventScheduleNotice(["2026-10-10"], oldConfig)).toContain("October 16");
+    expect(getEventScheduleNotice(["2026-10-16"], oldConfig)).toContain("October 16");
     expect(getEventScheduleNotice(["2026-10-17"], oldConfig)).toBeNull();
   });
 
@@ -131,14 +131,14 @@ describe("event schedule cutover", () => {
         oldConfig.pricingWindows![2],
       ],
     };
-    expect(getEventScheduleNotice(["2026-10-10"], overlap)).not.toBeNull();
+    expect(getEventScheduleNotice(["2026-10-16"], overlap)).not.toBeNull();
   });
 
   it("allows the corrected schedule without mutating the config or saved dates", () => {
-    const dates = ["2026-10-03", "2026-10-09", "2026-10-10", "2026-10-11"];
+    const dates = ["2026-10-15", "2026-10-16", "2026-10-17"];
     const before = JSON.stringify(flatConfig);
     expect(getEventScheduleNotice(dates, flatConfig)).toBeNull();
-    expect(dates).toEqual(["2026-10-03", "2026-10-09", "2026-10-10", "2026-10-11"]);
+    expect(dates).toEqual(["2026-10-15", "2026-10-16", "2026-10-17"]);
     expect(JSON.stringify(flatConfig)).toBe(before);
   });
 });

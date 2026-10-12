@@ -1,6 +1,9 @@
 import type { PricingWindow, SeasonConfig } from "../types/Types";
 
-import { BACK_THE_BLUE_DATE } from "../../functions/src/shared/backTheBlue";
+import {
+  BACK_THE_BLUE_DATE,
+  BACK_THE_BLUE_DATE_LABEL,
+} from "../../functions/src/shared/backTheBlue";
 export {
   BACK_THE_BLUE_DATE,
   BACK_THE_BLUE_DATE_LABEL,
@@ -35,7 +38,7 @@ export const getEventScheduleNotice = (
     );
   });
   return mismatched
-    ? "Back the Blue has moved to October 10. Booking for your selected dates is being updated. Please refresh and try again shortly, or contact the ranch for help."
+    ? `Back the Blue has moved to ${BACK_THE_BLUE_DATE_LABEL}. Booking for your selected dates is being updated. Please refresh and try again shortly, or contact the ranch for help.`
     : null;
 };
 

@@ -57,9 +57,9 @@ const BackTheBluePage = () => {
 
             <div className="mt-6 space-y-4 text-[15px] leading-relaxed text-white/90">
               <p>
-                On <strong>Saturday, {BACK_THE_BLUE_DATE_LABEL}</strong>, Rancho de Paloma
+                On <strong>Friday, {BACK_THE_BLUE_DATE_LABEL}</strong>, Rancho de Paloma
                 Blanca is proud to host our{" "}
-                <strong>Back the Blue Dove Hunt</strong>, postponed one week due to weather. This
+                <strong>Back the Blue Dove Hunt</strong>, rescheduled due to weather. This
                 special event is dedicated to first responders — police, fire,
                 EMS, and other frontline heroes.
               </p>
@@ -73,7 +73,7 @@ const BackTheBluePage = () => {
 
               <ul className="mt-2 space-y-2 rounded-xl border border-white/10 bg-white/5 p-4">
                 <li>
-                  🗓 <strong>Date:</strong> Saturday, {BACK_THE_BLUE_DATE_LABEL}
+                  🗓 <strong>Date:</strong> Friday, {BACK_THE_BLUE_DATE_LABEL}
                 </li>
                 <li>
                   🎯 <strong>Rate:</strong> $50 per hunter, per day

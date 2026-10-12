@@ -21,7 +21,7 @@ export default function BackTheBlueEventCard() {
       <div className="space-y-3 text-sm leading-6">
         <p className="flex items-center gap-3">
           <CalendarDays size={18} aria-hidden="true" />
-          <span>Saturday, {BACK_THE_BLUE_DATE_LABEL}</span>
+          <span>Friday, {BACK_THE_BLUE_DATE_LABEL}</span>
         </p>
         <p className="flex items-center gap-3">
           <MapPin size={18} className="shrink-0" aria-hidden="true" />
